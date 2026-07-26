@@ -456,6 +456,12 @@ export default function AdminBibliotecas() {
           >
             {expandidaConfig === b._id ? "Ocultar préstamos" : "Configurar préstamos"}
           </button>{" "}
+          <button
+            className="secundario"
+            onClick={() => window.open(`/opac/${b.codigo}`, "_blank", "noopener,noreferrer")}
+          >
+            Ver OPAC
+          </button>{" "}
           {sesion?.rol === "admin" && (
             <button className="peligro" onClick={() => onEliminar(b._id)}>
               Eliminar biblioteca

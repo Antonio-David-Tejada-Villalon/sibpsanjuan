@@ -357,6 +357,10 @@ bibliotecarios directamente, y el reseteo de contraseña sin la actual vía
 con el gate de rol ampliado sobre el mismo modelo `Usuario` de siempre, sin
 campos nuevos ni backfill.
 
+El botón "Ver OPAC" en cada tarjeta de biblioteca (panel de Bibliotecas)
+y la corrección de legibilidad del favicon/`og:image` son 100% frontend
+— sin cambio de schema, variables de entorno ni dependencias nuevas.
+
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan
 apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el

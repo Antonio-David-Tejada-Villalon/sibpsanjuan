@@ -249,6 +249,10 @@ contra la base real.
   (para bibliotecas que cierran esos días — ver `contarSabados`/
   `contarDomingos` en `Biblioteca.js` y el conteo día-hábil-por-día en
   `circulacion/reglas.js`).
+- Cada tarjeta de biblioteca en "Bibliotecas" (admin/supervisor) tiene un
+  botón **"Ver OPAC"** que abre el catálogo público de esa biblioteca en
+  una pestaña nueva (`/opac/<código>`) — para revisar cómo queda de cara
+  al público sin salir del panel.
 - La URL de acceso (`urlAcceso` — 856$u) y los ejemplares físicos **no son
   excluyentes**: un mismo título puede tener las dos cosas (ej. un libro
   con copias impresas y además una versión digital de consulta). El OPAC
