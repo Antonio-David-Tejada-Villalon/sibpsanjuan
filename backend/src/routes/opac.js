@@ -304,10 +304,17 @@ router.get("/materias", async (req, res) => {
 
 // --- Login del socio ---
 router.post("/login", crearLimitadorLogin(), async (req, res) => {
-  const { numeroSocio, password } = req.body || {};
+  const numeroSocio = typeof req.body?.numeroSocio === "string" ? req.body.numeroSocio.trim() : req.body?.numeroSocio;
+  const { password } = req.body || {};
   if (typeof numeroSocio !== "string" || typeof password !== "string" || !numeroSocio || !password) {
     return res.status(400).json({ error: "Número de socio y contraseña son obligatorios." });
   }
+  // El número de socio se guarda "trim" (ver models/Socio.js) — sin este
+  // mismo trim acá, un espacio de más al tipearlo (o pegado desde otro
+  // lado) hacía que el findOne exacto no encontrara nada y devolviera el
+  // mismo error genérico que una contraseña incorrecta, indistinguible
+  // para quien está probando. La contraseña NO se toca: un espacio ahí
+  // podría ser parte real de la contraseña.
   const socio = await Socio.findOne({ bibliotecaId: req.biblioteca._id, numeroSocio, eliminadoEn: null });
   if (!socio || !socio.passwordHash || !(await bcrypt.compare(password, socio.passwordHash))) {
     return res.status(401).json({ error: "Número de socio o contraseña incorrectos." });

@@ -361,6 +361,15 @@ test("flujo completo de circulación: socio solicita, staff aprueba, devuelve, r
   assert.equal(res.status, 200);
   const cookieSocio = extraerCookie(res);
 
+  // --- un espacio de más al tipear el número de socio no rompe el login
+  // (numeroSocio se guarda "trim", el login tiene que buscarlo igual) ---
+  res = await fetch(`${base}/api/opac/bpcirc/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ numeroSocio: "  0001  ", password: "clavesociosegura" }),
+  });
+  assert.equal(res.status, 200, "un número de socio con espacios de más igual debería loguear");
+
   // --- sesión de socio no puede tocar rutas de staff: la cookie de socio
   // usa un nombre distinto ("token_socio") al de staff ("token"), así que
   // la ruta de staff ni siquiera la reconoce como sesión propia (401),
