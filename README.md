@@ -1,4 +1,4 @@
-# Captura DigiBepé — MERN
+# SIBPSANJUAN — MERN
 
 Herramienta liviana para cargar material bibliográfico y socios
 **ahora**, sin necesitar un servidor propio ni un dominio pagado, y
@@ -124,9 +124,13 @@ staff los carga y el OPAC los muestra como catálogo de solo consulta.
 
 ## Arquitectura
 
-Un único servicio Node/Express sirve la API **y** el build de React ya
-compilado — una sola URL, sin CORS, sin una segunda cuenta de hosting.
-MongoDB Atlas (free tier M0) como base de datos.
+Por defecto, un único servicio Node/Express sirve la API **y** el build de
+React ya compilado — una sola URL, sin CORS, sin una segunda cuenta de
+hosting. MongoDB Atlas (free tier M0) como base de datos. También se puede
+desplegar el frontend aparte (ej. Vercel) con el backend en Render —
+ver "Opción C" en `DEPLOY.md` — activando CORS y `sameSite=none` en la
+cookie de sesión solo para ese caso (`FRONTEND_URL`/`COOKIE_SAMESITE`,
+apagado por default).
 
 Cada página del panel y del OPAC se carga en su propio chunk
 (`React.lazy`/`Suspense` en `App.jsx`, ver FE-6 en `AUDITORIA.md`) — el

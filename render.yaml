@@ -1,16 +1,16 @@
 # Blueprint de Render — permite desplegar con un solo comando de terminal
 # (render blueprints launch) en vez de clickear el dashboard.
 #
-# Asume que esta carpeta (digibepe-captura/) es la raíz del repo que
+# Asume que esta carpeta (sibpsanjuan/) es la raíz del repo que
 # conectás a Render. Si en tu repo está anidada más adentro, agregá
-# "rootDir: digibepe-captura" debajo de "name:".
+# "rootDir: sibpsanjuan" debajo de "name:".
 #
 # Los valores con "sync: false" NO se guardan acá (no hay secretos en este
 # archivo) — Render los pide una sola vez, en el momento de crear el
 # Blueprint desde la terminal o el dashboard.
 
 services:
-  - name: digibepe-captura
+  - name: sibpsanjuan
     type: web
     runtime: node
     plan: free

@@ -1,5 +1,5 @@
 {
-  "name": "digibepe-captura-backend",
+  "name": "sibpsanjuan-backend",
   "version": "1.0.0",
   "private": true,
   "description": "API de captura de libros y socios, exportable a DigiBepé/Koha (MARCXML + CSV).",
@@ -17,6 +17,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.0",
     "dotenv": "^16.4.5",

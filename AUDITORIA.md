@@ -1,4 +1,4 @@
-# Auditoría integral — Captura DigiBepé
+# Auditoría integral — SIBPSANJUAN
 
 Auditoría de todo el sistema (backend + frontend + OPAC) desde 9 perspectivas
 distintas, a pedido del equipo de producto. No es la primera pasada: el

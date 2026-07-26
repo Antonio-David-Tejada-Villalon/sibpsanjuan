@@ -79,7 +79,7 @@ function MenuDesplegable({ etiqueta, rutas, children }) {
 // servidor vía requierePermiso.
 // Orden calcado del módulo de Koha (Circulación, Usuarios, Catalogación,
 // ...Administración al final) — mismo orden relativo que en la interfaz de
-// referencia, salteando los módulos que Captura DigiBepé todavía no tiene
+// referencia, salteando los módulos que SIBPSANJUAN todavía no tiene
 // (Adquisiciones, Informes, Herramientas, Autoridades, etc.).
 // admin y supervisor tienen acceso completo dentro de la biblioteca activa
 // que hayan elegido (ver SelectorBibliotecaActiva) — mismo criterio que
@@ -192,7 +192,7 @@ export default function Layout({ children }) {
         <div className="brand-nav">
           <span className="brand">
             <img src="/DBP.png" alt="" width="28" height="28" />
-            Captura DigiBepé
+            SIBPSANJUAN
           </span>
           <nav>
             {(sesion?.rol === "admin" || sesion?.rol === "supervisor") && (

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import { conectarDB } from "./db.js";
@@ -56,6 +57,21 @@ export function crearApp() {
       },
     })
   );
+  // Sin FRONTEND_URL (el despliegue de hoy: un solo servicio Express
+  // sirviendo API + build), no se monta ningún middleware de CORS — mismo
+  // comportamiento same-origin de siempre. Se activa solo si el frontend se
+  // despliega aparte (ej. Vercel) apuntando acá vía VITE_API_URL — ver
+  // "Vercel + Render" en DEPLOY.md. `credentials: true` es necesario porque
+  // la sesión viaja en cookie httpOnly, no en un header Authorization.
+  if (process.env.FRONTEND_URL) {
+    const origenPermitido = process.env.FRONTEND_URL;
+    app.use(
+      cors({
+        origin: (origin, callback) => callback(null, !origin || origin === origenPermitido),
+        credentials: true,
+      })
+    );
+  }
   // Límite explícito en vez de heredar el default de body-parser (100kb)
   // sin documentar por qué alcanza (ver CYBER-6 en AUDITORIA.md) — 2mb
   // cubre con margen la carga masiva de CSV (`POST /libros/importar-csv`,
@@ -126,7 +142,7 @@ async function main() {
   const app = crearApp();
   const puerto = process.env.PORT || 3000;
   app.listen(puerto, () => {
-    console.log(`digibepe-captura escuchando en :${puerto}`);
+    console.log(`sibpsanjuan escuchando en :${puerto}`);
   });
 }
 

@@ -21,7 +21,7 @@
 
 ## Aviso de privacidad para socios
 
-**Quiénes somos.** Esta biblioteca usa Captura DigiBepé para gestionar su
+**Quiénes somos.** Esta biblioteca usa SIBPSANJUAN para gestionar su
 catálogo, sus socios y sus préstamos.
 
 **Qué datos guardamos de vos.** Cuando te asociás, guardamos: tu número de

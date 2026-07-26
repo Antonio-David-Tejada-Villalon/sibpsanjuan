@@ -1,4 +1,4 @@
-# Despliegue gratuito — Captura DigiBepé
+# Despliegue gratuito — SIBPSANJUAN
 
 Sin VPS, sin dominio pagado. Dos cuentas gratuitas: MongoDB Atlas (base
 de datos) y Render (donde corre la app). Los pasos de las interfaces de
@@ -37,7 +37,7 @@ atlas auth login   # abre el navegador una vez, para el login
 # Crea org/proyecto + cluster M0 gratis + usuario + acceso de red, todo
 # en un solo comando no interactivo:
 atlas setup \
-  --clusterName digibepe-captura \
+  --clusterName sibpsanjuan \
   --provider AWS --region US_EAST_1 \
   --username appuser --password "unaClaveLargaYAlAzar" \
   --accessListIp 0.0.0.0/0 \
@@ -95,14 +95,14 @@ render services logs <SERVICE_ID>            # logs en vivo
 ### 2. Repositorio
 
 Render despliega desde un repositorio Git (GitHub/GitLab/Bitbucket).
-Subí esta carpeta (`digibepe-captura/`) a un repo propio si todavía no
+Subí esta carpeta (`sibpsanjuan/`) a un repo propio si todavía no
 lo está.
 
 ### 3. Backend + frontend: un solo servicio en Render (gratis)
 
 1. Creá una cuenta en Render y un "Web Service" nuevo apuntando a tu
    repositorio.
-2. Root directory: `digibepe-captura/backend` (o la ruta que corresponda
+2. Root directory: `sibpsanjuan/backend` (o la ruta que corresponda
    en tu repo).
 3. **Build command** (compila el frontend y lo deja donde Express lo
    sirve):
@@ -137,7 +137,59 @@ catálogo público del OPAC (pasados ~2.5s sin respuesta, ver GOB-4 en
 `AUDITORIA.md`) — igual conviene avisarle a quien vaya a usarlo, porque
 la primera vez que lo ve nadie sabe todavía que es normal.
 
-## Primer admin (con cualquiera de las dos opciones)
+## Opción C — Frontend en Vercel + backend en Render
+
+Variante de la Opción A/B: en vez de que Render sirva también el build del
+frontend, el frontend se despliega aparte en Vercel (CDN propio, preview
+deployments por PR, dominio fácil) y solo la API queda en Render. La base de
+datos sigue siendo Atlas en los tres casos — Vercel no incluye base de datos.
+
+Esto **no** es el modo por defecto de esta app (que asume same-origin, un
+solo servicio) — requiere las dos variables nuevas de abajo, pensadas
+para no romper nada de la Opción A/B si no se definen.
+
+### 1. Backend en Render
+
+Igual que la Opción A/B (pasos 1-3), pero con dos variables de entorno más:
+
+- `FRONTEND_URL`: la URL exacta de Vercel, ej. `https://miapp.vercel.app`
+  (sin barra final). Habilita CORS con credenciales solo para ese origen —
+  sin esto, el navegador bloquea los pedidos del frontend por CORS.
+- `COOKIE_SAMESITE`: `none`. Necesario para que el navegador mande la
+  cookie de sesión en pedidos cross-origin (Vercel → Render). Requiere
+  `COOKIE_SECURE=1` (ya es el default) — una cookie `SameSite=None` sin
+  `Secure` es rechazada por el navegador.
+
+El **build command** en este caso es más simple, porque el frontend ya no
+se compila acá:
+```
+npm install
+```
+Y no hace falta la variable `PORT` (Render la define solo).
+
+### 2. Frontend en Vercel
+
+1. Creá una cuenta en Vercel, "Add New… → Project", apuntando al mismo
+   repositorio de GitHub.
+2. **Root Directory**: `frontend` (Vercel detecta Vite automáticamente —
+   build command `npm run build`, output `dist`, no hace falta tocarlos).
+3. Variable de entorno: `VITE_API_URL` = la URL del backend en Render, ej.
+   `https://tuapi.onrender.com` (sin barra final).
+4. `frontend/vercel.json` ya está en el repo con el rewrite necesario para
+   que las rutas de React Router (`/libros`, `/opac/:codigo`, etc.) no den
+   404 al entrar directo o refrescar — Vercel lo toma solo, no hace falta
+   configurar nada a mano para eso.
+5. Deploy. Vercel te da una URL propia (`tuapp.vercel.app`) — de vuelta, no
+   hace falta comprar dominio.
+
+### Orden al desplegar por primera vez
+
+Primero el backend en Render (para tener su URL y ponerla en `VITE_API_URL`
+de Vercel), después el frontend en Vercel (para tener su URL y ponerla en
+`FRONTEND_URL` de Render) — y un último redeploy del backend una vez que
+`FRONTEND_URL` ya está cargado, si el servicio arrancó antes de definirla.
+
+## Primer admin (con cualquiera de las tres opciones)
 
 Una vez desplegado, corré el script de bootstrap **desde tu máquina**,
 apuntando a la base de Atlas (mismo `MONGODB_URI` que configuraste en
@@ -235,6 +287,13 @@ aplica a partir de la próxima vez que ese registro se cree o edite. El
 límite explícito de `express.json` (ver CYBER-6, 2mb) y los try/catch
 agregados en 9 rutas `PUT` (ver ARQ-12) son cambios de comportamiento del
 backend sin ningún impacto de schema ni de deploy.
+
+El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
+`sameSite` configurable de la cookie de sesión son aditivos y quedan
+apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el
+comportamiento same-origin de siempre no cambia. Solo hace falta correr
+`npm install` en `backend/` y, si vas a usar el split de la Opción C,
+definir esas dos variables — ver esa sección para el detalle.
 
 ## Actualizar un despliegue existente (versión con Seriadas/Recursos electrónicos)
 

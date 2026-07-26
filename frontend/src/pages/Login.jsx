@@ -31,7 +31,7 @@ export default function Login() {
         <ThemeToggle />
       </div>
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: 360, margin: "3rem auto" }}>
-        <h1>Captura DigiBepé</h1>
+        <h1>SIBPSANJUAN</h1>
         {error && <div className="flash error" role="alert">{error}</div>}
         <label>
           Usuario

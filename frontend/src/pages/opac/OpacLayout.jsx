@@ -27,7 +27,7 @@ export default function OpacLayout({ children }) {
         <div className="brand-nav">
           <span className="brand">
             <img src="/DBP.png" alt="" width="28" height="28" />
-            Captura DigiBepé
+            SIBPSANJUAN
             <span className="badge-opac">Catálogo público</span>
           </span>
           <nav>

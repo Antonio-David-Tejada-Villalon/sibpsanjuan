@@ -62,7 +62,11 @@ export function firmarTokenSocio(socio) {
 function opcionesCookie() {
   return {
     httpOnly: true,
-    sameSite: "lax",
+    // "lax" (default) alcanza para el despliegue same-origin de hoy. Un
+    // frontend en otro origen (ej. Vercel) necesita "none" para que el
+    // navegador mande la cookie en el fetch cross-origin — requiere Secure
+    // (ver COOKIE_SECURE), así que no tiene efecto en http sin querer.
+    sameSite: process.env.COOKIE_SAMESITE || "lax",
     secure: process.env.COOKIE_SECURE !== "0",
     maxAge: 12 * 60 * 60 * 1000,
   };
