@@ -26,7 +26,7 @@ export default function OpacLayout({ children }) {
       <header className={menuAbierto ? "app app-opac menu-abierto" : "app app-opac"}>
         <div className="brand-nav">
           <span className="brand">
-            <img src="/DBP.png" alt="" width="28" height="28" />
+            <img src="/logo.png" alt="" width="28" height="28" />
             SIBPSANJUAN
             <span className="badge-opac">Catálogo público</span>
           </span>
