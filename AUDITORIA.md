@@ -29,11 +29,16 @@ amplio) · 🟡 Medio (mejora acotada) · 🟢 Bajo (pulido/sugerencia).
 
 ## Resumen ejecutivo — lo más importante primero
 
-**Actualización 26/07/2026 (novena pasada):** 39 hallazgos ya se
+**Actualización 26/07/2026 (décima pasada):** 40 hallazgos ya se
 corrigieron y se verificaron en vivo (tests + Playwright contra una
-instancia aislada), en nueve lotes — **ya no queda ningún hallazgo
-abierto en toda la auditoría.** GOB-3 y A11Y-7 se consultaron con el
-usuario antes de tocarlos, porque no eran decisiones puramente técnicas:
+instancia aislada), en diez lotes — **ya no queda ningún hallazgo
+abierto en toda la auditoría.** El décimo (UX-5) no salió de esta
+auditoría en sí: apareció al investigar un reporte del usuario después de
+desplegar a producción (Vercel + Render + Atlas, ver `DEPLOY.md`), igual
+que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo criterio de
+"lo que se encuentra en el camino se corrige y se documenta acá". GOB-3 y
+A11Y-7 se consultaron con el usuario antes de tocarlos, porque no eran
+decisiones puramente técnicas:
 A11Y-7 quedó resuelto (el foco corregido con `--brand-texto`; los botones
 quedan con el naranja vivo, por decisión de diseño consciente — no una
 tarea pendiente). GOB-3 pasó por dos pasos: primero un borrador
@@ -437,6 +442,32 @@ triplicar la lógica de listar/crear/editar/eliminar en 12 páginas.
   bloqueo de navegación, que este proyecto no usa — ver ARQ-9). 1 test
   nuevo en `Libros.test.jsx` confirma que el aviso aparece con cambios sin
   guardar y desaparece después de guardar o cancelar.
+
+- **UX-5 ✅ Resuelto (26/07/2026) — Descubierto fuera de esta auditoría, a
+  partir de un reporte del usuario ("un socio que crea el superbibliotecario
+  no puede entrar al OPAC, pero uno creado por admin/supervisor sí").**
+  Investigado en vivo de punta a punta (API directa y UI real, biblioteca
+  nueva, supervisor, superbibliotecario, socio) sin lograr reproducirlo — la
+  causa resultó no tener nada que ver con quién crea al socio. Al revisar
+  `POST /opac/:codigo/login` (`routes/opac.js`) para descartar hipótesis, se
+  encontró un bug real y distinto: `numeroSocio` se guarda con `trim` al
+  crear el socio (`models/Socio.js`), pero el login lo buscaba tal cual
+  llegaba en el body, sin recortar — un espacio de más al tipearlo o
+  pegarlo (fácil que pase sin darse cuenta) hacía que el `findOne` no
+  encontrara el socio y devolviera el mismo mensaje genérico que una
+  contraseña incorrecta (mismo mecanismo de UX-1: error indistinguible por
+  diseño, por seguridad, pero acá ocultaba una causa evitable). El caso
+  puntual reportado por el usuario nunca se reprodujo — verificado que
+  admin/supervisor sí ven correctamente los socios que crea un
+  superbibliotecario, y que el login del OPAC funciona igual sin importar
+  quién haya creado la cuenta — así que probablemente haya sido justamente
+  esto: un espacio de más en algún intento de prueba.
+
+  **Arreglo aplicado:** `numeroSocio` se recorta (`trim()`) antes de
+  buscarlo en el login del OPAC, igual que ya se guarda. La contraseña
+  **no** se toca — un espacio ahí podría ser parte real de ella. Test de
+  integración nuevo: un login con `"  0001  "` (espacios de más) contra la
+  contraseña correcta ahora entra igual.
 
 ## 6. Senior Accessibility Engineer — `A11Y-N`
 
@@ -941,5 +972,15 @@ migración de router (ver más abajo):**
     de comportamiento) — verificado con los 27 tests de frontend, el
     build de producción, y navegación en vivo con Playwright, incluida la
     ruta anidada bajo `/opac/:codigo/*`.~~
+
+**✅ Hecho — lote 10 (26/07/2026), aparecido al investigar un reporte del
+usuario ya con el sistema en producción:**
+38. ~~UX-5 — el login del OPAC no recortaba espacios de más en el número
+    de socio, a diferencia de cómo se guarda. No era la causa del caso
+    puntual reportado (nunca se logró reproducir que admin/supervisor no
+    vean un socio creado por el superbibliotecario, ni que su login
+    falle distinto según quién lo haya creado — se verificó extensamente
+    que ambas cosas funcionan bien), pero es un bug real encontrado en el
+    camino y se corrigió igual. Test de integración nuevo.~~
 
 No queda ningún hallazgo abierto en toda la auditoría.

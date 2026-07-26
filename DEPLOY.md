@@ -80,17 +80,38 @@ render services logs <SERVICE_ID>            # logs en vivo
 
 ### 1. Base de datos: MongoDB Atlas (gratis)
 
-1. Creá una cuenta en MongoDB Atlas y un cluster del tier gratuito
-   (M0, 512 MB — alcanza sobra para el catálogo de varias bibliotecas
-   chicas). Al momento de escribir esto no pedía tarjeta para el tier
-   gratuito, pero confirmalo en el signup porque las políticas cambian.
+1. Creá una cuenta en MongoDB Atlas y un cluster del tier gratuito (Atlas
+   lo llama **"Free"** en el selector actual — es el mismo tier que antes
+   se conocía como M0, 512 MB, alcanza de sobra para el catálogo de varias
+   bibliotecas chicas). Al momento de escribir esto no pedía tarjeta para
+   el tier gratuito, pero confirmalo en el signup porque las políticas
+   cambian. La región no es crítica — cualquiera cercana a donde esté la
+   mayoría de tus usuarios anda bien (ej. `sa-east-1`/São Paulo para
+   Argentina).
 2. Creá un usuario de base de datos (usuario + contraseña) — es la
    credencial que va a usar la app para conectarse, no tu login de Atlas.
+   Si usás el asistente **"Automate security setup"** al crear el cluster,
+   Atlas te lo crea solo (con acceso de administrador) y te muestra la
+   contraseña **una sola vez** — copiala en ese momento, no la vas a poder
+   ver de nuevo (si la perdés, "Database Access" → tu usuario → "Edit
+   Password" → "Autogenerate" te genera una nueva).
 3. En "Network Access", permití conexiones desde cualquier IP
-   (`0.0.0.0/0`) — Render no tiene una IP fija en el tier gratuito, así
-   que restringir por IP no es viable acá.
-4. Copiá el "connection string" (botón "Connect" → "Drivers") — es la
-   `MONGODB_URI` que vas a necesitar en el paso 3.
+   (`0.0.0.0/0`, botón "Allow Access from Anywhere") — Render no tiene una
+   IP fija en el tier gratuito, así que restringir por IP no es viable
+   acá. **Ojo si usaste "Automate security setup" en el paso 1**: ese
+   asistente solo agrega tu propia IP actual a la lista ("for local
+   connectivity"), no `0.0.0.0/0` — hay que sumarlo aparte, a mano, en
+   "Network Access", o el backend en Render no va a poder conectarse
+   nunca (el error que da Node en ese caso no menciona IPs para nada —
+   sale como un fallo de negociación TLS genérico, confuso de diagnosticar
+   si no se sabe que es esto).
+4. Copiá el "connection string" (botón "Connect" → elegí un método de
+   conexión → "Drivers") — es la `MONGODB_URI` que vas a necesitar en el
+   paso 3. Ahí mismo tenés que completar dos cosas a mano sobre el string
+   que te da Atlas: reemplazar `<db_username>`/`<password>` por los datos
+   reales del paso 2, y agregar el nombre de la base después del host
+   (ej. `.../sibpsanjuan?...`) — sin eso, Mongo usa una base llamada
+   `test` por default, que funciona pero no es lo que uno espera.
 
 ### 2. Repositorio
 
@@ -148,13 +169,49 @@ Esto **no** es el modo por defecto de esta app (que asume same-origin, un
 solo servicio) — requiere las dos variables nuevas de abajo, pensadas
 para no romper nada de la Opción A/B si no se definen.
 
-### 1. Backend en Render
+### 1. Frontend en Vercel
+
+Conviene hacer este paso primero (ver "Orden al desplegar" más abajo, para
+no necesitar un redeploy extra del backend al final):
+
+1. Creá una cuenta en Vercel, "Add New… → Project", apuntando al mismo
+   repositorio de GitHub. Si el repo no aparece en la lista, es un tema de
+   permisos: buscá un link "Configure account" / "Missing a repository?"
+   cerca del buscador — te manda a la página de GitHub donde se le da
+   acceso a la app de Vercel a repos nuevos ("All repositories" o
+   agregando el puntual a la lista).
+2. **Ojo con el Root Directory**: como este repo tiene `backend/` y
+   `frontend/` como carpetas separadas, Vercel puede detectar
+   automáticamente un "monorepo" y ofrecerte desplegar los DOS como
+   "Services" dentro de un solo proyecto (una función nueva de Vercel,
+   con su propio `vercel.json` generado de "services"). **No** es lo que
+   queremos acá — ese modo asume que el backend corre como servicio de
+   Vercel, y este backend está pensado para Render (Express tradicional,
+   conexión a Mongo abierta una sola vez al arrancar, no probado en el
+   modelo de Vercel). Si te aparece ese bloque de "Services", click en
+   **Edit** al lado de "Root Directory" y escribí `frontend` a mano — eso
+   hace que Vercel lo trate como un proyecto normal de un solo servicio,
+   apuntando solo a esa carpeta (Framework se auto-completa como Vite,
+   build command `npm run build`, output `dist` — no hace falta tocarlos).
+3. Por ahora, no hace falta ninguna variable de entorno — `VITE_API_URL`
+   se agrega en el paso 2, una vez que exista el backend.
+4. `frontend/vercel.json` ya está en el repo con el rewrite necesario para
+   que las rutas de React Router (`/libros`, `/opac/:codigo`, etc.) no den
+   404 al entrar directo o refrescar — Vercel lo toma solo, no hace falta
+   configurar nada a mano para eso (esto es un `vercel.json` distinto y
+   más simple que el de "services" del punto 2 — este es el que sí
+   queremos).
+5. Deploy. Vercel te da una URL propia (`tuapp.vercel.app`) — de vuelta, no
+   hace falta comprar dominio. Guardala, la necesitás en el paso 2.
+
+### 2. Backend en Render
 
 Igual que la Opción A/B (pasos 1-3), pero con dos variables de entorno más:
 
-- `FRONTEND_URL`: la URL exacta de Vercel, ej. `https://miapp.vercel.app`
-  (sin barra final). Habilita CORS con credenciales solo para ese origen —
-  sin esto, el navegador bloquea los pedidos del frontend por CORS.
+- `FRONTEND_URL`: la URL exacta de Vercel del paso 1, ej.
+  `https://tuapp.vercel.app` (sin barra final). Habilita CORS con
+  credenciales solo para ese origen — sin esto, el navegador bloquea los
+  pedidos del frontend por CORS.
 - `COOKIE_SAMESITE`: `none`. Necesario para que el navegador mande la
   cookie de sesión en pedidos cross-origin (Vercel → Render). Requiere
   `COOKIE_SECURE=1` (ya es el default) — una cookie `SameSite=None` sin
@@ -167,27 +224,30 @@ npm install
 ```
 Y no hace falta la variable `PORT` (Render la define solo).
 
-### 2. Frontend en Vercel
+**Fijá la versión de Node explícitamente.** Render usa por default la
+versión de Node más nueva disponible (ej. 24.x) — en la práctica, esa
+combinación puntual puede fallar la conexión a Atlas con un error de TLS
+genérico y confuso (`SSL routines...tlsv1 alert internal error`,
+`ReplicaSetNoPrimary`, no llega a ningún shard) que no menciona la
+versión de Node para nada. Se soluciona agregando una variable de entorno
+más:
+- `NODE_VERSION`: `20`
 
-1. Creá una cuenta en Vercel, "Add New… → Project", apuntando al mismo
-   repositorio de GitHub.
-2. **Root Directory**: `frontend` (Vercel detecta Vite automáticamente —
-   build command `npm run build`, output `dist`, no hace falta tocarlos).
-3. Variable de entorno: `VITE_API_URL` = la URL del backend en Render, ej.
-   `https://tuapi.onrender.com` (sin barra final).
-4. `frontend/vercel.json` ya está en el repo con el rewrite necesario para
-   que las rutas de React Router (`/libros`, `/opac/:codigo`, etc.) no den
-   404 al entrar directo o refrescar — Vercel lo toma solo, no hace falta
-   configurar nada a mano para eso.
-5. Deploy. Vercel te da una URL propia (`tuapp.vercel.app`) — de vuelta, no
-   hace falta comprar dominio.
+Si en algún redeploy futuro volvés a ver ese mismo error de TLS después
+de confirmar que `0.0.0.0/0` está en Network Access de Atlas (ver arriba),
+es la primera variable para revisar.
 
 ### Orden al desplegar por primera vez
 
-Primero el backend en Render (para tener su URL y ponerla en `VITE_API_URL`
-de Vercel), después el frontend en Vercel (para tener su URL y ponerla en
-`FRONTEND_URL` de Render) — y un último redeploy del backend una vez que
-`FRONTEND_URL` ya está cargado, si el servicio arrancó antes de definirla.
+Primero el frontend en Vercel (para tener su URL y ponerla en
+`FRONTEND_URL` de Render desde el arranque), después el backend en Render
+con esa URL ya cargada — así no hace falta un redeploy extra de ninguno de
+los dos al final. Recién al final, con el backend ya con su propia URL,
+volvé a Vercel y agregá `VITE_API_URL` (Settings → Environment Variables)
+apuntando a esa URL de Render — esta sí necesita un redeploy del frontend
+después de agregarla (Deployments → menú "⋯" del último deploy →
+Redeploy), porque `VITE_API_URL` se hornea en el build del frontend, no
+se lee en runtime.
 
 ## Primer admin (con cualquiera de las tres opciones)
 
@@ -200,7 +260,10 @@ cd backend
 MONGODB_URI="<el mismo connection string de Atlas>" node scripts/crear-admin.js miusuario miclaveseguraDE8+
 ```
 
-Con ese usuario entrás a `https://tuapp.onrender.com` como `admin`. Desde
+Con ese usuario entrás como `admin` a `https://tuapp.onrender.com` (Opción
+A/B) o a tu URL de Vercel (Opción C, ej. `https://tuapp.vercel.app` — ahí
+es donde vive el frontend; la URL de Render en ese caso es solo la API,
+nadie entra a esa directamente salvo para pegarle a `/api/v1/...`). Desde
 ahí podés crear directamente una biblioteca y su superbibliotecario (el
 camino más corto para una sola biblioteca), o si vas a delegar la gestión
 de varias bibliotecas, dar de alta primero un `supervisor` y que sea
@@ -375,15 +438,29 @@ buen momento mínimo) **desde tu máquina**, con el mismo `MONGODB_URI`
 que usa la app:
 
 ```bash
-mongodump --uri="<el mismo connection string de Atlas>" --archive=backup-$(date +%Y%m%d).gz --gzip
+mongodump --uri="<el mismo connection string de Atlas>" --archive=backups/backup-$(date +%Y%m%d).gz --gzip
 ```
 
-Guardá ese archivo en otro lugar (no en el mismo disco que nada crítico
-de Atlas/Render — la idea es que un incidente en un lado no se lleve
-puesta también la copia). Para restaurar, si hiciera falta:
+`mongodump`/`mongorestore` son parte de "MongoDB Database Tools" — no
+vienen con Node ni con el driver de Mongo, hay que instalarlos aparte. En
+Windows, si no tenés permisos de administrador (ej. `choco install`
+falla con "Access denied" en `C:\ProgramData\chocolatey`), no hace falta
+instalar nada system-wide: bajá el zip portable directo de
+`https://www.mongodb.com/try/download/database-tools` (elegí Windows x86_64),
+descomprimilo en cualquier carpeta de tu usuario (ej.
+`C:\Users\tuusuario\tools\`), y corré `mongodump.exe`/`mongorestore.exe`
+directo desde la carpeta `bin\` de adentro, sin instalar nada.
+
+Guardá cada archivo `backups/backup-*.gz` en otro lugar además de tu
+disco local (no en el mismo lugar que nada crítico de Atlas/Render — la
+idea es que un incidente en un lado no se lleve puesta también la
+copia). La carpeta `backups/` en la raíz del repo ya está en
+`.gitignore` a propósito — son volcados reales de la base (con
+`passwordHash` de cuentas incluido), nunca tienen que terminar en el
+historial de git. Para restaurar, si hiciera falta:
 
 ```bash
-mongorestore --uri="<connection string de Atlas>" --archive=backup-20260719.gz --gzip
+mongorestore --uri="<connection string de Atlas>" --archive=backups/backup-20260719.gz --gzip
 ```
 
 Si en algún momento el volumen de datos deja de tolerar perderse entre
