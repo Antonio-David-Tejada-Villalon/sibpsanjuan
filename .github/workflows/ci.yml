@@ -1,0 +1,43 @@
+name: CI
+
+# Ver ARQ-8 en AUDITORIA.md: hasta ahora los tests solo corrían si alguien
+# se acordaba de hacerlo a mano antes de pushear, y Render despliega directo
+# desde el repo — un commit roto podía llegar a producción sin que nada lo
+# frenara. Este workflow solo bloquea el merge (falla el check del PR/push),
+# no toca el deploy en sí.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend

@@ -1,0 +1,886 @@
+:root {
+  /* Naranja de marca DigiBepé (DBP), tomado del logo — se usa a propósito
+     en pocos lugares (foco, enlaces, acción principal, marca) y no como
+     color de fondo general, para que siga leyéndose como una señal. */
+  --brand: #ff8300;
+  --brand-tenue: rgba(255, 131, 0, 0.14);
+  /* Variante de --brand para texto/links sobre una superficie clara — el
+     naranja de marca "puro" da 2.47:1 de contraste sobre blanco (falla
+     WCAG AA, que exige 4.5:1 para texto normal — ver A11Y-3 en
+     AUDITORIA.md). --brand sigue usándose tal cual para foco, bordes y
+     acciones primarias (fondo sólido + texto blanco), donde el criterio
+     de contraste es otro; esta variable es solo para texto sobre fondo
+     claro. En tema oscuro el naranja original ya pasa cómodo (6.5:1)
+     contra las superficies oscuras, así que ahí no hace falta oscurecerlo
+     — ver los overrides de tema más abajo. */
+  --brand-texto: #a34d00;
+  /* Color fijo de la barra de navegación — no cambia con el tema (ver
+     header.app más abajo): funciona como una franja de marca constante,
+     igual en claro y oscuro, común en la mayoría de los paneles admin. */
+  --ink: #1f2937;
+
+  /* Paleta de superficie/texto — tema claro (default). El tema oscuro
+     pisa estas mismas variables más abajo, así el resto del archivo no
+     tiene que saber en qué tema está: solo usa estos nombres. */
+  --bg: #fafafa;
+  --bg-elevado: #ffffff;
+  --bg-sutil: #f0f0f0;
+  --texto: #1a1a1a;
+  --texto-tenue: #555555;
+  --texto-mudo: #888888;
+  --borde: #dddddd;
+  --borde-tenue: #eeeeee;
+  --overlay: rgba(0, 0, 0, 0.5);
+  --sombra: rgba(0, 0, 0, 0.12);
+  --error-bg: #fdecea;
+  --error-texto: #611a15;
+  --ok-bg: #e6f4ea;
+  --ok-texto: #1e4620;
+  color-scheme: light;
+
+  /* Escala de espaciado — de acá salen paddings, márgenes y gaps de todo
+     el sistema, en vez de valores sueltos repetidos por archivo. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Escala tipográfica — antes h1/h2/h3 no tenían tamaño propio y
+     dependían del default del navegador. */
+  --text-xs: 0.8rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+}
+
+/* Tema oscuro: dos reglas con los mismos valores a propósito, no una
+   duplicación por error.
+   1) [data-theme="dark"] — elección explícita del usuario (ThemeToggle),
+      gana sin importar el sistema operativo.
+   2) @media prefers-color-scheme — sin elección guardada (sin el
+      atributo), sigue lo que diga el sistema. :not([data-theme="light"])
+      evita que esta regla pise una elección explícita de tema claro
+      cuando el sistema está en oscuro. */
+:root[data-theme="dark"] {
+  --bg: #14161a;
+  --bg-elevado: #1e2126;
+  --bg-sutil: #262a31;
+  --texto: #e8e8e8;
+  --texto-tenue: #a8adb5;
+  --texto-mudo: #7d838c;
+  --borde: #3a3f47;
+  --borde-tenue: #2b2f36;
+  --overlay: rgba(0, 0, 0, 0.65);
+  --sombra: rgba(0, 0, 0, 0.4);
+  --error-bg: #3a1c1c;
+  --error-texto: #f8b4b0;
+  --ok-bg: #16321f;
+  --ok-texto: #a7e3b8;
+  --brand-texto: var(--brand);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161a;
+    --bg-elevado: #1e2126;
+    --bg-sutil: #262a31;
+    --texto: #e8e8e8;
+    --texto-tenue: #a8adb5;
+    --texto-mudo: #7d838c;
+    --borde: #3a3f47;
+    --borde-tenue: #2b2f36;
+    --overlay: rgba(0, 0, 0, 0.65);
+    --sombra: rgba(0, 0, 0, 0.4);
+    --error-bg: #3a1c1c;
+    --error-texto: #f8b4b0;
+    --ok-bg: #16321f;
+    --ok-texto: #a7e3b8;
+    --brand-texto: var(--brand);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: var(--texto);
+  background: var(--bg);
+  font-size: var(--text-base);
+}
+h1, h2, h3 { line-height: 1.25; margin: 0 0 var(--space-4); }
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-lg); }
+h3 { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); }
+a { color: var(--brand-texto); }
+/* --brand-texto (no --brand) a propósito acá — el naranja puro también
+   falla el contraste no-textual mínimo (3:1) contra superficies claras,
+   mismo cálculo que A11Y-3 (ver AUDITORIA.md, A11Y-7). Queda una
+   excepción conocida y aceptada: un foco sobre un botón que YA tiene
+   fondo --brand (blanco de por medio) sigue con contraste bajo entre
+   sí — eso requeriría tocar el fondo de los botones, que a propósito no
+   se tocó en este arreglo. */
+:focus-visible {
+  outline: 2px solid var(--brand-texto);
+  outline-offset: 2px;
+}
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--brand);
+  color: white;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 0;
+}
+header.app {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  row-gap: var(--space-2);
+  column-gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--ink);
+  color: white;
+}
+/* El OPAC es la cara pública, sin login de staff — este borde y la etiqueta
+   evitan que alguien confunda una pantalla con la otra en capturas o
+   cuando tiene varias pestañas abiertas. */
+header.app.app-opac {
+  border-bottom: 3px solid var(--brand);
+}
+.badge-opac {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 131, 0, 0.25);
+  color: white;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+}
+header.app .brand-nav { display: flex; align-items: center; gap: var(--space-5); }
+header.app .brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+header.app .brand img { display: block; width: 28px; height: 28px; }
+header.app nav { display: flex; align-items: center; gap: var(--space-1); }
+header.app a { color: white; text-decoration: none; padding: var(--space-1) 0; border-bottom: 2px solid transparent; }
+header.app nav a { margin-right: var(--space-4); }
+header.app nav a.active { border-bottom-color: var(--brand); }
+
+/* Agrupa selector de biblioteca + tema + usuario/salir en un solo bloque a
+   la derecha, separado del bloque de marca+nav — antes eran elementos
+   sueltos dentro de un <span> que se envolvían en dos líneas de forma
+   desprolija apenas el selector aparecía (admin/supervisor). */
+.header-derecha { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.sesion-usuario {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  white-space: nowrap;
+}
+
+.boton-tema {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 999px;
+}
+.boton-tema:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); filter: none; }
+
+/* Botón hamburguesa: mismo lenguaje visual que .boton-tema (chip translúcido
+   sobre el header oscuro), oculto en escritorio — solo aparece por debajo
+   de la breakpoint de abajo, donde nav + header-derecha se colapsan. */
+.boton-hamburguesa {
+  display: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.boton-hamburguesa:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); filter: none; }
+
+/* El <select> hereda color:white de header.app pero su fondo sigue siendo
+   blanco por defecto del navegador — sin este color explícito queda texto
+   blanco sobre fondo blanco, mismo bug que ya pasó con .menu-desplegable.
+   A propósito NO usa las variables de tema: es un "chip" claro fijo sobre
+   la barra superior, que siempre es oscura sin importar el tema de la
+   página (ver header.app arriba). */
+.selector-biblioteca-activa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 0;
+  font-weight: 400;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 3px 6px 3px var(--space-3);
+  white-space: nowrap;
+}
+.selector-biblioteca-activa__etiqueta {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+  color: white;
+}
+.selector-biblioteca-activa select {
+  width: auto;
+  max-width: 260px;
+  display: inline-block;
+  margin-top: 0;
+  color: var(--ink);
+  background: white;
+  border: none;
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.selector-biblioteca-activa select:disabled { color: #888; background: #e5e5e5; cursor: not-allowed; }
+
+.menu-desplegable { position: relative; margin-right: var(--space-4); }
+.menu-desplegable__disparador {
+  background: none;
+  border: none;
+  color: white;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-1) 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.menu-desplegable__disparador.active { border-bottom-color: var(--brand); }
+.menu-desplegable__disparador:hover { color: var(--brand); }
+.menu-desplegable__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  background: var(--bg-elevado);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px var(--sombra);
+  padding: var(--space-2) 0;
+  animation: aparecer 100ms ease-out;
+}
+/* header.app ya trae "a { color: white }" y "nav a { margin-right }" con
+   más especificidad que un solo .menu-desplegable__panel a — sin el
+   prefijo header.app acá, esas reglas ganaban y los links quedaban
+   blancos sobre fondo blanco (invisibles). */
+header.app .menu-desplegable__panel a {
+  color: var(--texto);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: none;
+  margin-right: 0;
+}
+header.app .menu-desplegable__panel a:hover,
+header.app .menu-desplegable__panel a.active {
+  background: var(--brand-tenue);
+  color: var(--brand-texto);
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-desplegable__panel,
+  header.app.menu-abierto .brand-nav nav,
+  header.app.menu-abierto .header-derecha {
+    animation: none;
+  }
+}
+
+/* Header responsive: por debajo de 860px, nav y header-derecha (selector de
+   biblioteca, tema, usuario) se colapsan detrás del botón hamburguesa en vez
+   de apretujarse en una fila que hace scroll horizontal o se corta.
+   El hamburguesa se posiciona absoluto (arriba a la derecha) en vez de
+   quedar en el flujo flex junto a .brand-nav: así su posición no depende de
+   cómo terminen wrappeando brand+nav, que pasan a ocupar todo el ancho. */
+@media (max-width: 860px) {
+  header.app { position: relative; }
+  .boton-hamburguesa {
+    display: inline-flex;
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-5);
+  }
+  header.app .brand-nav {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    padding-right: 3rem;
+  }
+  header.app .brand-nav nav,
+  header.app .header-derecha {
+    display: none;
+  }
+  header.app.menu-abierto .brand-nav nav {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    width: 100%;
+    margin-top: var(--space-3);
+    /* Mismo "aparecer" que .menu-desplegable__panel (ver MOT-5 en
+       AUDITORIA.md) — el panel del menú hamburguesa aparecía de un salto,
+       inconsistente con el resto de los paneles que se despliegan. */
+    animation: aparecer 100ms ease-out;
+  }
+  header.app.menu-abierto .header-derecha {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-3);
+    animation: aparecer 100ms ease-out;
+  }
+  header.app nav a { margin-right: 0; }
+  .menu-desplegable { margin-right: 0; width: 100%; }
+  .menu-desplegable__disparador { width: 100%; text-align: left; padding: var(--space-2) 0; }
+  /* En mobile el desplegable se abre en línea (no flotando encima del
+     contenido): position:static lo devuelve al flujo normal del <nav>
+     vertical. */
+  .menu-desplegable__panel {
+    position: static;
+    box-shadow: none;
+    border: none;
+    padding: 0 0 0 var(--space-4);
+    margin-top: var(--space-1);
+  }
+  .sesion-usuario {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+    padding-left: 0;
+    padding-top: var(--space-3);
+    justify-content: space-between;
+  }
+  .selector-biblioteca-activa { width: 100%; justify-content: space-between; }
+  .selector-biblioteca-activa select { max-width: none; flex: 1; }
+}
+
+/* Grilla de módulos del panel (Dashboard.jsx) — equivalente de la página de
+   inicio de Koha, una tarjeta por módulo en vez de una lista de links. */
+.grilla-modulos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+.tarjeta-modulo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevado);
+  text-decoration: none;
+  color: var(--texto);
+}
+.tarjeta-modulo:hover {
+  border-color: var(--brand);
+}
+.tarjeta-modulo strong {
+  font-size: var(--text-lg);
+  color: var(--texto);
+}
+.tarjeta-modulo span {
+  font-size: var(--text-sm);
+  color: var(--texto-tenue);
+}
+
+/* Buscador con resultados en desplegable (Prestamos.jsx: elegir socio o
+   material antes de registrar un préstamo directo). */
+.buscador-combo { position: relative; margin-bottom: var(--space-3); }
+.buscador-combo__resultados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  z-index: 10;
+  width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-elevado);
+  border: 1px solid var(--borde);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: 0 4px 12px var(--sombra);
+}
+.buscador-combo__resultados li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--texto);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0;
+  font-size: var(--text-sm);
+}
+.buscador-combo__resultados li button:hover { background: var(--brand-tenue); }
+.buscador-combo__sin-resultados { padding: var(--space-2) var(--space-3); color: var(--texto-mudo); font-size: var(--text-sm); }
+.resultado-elegido {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--brand-tenue);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-3);
+}
+
+/* Catálogo del OPAC (CatalogoPublico.jsx) — barra lateral de filtros +
+   grilla de tarjetas, como el buscador de Koha pero con nuestra propia
+   paleta y sin depender de portadas (si no hay portadaUrl, placeholder).
+   El :has() de acá abajo le da más ancho SOLO a esta pantalla (una
+   grilla de tarjetas aprovecha mucho más un layout ancho que un
+   formulario) sin tocar el max-width angosto que le sigue viniendo bien
+   al resto de las pantallas (tablas, formularios). */
+main:has(.catalogo-layout) { max-width: 1280px; }
+.catalogo-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+.catalogo-filtros {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.catalogo-filtros__grupo {
+  background: var(--bg-elevado);
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.catalogo-filtros__grupo h2 {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-tenue);
+  margin: 0 0 var(--space-3);
+}
+.catalogo-filtros__grupo label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: normal;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+.catalogo-filtros__grupo label:last-child { margin-bottom: 0; }
+.catalogo-filtros__grupo input[type="checkbox"] {
+  width: auto;
+  margin-top: 0;
+  accent-color: var(--brand);
+}
+.catalogo-filtros__materias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.catalogo-filtros__materias button {
+  background: var(--bg-sutil);
+  border: 1px solid transparent;
+  color: var(--texto-tenue);
+  padding: 3px var(--space-3);
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: var(--text-xs);
+}
+.catalogo-filtros__materias button:hover { border-color: var(--brand); color: var(--brand-texto); }
+.catalogo-filtros__materias button.activa {
+  background: var(--brand);
+  color: white;
+}
+.catalogo-resultados__barra {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--texto-tenue);
+}
+.catalogo-resultados__barra select { width: auto; margin-top: 0; display: inline-block; }
+.grilla-catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+/* Grid de 2 columnas (portada | info) y 2 filas (esa fila + "Ver detalle"
+   abajo, ocupando todo el ancho) — antes era un flex de una sola fila; el
+   grid es lo que permite que "Ver detalle" quede siempre pegado abajo sin
+   importar cuánto texto tenga cada tarjeta. */
+.tarjeta-catalogo {
+  position: relative;
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  grid-template-rows: auto auto;
+  gap: var(--space-1) var(--space-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--bg-elevado);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+.tarjeta-catalogo:hover, .tarjeta-catalogo:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px var(--sombra);
+  border-color: var(--brand);
+}
+.tarjeta-catalogo__portada {
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  height: 110px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--bg-sutil);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--texto-mudo);
+  padding: var(--space-1);
+  overflow: hidden;
+}
+.tarjeta-catalogo:hover .tarjeta-catalogo__portada img { transform: scale(1.04); }
+.tarjeta-catalogo__portada img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  transition: transform 150ms ease;
+}
+.tarjeta-catalogo__info { grid-row: 1; grid-column: 2; min-width: 0; }
+.tarjeta-catalogo__info h3 { margin: 0 0 var(--space-1); font-size: var(--text-base); }
+.tarjeta-catalogo__tipo {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--brand-texto);
+  font-weight: 600;
+}
+.tarjeta-catalogo__subtitulo, .tarjeta-catalogo__extra {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--texto-tenue);
+}
+.tarjeta-catalogo__disponibilidad {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+/* Acceder y Solicitar préstamo pueden aparecer juntas (un mismo título
+   puede tener versión digital Y ejemplares físicos) — flex con wrap para
+   que convivan prolijamente en vez de superponerse. */
+.tarjeta-catalogo__accion { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+/* Siempre visible (no solo en hover): tiene que quedar claro de entrada
+   que toda la tarjeta es clickeable y lleva al detalle completo del
+   ítem — antes solo aparecía al pasar el mouse, y esa falta de pista
+   llevó a confundir "Acceder" (URL externa cargada por el bibliotecario)
+   con "ver la ficha completa" (que ya existe, es esto). */
+.tarjeta-catalogo__vermas {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--borde-tenue);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--brand-texto);
+  transition: transform 120ms ease;
+}
+.tarjeta-catalogo:hover .tarjeta-catalogo__vermas,
+.tarjeta-catalogo:focus-visible .tarjeta-catalogo__vermas {
+  transform: translateX(2px);
+}
+/* El resto del sistema ya respeta prefers-reduced-motion en el menú
+   desplegable, el fade-out al eliminar una fila y los .flash — estas tres
+   reglas del catálogo del OPAC (hover de la tarjeta, zoom de portada,
+   corrimiento de "Ver detalle") quedaron afuera cuando se agregaron (ver
+   A11Y-4/MOT-4 en AUDITORIA.md). El color/sombra de hover se mantiene —
+   solo se saca el movimiento.
+   */
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-catalogo { transition: box-shadow 120ms ease, border-color 120ms ease; }
+  .tarjeta-catalogo:hover, .tarjeta-catalogo:focus-visible { transform: none; }
+  .tarjeta-catalogo__portada img { transition: none; }
+  .tarjeta-catalogo:hover .tarjeta-catalogo__portada img { transform: none; }
+  .tarjeta-catalogo__vermas { transition: none; }
+  .tarjeta-catalogo:hover .tarjeta-catalogo__vermas,
+  .tarjeta-catalogo:focus-visible .tarjeta-catalogo__vermas {
+    transform: none;
+  }
+}
+@media (max-width: 700px) {
+  .catalogo-layout { grid-template-columns: 1fr; }
+  .catalogo-filtros { position: static; }
+}
+
+/* Modal de detalle de un ítem del catálogo (CatalogoPublico.jsx) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 200;
+}
+.modal-detalle {
+  position: relative;
+  display: flex;
+  gap: var(--space-5);
+  background: var(--bg-elevado);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px var(--sombra);
+}
+.modal-detalle__cerrar {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  color: var(--texto-tenue);
+}
+.modal-detalle__cerrar:hover { color: var(--texto); }
+.modal-detalle__portada {
+  flex: 0 0 140px;
+  height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--bg-sutil);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--texto-mudo);
+  padding: var(--space-2);
+  overflow: hidden;
+}
+.modal-detalle__portada img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm); }
+.modal-detalle__info { flex: 1; min-width: 0; padding-right: var(--space-5); }
+.modal-detalle__info h2 { margin: var(--space-1) 0; }
+.modal-detalle__campos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  margin: var(--space-3) 0;
+  font-size: var(--text-sm);
+}
+.modal-detalle__campos dt { color: var(--texto-mudo); }
+.modal-detalle__campos dd { margin: 0; }
+.modal-detalle__materias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.pill-materia {
+  font-size: var(--text-xs);
+  background: var(--bg-sutil);
+  border-radius: 999px;
+  padding: 2px var(--space-3);
+  color: var(--texto-tenue);
+}
+
+/* Lista de ejemplares (editable) al editar un libro (Libros.jsx) */
+.lista-ejemplares { list-style: none; margin: var(--space-1) 0 var(--space-3); padding: 0; font-size: var(--text-sm); }
+.lista-ejemplares li { padding: var(--space-2) 0; border-bottom: 1px solid var(--borde-tenue); }
+.pill-estado {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--bg-sutil);
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+  color: var(--texto-tenue);
+}
+.fila-ejemplar-edicion { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.fila-ejemplar-edicion input { width: auto; flex: 1 1 160px; margin-top: 0; }
+.formulario-nuevo-ejemplar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--borde-tenue);
+}
+.formulario-nuevo-ejemplar label { flex: 1 1 160px; margin-bottom: 0; }
+.formulario-nuevo-ejemplar input { width: 100%; }
+.formulario-nuevo-ejemplar button { white-space: nowrap; }
+@media (max-width: 560px) {
+  .modal-detalle { flex-direction: column; }
+  .modal-detalle__portada { flex: 0 0 auto; width: 100%; }
+  .modal-detalle__info { padding-right: 0; }
+}
+main { max-width: 900px; margin: var(--space-5) auto; padding: 0 var(--space-4); }
+
+/* Pie del OPAC (OpacLayout.jsx) — solo el link de privacidad por ahora
+   (ver GOB-3 en AUDITORIA.md); discreto, no compite con el contenido. */
+.footer-opac {
+  max-width: 900px;
+  margin: var(--space-6) auto var(--space-5);
+  padding: var(--space-4);
+  border-top: 1px solid var(--borde-tenue);
+  text-align: center;
+}
+.footer-opac a { color: var(--texto-tenue); font-size: var(--text-sm); }
+.footer-opac a:hover { color: var(--brand-texto); }
+table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0; }
+th, td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--borde-tenue); }
+th { font-size: var(--text-sm); }
+th:first-child, td:first-child { width: 1%; padding-right: 0; }
+th input[type="checkbox"], td input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--brand);
+}
+
+/* Barra de acciones masivas (Libros.jsx y el resto de páginas de
+   catalogación): aparece solo cuando hay algo tildado, arriba de la tabla —
+   mismo naranja de marca que el resto de los estados "activos" del
+   sistema. */
+.barra-seleccion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-3);
+  background: var(--brand-tenue);
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+tbody tr:nth-child(even) { background: var(--bg-sutil); }
+tbody tr.saliendo { animation: desvanecer 150ms ease-out forwards; }
+@keyframes desvanecer {
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  tbody tr.saliendo { animation: none; }
+}
+form.card, div.card {
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  background: var(--bg-elevado);
+}
+label { display: block; margin-bottom: var(--space-3); font-size: var(--text-sm); }
+input, select, textarea {
+  width: 100%;
+  padding: var(--space-2);
+  margin-top: var(--space-1);
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevado);
+  color: var(--texto);
+  font: inherit;
+}
+button {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: white;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+button:hover:not(:disabled) { filter: brightness(0.93); }
+button.secundario { background: var(--bg-elevado); color: var(--texto); border-color: var(--borde); }
+button.peligro { background: #b91c1c; border-color: #b91c1c; }
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  filter: none;
+}
+.flash {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+  animation: aparecer 150ms ease-out;
+}
+.flash.error { background: var(--error-bg); color: var(--error-texto); }
+.flash.ok { background: var(--ok-bg); color: var(--ok-texto); }
+
+/* Visible solo para lectores de pantalla (encabezados de columnas de solo-ícono/acción). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash { animation: none; }
+}

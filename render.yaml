@@ -1,0 +1,25 @@
+# Blueprint de Render — permite desplegar con un solo comando de terminal
+# (render blueprints launch) en vez de clickear el dashboard.
+#
+# Asume que esta carpeta (digibepe-captura/) es la raíz del repo que
+# conectás a Render. Si en tu repo está anidada más adentro, agregá
+# "rootDir: digibepe-captura" debajo de "name:".
+#
+# Los valores con "sync: false" NO se guardan acá (no hay secretos en este
+# archivo) — Render los pide una sola vez, en el momento de crear el
+# Blueprint desde la terminal o el dashboard.
+
+services:
+  - name: digibepe-captura
+    type: web
+    runtime: node
+    plan: free
+    buildCommand: npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend
+    startCommand: npm start --prefix backend
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: COOKIE_SECURE
+        value: "1"
