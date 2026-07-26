@@ -359,6 +359,17 @@ y el color de marca (naranja `#ff8300`, tomado de ese mismo logo) salen de un so
 en pocos puntos — el logo, la acción principal de cada pantalla,
 enlaces y el foco de teclado — no como color de fondo general.
 
+`frontend/public/manifest.json` (Web App Manifest) permite instalar el
+sitio como app desde Chrome en Android ("Agregar a pantalla de inicio").
+Incluye dos juegos de íconos a propósito: `icon-*.png` (`purpose: "any"`,
+mismo recorte ajustado que el resto del logo) e `icon-*-maskable.png`
+(`purpose: "maskable"`, con bastante más margen alrededor) — Android le
+aplica su propio recorte automático (círculo/squircle, según el
+launcher) a cualquier ícono instalado sin declarar `maskable`, y con el
+margen ajustado del logo normal ese recorte se comía el texto "SIBP".
+Sin este manifest, Chrome instalaba la app igual (usando el
+`apple-touch-icon`) pero sin control sobre ese recorte.
+
 Tema claro/oscuro en todo el sistema (staff y OPAC), no solo el catálogo:
 el botón 🌙/☀️ en el encabezado (`ThemeToggle.jsx`) guarda la elección en
 `localStorage` y la aplica como `data-theme` en `<html>`; sin elección
