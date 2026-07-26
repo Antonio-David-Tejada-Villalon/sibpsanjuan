@@ -69,6 +69,13 @@ function CargandoInicial() {
 // bibliotecaId fija como los otros dos roles.
 const ROLES_STAFF = ["superbibliotecario", "bibliotecario", "admin", "supervisor"];
 
+// Quién gestiona cuentas "bibliotecario" (ver backend/src/utils/jerarquia.js):
+// el superbibliotecario de su propia biblioteca, y admin/supervisor dentro
+// de su alcance (biblioteca activa del selector). Un bibliotecario nunca
+// gestiona a nadie (rango más bajo), por eso queda afuera de esta lista a
+// diferencia de ROLES_STAFF.
+const ROLES_GESTIONAN_BIBLIOTECARIOS = ["superbibliotecario", "admin", "supervisor"];
+
 function RutaProtegida({ rolesPermitidos, requiereBibliotecaActiva, children }) {
   const { sesion } = useAuth();
   if (sesion === undefined) return <CargandoInicial />;
@@ -282,7 +289,7 @@ function Rutas() {
       <Route
         path="/bibliotecarios"
         element={
-          <RutaProtegida rolesPermitidos={["superbibliotecario"]}>
+          <RutaProtegida rolesPermitidos={ROLES_GESTIONAN_BIBLIOTECARIOS} requiereBibliotecaActiva>
             <Bibliotecarios />
           </RutaProtegida>
         }

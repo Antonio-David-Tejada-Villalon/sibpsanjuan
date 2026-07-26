@@ -48,7 +48,7 @@ export default function Dashboard() {
             <span>{m.descripcion}</span>
           </Link>
         ))}
-        {sesion?.rol === "superbibliotecario" && (
+        {accesoCompleto && (
           <Link to="/bibliotecarios" className="tarjeta-modulo">
             <strong>Bibliotecarios</strong>
             <span>Cuentas de staff y sus permisos</span>

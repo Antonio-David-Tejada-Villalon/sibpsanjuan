@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
+import CampoPassword from "../../CampoPassword.jsx";
 
 export default function LoginSocio() {
   const { codigo, login } = useSocioAuth();
@@ -37,16 +38,13 @@ export default function LoginSocio() {
           required
         />
       </label>
-      <label>
-        Contraseña
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
-      </label>
+      <CampoPassword
+        etiqueta="Contraseña"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="current-password"
+        required
+      />
       <button type="submit" disabled={enviando}>
         {enviando ? "Ingresando…" : "Ingresar"}
       </button>

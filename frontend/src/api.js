@@ -175,6 +175,11 @@ const api = {
   // bibliotecario) — un solo endpoint, el servidor decide con puedeGestionar
   // si a quien lo pide le corresponde.
   eliminarUsuario: (id) => apiFetch(`${BASE}/usuarios/${id}`, { method: "DELETE" }),
+  // Resetear la contraseña de una cuenta de staff que se gestiona (no hace
+  // falta la contraseña vieja — a diferencia de cambiarPassword, que es
+  // self-service) — mismo endpoint consolidado, mismo chequeo de alcance.
+  resetearPasswordUsuario: (id, passwordNueva) =>
+    apiFetch(`${BASE}/usuarios/${id}/password`, { method: "PUT", body: JSON.stringify({ passwordNueva }) }),
 
   listarLibros: () => apiFetchCacheable(`${BASE}/libros`),
   listarLibrosPaginado: (pagina, porPagina, q = "") =>

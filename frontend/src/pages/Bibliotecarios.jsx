@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import api from "../api.js";
 import ConfiguracionCirculacion from "../ConfiguracionCirculacion.jsx";
+import ResetearPassword from "../ResetearPassword.jsx";
+import CampoPassword from "../CampoPassword.jsx";
 import { useAuth } from "../AuthContext.jsx";
 
 // Mismo orden/claves que PERMISOS_BIBLIOTECARIO en backend/src/models/Usuario.js.
@@ -103,8 +105,8 @@ export default function Bibliotecarios() {
       <h1>Bibliotecarios</h1>
       <p>
         <small>
-          Cuentas de staff con acceso limitado a los permisos que les des acá — a diferencia de tu propia
-          cuenta de superbibliotecario, que siempre tiene acceso completo.
+          Cuentas de staff con acceso limitado a los permisos que les des acá — a diferencia de un
+          superbibliotecario, que siempre tiene acceso completo a su biblioteca.
         </small>
       </p>
 
@@ -119,16 +121,13 @@ export default function Bibliotecarios() {
               Usuario
               <input value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" required />
             </label>
-            <label>
-              Contraseña (mínimo 8 caracteres)
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </label>
+            <CampoPassword
+              etiqueta="Contraseña (mínimo 8 caracteres)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
           </>
         )}
         <CasillasPermisos permisos={permisos} onCambiar={onCambiarPermiso} />
@@ -166,6 +165,7 @@ export default function Bibliotecarios() {
                   <button className="secundario" onClick={() => onEditar(it)}>
                     Editar
                   </button>{" "}
+                  <ResetearPassword usuarioId={it._id} />{" "}
                   <button className="peligro" onClick={() => onEliminar(it._id)}>
                     Eliminar
                   </button>

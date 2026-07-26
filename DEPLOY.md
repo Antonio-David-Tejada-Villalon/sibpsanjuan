@@ -288,6 +288,12 @@ límite explícito de `express.json` (ver CYBER-6, 2mb) y los try/catch
 agregados en 9 rutas `PUT` (ver ARQ-12) son cambios de comportamiento del
 backend sin ningún impacto de schema ni de deploy.
 
+El CRUD ampliado de cuentas de staff (admin/supervisor gestionando
+bibliotecarios directamente, y el reseteo de contraseña sin la actual vía
+`PUT /usuarios/:id/password`) tampoco toca el schema — son rutas nuevas o
+con el gate de rol ampliado sobre el mismo modelo `Usuario` de siempre, sin
+campos nuevos ni backfill.
+
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan
 apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el

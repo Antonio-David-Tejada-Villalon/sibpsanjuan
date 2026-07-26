@@ -826,6 +826,30 @@ form.card, div.card {
   margin-bottom: var(--space-4);
   background: var(--bg-elevado);
 }
+.login-marca {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+.login-marca img { width: 64px; height: 64px; }
+/* Dos <img> superpuestas, una por tema, en vez de cambiar el src por JS —
+   mismo criterio que el resto del tema (todo vía CSS/[data-theme], ver
+   arriba): así no hay parpadeo del logo equivocado al cargar, y sigue
+   funcionando sin JS. .logo-light (texto "SIBP" en tinta oscura, legible
+   sobre fondo claro) es la del tema claro por default; .logo-dark (el
+   logo original, con el texto en trazo fino) se muestra en tema oscuro,
+   donde ya se leía bien. */
+.login-marca .logo-dark { display: none; }
+:root[data-theme="dark"] .login-marca .logo-light { display: none; }
+:root[data-theme="dark"] .login-marca .logo-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .login-marca .logo-light { display: none; }
+  :root:not([data-theme="light"]) .login-marca .logo-dark { display: block; }
+}
+.login-marca h1 { margin: 0; }
 label { display: block; margin-bottom: var(--space-3); font-size: var(--text-sm); }
 input, select, textarea {
   width: 100%;
@@ -837,6 +861,26 @@ input, select, textarea {
   color: var(--texto);
   font: inherit;
 }
+/* Ver CampoPassword.jsx. .campo-password__caja es lo único con
+   position:relative — deliberadamente no todo .campo-password, que también
+   incluye el <label> de arriba: si el botón se centrara respecto del
+   bloque entero (label + input), quedaría flotando entre el texto y el
+   campo en vez de centrado sobre el input. */
+.campo-password__caja { position: relative; }
+.campo-password__caja input { padding-right: calc(var(--space-2) + 1.75rem); }
+.campo-password__boton {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 0 var(--space-2);
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--texto-tenue);
+}
+.campo-password__boton:hover:not(:disabled) { filter: none; color: var(--texto); }
 button {
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);

@@ -36,7 +36,7 @@ describe("Login", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/usuario/i), "admin");
-    await user.type(screen.getByLabelText(/contraseña/i), "mala");
+    await user.type(screen.getByLabelText("Contraseña"), "mala");
     await user.click(screen.getByRole("button", { name: /entrar/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Usuario o contraseña incorrectos.");
@@ -53,7 +53,7 @@ describe("Login", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/usuario/i), "admin");
-    await user.type(screen.getByLabelText(/contraseña/i), "dev12345");
+    await user.type(screen.getByLabelText("Contraseña"), "dev12345");
     await user.click(screen.getByRole("button", { name: /^entrar$/i }));
 
     const boton = await screen.findByRole("button", { name: /entrando/i });
@@ -68,7 +68,7 @@ describe("Login", () => {
     renderLogin();
 
     await user.type(screen.getByLabelText(/usuario/i), "admin");
-    await user.type(screen.getByLabelText(/contraseña/i), "dev12345");
+    await user.type(screen.getByLabelText("Contraseña"), "dev12345");
     await user.click(screen.getByRole("button", { name: /^entrar$/i }));
 
     expect(api.login).toHaveBeenCalledWith("admin", "dev12345");

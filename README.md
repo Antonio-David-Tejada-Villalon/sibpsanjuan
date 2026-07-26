@@ -163,6 +163,24 @@ debajo** (nunca al mismo nivel ni por encima — ver
   `socios`, `exportar` — cinco flags independientes). No puede crear ni
   gestionar ninguna otra cuenta.
 
+Cada nivel tiene un CRUD completo (crear, listar, editar, resetear
+contraseña, eliminar) sobre las cuentas **estrictamente por debajo** de la
+propia — nunca sobre pares del mismo nivel (dos supervisores sin relación
+entre sí no pueden tocarse mutuamente), mismo criterio de aislamiento que
+ya regía el borrado (`puedeGestionar` en `jerarquia.js`, sin cambios).
+Concretamente: el admin gestiona supervisor+superbibliotecario+bibliotecario;
+el supervisor, superbibliotecario+bibliotecario dentro de su alcance; el
+superbibliotecario, sus propios bibliotecarios. Antes de esto, admin y
+supervisor solo podían *eliminar* un bibliotecario (vía el endpoint
+consolidado), no crearlo/editar sus permisos directamente ni resetear
+ninguna contraseña ajena — ahora `/bibliotecarios` (crear/listar/editar
+permisos) también acepta admin/supervisor sobre la biblioteca activa del
+selector del encabezado (`requiereBiblioteca`, mismo mecanismo que
+Libros/Socios/etc.), y `PUT /usuarios/:id/password` permite fijarle una
+contraseña nueva a cualquier cuenta gestionable sin conocer la vieja (a
+diferencia de `PUT /auth/password`, que es self-service y sí la pide) —
+para el caso de que alguien se la haya olvidado de verdad.
+
 admin y supervisor no tienen una biblioteca propia fija — pueden
 catalogar, ver/gestionar socios y registrar circulación de **cualquier
 biblioteca dentro de su alcance** (admin: todas; supervisor: las de
@@ -183,12 +201,16 @@ biblioteca aunque fuerce la URL.
   siendo del staff). Nunca hace el préstamo por sí sola: el ítem lo
   entrega el staff en persona, y ahí arranca el préstamo de verdad.
 
-Cualquier cuenta de staff logueada puede cambiar su propia contraseña
-desde "Cambiar contraseña" en el encabezado (`PUT /auth/password`, pide
-la actual antes de aceptar la nueva). No hay recuperación de contraseña
-por correo para quien la olvida — este proyecto no tiene ningún servicio
-de mail configurado; si un `admin` se queda afuera, la única vía es
-`scripts/crear-admin.js` contra la base real.
+Cualquier cuenta de staff logueada tiene su propio "Mi perfil" en el
+encabezado (`/cambiar-password`, antes solo "Cambiar contraseña") — un
+resumen de solo lectura de su rol y alcance (bibliotecas supervisadas,
+permisos otorgados, etc.) más el formulario para cambiar su propia
+contraseña (`PUT /auth/password`, pide la actual antes de aceptar la
+nueva). No hay recuperación de contraseña por correo para quien la
+olvida y no tiene a nadie por encima que se la resetee (el caso extremo
+es `admin`) — este proyecto no tiene ningún servicio de mail configurado;
+si un `admin` se queda afuera, la única vía es `scripts/crear-admin.js`
+contra la base real.
 
 ### OPAC y circulación, en corto
 
@@ -326,8 +348,9 @@ de mail configurado; si un `admin` se queda afuera, la única vía es
 
 ### Identidad visual y accesibilidad
 
-El ícono (`frontend/public/DBP.png`) y el color de marca (naranja
-`#ff8300`, tomado de ese mismo logo) salen de un solo lugar
+El ícono (`frontend/public/logo.png`, con el favicon derivado del mismo
+archivo — ver `frontend/public/favicon*.png/.ico` y `apple-touch-icon.png`)
+y el color de marca (naranja `#ff8300`, tomado de ese mismo logo) salen de un solo lugar
 (`frontend/src/estilos.css`, variable `--brand`) y se usan a propósito
 en pocos puntos — el logo, la acción principal de cada pantalla,
 enlaces y el foco de teclado — no como color de fondo general.
@@ -345,6 +368,17 @@ elección guardada antes de que React monte nada (importado primero en
 `main.jsx`), para que no haya parpadeo del tema equivocado al cargar. El
 cambio de tema también se anuncia a lectores de pantalla (`role="status"`
 oculto visualmente junto al botón — ver A11Y-5 en `AUDITORIA.md`).
+
+El encabezado del panel de staff tiene un link "Panel" (a `/dashboard`)
+como primer ítem del nav, visible para los cuatro roles de staff — antes
+esa pantalla solo se veía justo después de loguearse (superbibliotecario/
+bibliotecario) o no se veía nunca (admin/supervisor, que aterrizan en
+"Bibliotecas"), sin ninguna forma de volver ahí desde el resto del panel.
+El propio logo/nombre de marca también es un link al mismo destino —
+patrón estándar de "logo lleva al inicio" — sin duplicar la lógica: los
+dos apuntan a `/dashboard`, y para admin/supervisor sin biblioteca activa
+elegida se comportan igual que cualquier otro link a una pantalla scoped
+a biblioteca (mensaje para elegir una desde el selector, no un error).
 
 El encabezado (staff y OPAC) es responsive: por debajo de 860px, la
 navegación y el bloque de la derecha (selector de biblioteca, tema,

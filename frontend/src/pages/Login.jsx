@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { rutaPorRol } from "../rutaPorRol.js";
 import ThemeToggle from "../ThemeToggle.jsx";
+import CampoPassword from "../CampoPassword.jsx";
 
 export default function Login() {
   const { login } = useAuth();
@@ -31,7 +32,11 @@ export default function Login() {
         <ThemeToggle />
       </div>
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: 360, margin: "3rem auto" }}>
-        <h1>SIBPSANJUAN</h1>
+        <div className="login-marca">
+          <img src="/logo-light.png" alt="" width="64" height="64" className="logo-light" />
+          <img src="/logo.png" alt="" width="64" height="64" className="logo-dark" />
+          <h1>SIBPSANJUAN</h1>
+        </div>
         {error && <div className="flash error" role="alert">{error}</div>}
         <label>
           Usuario
@@ -43,16 +48,13 @@ export default function Login() {
             required
           />
         </label>
-        <label>
-          Contraseña
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
+        <CampoPassword
+          etiqueta="Contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+        />
         <button type="submit" disabled={enviando}>
           {enviando ? "Entrando…" : "Entrar"}
         </button>

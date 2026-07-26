@@ -1567,6 +1567,137 @@ test("jerarquía de roles: admin→supervisor→biblioteca+superbibliotecario→
   assert.equal(res.status, 403);
 });
 
+test("gestión de cuentas: reseteo de contraseña sin la actual, y admin/supervisor gestionando bibliotecarios directamente", async (t) => {
+  const server = app.listen(0);
+  const puerto = server.address().port;
+  const base = `http://127.0.0.1:${puerto}`;
+  t.after(() => server.close());
+
+  const cookieAdmin = await login(base, "admin", "adminpass123");
+
+  let res = await fetch(`${base}/api/bibliotecas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({ nombre: "Biblioteca Gestión", codigo: "bpgestion1" }),
+  });
+  const biblioteca = await res.json();
+
+  res = await fetch(`${base}/api/supervisores`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({ usuario: "gestsuperv", password: "clavesegura1", bibliotecasSupervisadas: [biblioteca._id] }),
+  });
+  const supervisor = await res.json();
+  const cookieSupervisor = await login(base, "gestsuperv", "clavesegura1");
+
+  res = await fetch(`${base}/api/superbibliotecarios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({ usuario: "gestsuperbib", password: "clavesegura1", bibliotecaId: biblioteca._id }),
+  });
+  const superbib = await res.json();
+
+  res = await fetch(`${base}/api/bibliotecarios?bibliotecaId=${biblioteca._id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({
+      usuario: "gestbib",
+      password: "clavesegura1",
+      permisos: { catalogar: true },
+    }),
+  });
+  assert.equal(res.status, 201, "el admin puede crear un bibliotecario directamente, indicando la biblioteca");
+  const bib = await res.json();
+
+  // --- admin resetea la contraseña del supervisor, sin conocer la vieja ---
+  res = await fetch(`${base}/api/usuarios/${supervisor.id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({ passwordNueva: "claveNuevaSup1" }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(await login(base, "gestsuperv", "claveNuevaSup1"), "el login con la contraseña nueva funciona");
+  res = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usuario: "gestsuperv", password: "clavesegura1" }),
+  });
+  assert.equal(res.status, 401, "la contraseña vieja deja de servir");
+
+  // --- el supervisor (ahora con claveNuevaSup1) resetea la del superbibliotecario en su alcance ---
+  const cookieSupervisorNueva = await login(base, "gestsuperv", "claveNuevaSup1");
+  res = await fetch(`${base}/api/usuarios/${superbib.id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieSupervisorNueva },
+    body: JSON.stringify({ passwordNueva: "claveNuevaSb1" }),
+  });
+  assert.equal(res.status, 200);
+  const cookieSuperbib = await login(base, "gestsuperbib", "claveNuevaSb1");
+
+  // --- el superbibliotecario resetea la de su propio bibliotecario ---
+  res = await fetch(`${base}/api/usuarios/${bib.id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieSuperbib },
+    body: JSON.stringify({ passwordNueva: "claveNuevaBib1" }),
+  });
+  assert.equal(res.status, 200);
+  await login(base, "gestbib", "claveNuevaBib1");
+
+  // --- rechazado: contraseña nueva demasiado corta ---
+  res = await fetch(`${base}/api/usuarios/${bib.id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieSuperbib },
+    body: JSON.stringify({ passwordNueva: "corta" }),
+  });
+  assert.equal(res.status, 400);
+
+  // --- rechazado: nadie por debajo del admin puede resetearle la suya ---
+  const cuentaAdmin = await Usuario.findOne({ usuario: "admin" });
+  res = await fetch(`${base}/api/usuarios/${cuentaAdmin._id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieSupervisorNueva },
+    body: JSON.stringify({ passwordNueva: "loQueSeaNuevo1" }),
+  });
+  assert.equal(res.status, 403);
+
+  // --- rechazado: un bibliotecario no gestiona ninguna cuenta, ni la propia ---
+  const cookieBib = await login(base, "gestbib", "claveNuevaBib1");
+  res = await fetch(`${base}/api/usuarios/${bib.id}/password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieBib },
+    body: JSON.stringify({ passwordNueva: "otraClaveNueva1" }),
+  });
+  assert.equal(res.status, 403);
+
+  // --- admin/supervisor pueden listar y editar bibliotecarios directamente
+  // (antes solo el superbibliotecario podía) ---
+  res = await fetch(`${base}/api/bibliotecarios?bibliotecaId=${biblioteca._id}`, { headers: { Cookie: cookieAdmin } });
+  assert.equal(res.status, 200);
+  let lista = await res.json();
+  assert.ok(lista.some((u) => u.usuario === "gestbib"));
+
+  res = await fetch(`${base}/api/bibliotecarios/${bib.id}?bibliotecaId=${biblioteca._id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: cookieSupervisorNueva },
+    body: JSON.stringify({ permisos: { catalogar: true, prestamos: true } }),
+  });
+  assert.equal(res.status, 200, "el supervisor edita permisos de un bibliotecario dentro de su alcance");
+  const editado = await res.json();
+  assert.equal(editado.permisos.prestamos, true);
+
+  // --- pero un supervisor sin esa biblioteca en su alcance no puede ---
+  res = await fetch(`${base}/api/supervisores`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieAdmin },
+    body: JSON.stringify({ usuario: "gestsupervajeno", password: "clavesegura1", bibliotecasSupervisadas: [] }),
+  });
+  const cookieSupervisorAjeno = await login(base, "gestsupervajeno", "clavesegura1");
+  res = await fetch(`${base}/api/bibliotecarios?bibliotecaId=${biblioteca._id}`, {
+    headers: { Cookie: cookieSupervisorAjeno },
+  });
+  assert.equal(res.status, 403);
+});
+
 test("solicitudes de supervisión: un supervisor pide acceso a una biblioteca ajena y el admin la aprueba o la rechaza", async (t) => {
   const server = app.listen(0);
   const puerto = server.address().port;

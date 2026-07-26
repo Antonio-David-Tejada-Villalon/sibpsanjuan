@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import api from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import ConfiguracionCirculacion from "../ConfiguracionCirculacion.jsx";
+import ResetearPassword from "../ResetearPassword.jsx";
+import CampoPassword from "../CampoPassword.jsx";
 
 function PanelUsuarios({ biblioteca }) {
   const [usuarios, setUsuarios] = useState(null);
@@ -51,6 +53,7 @@ function PanelUsuarios({ biblioteca }) {
         {usuarios?.map((u) => (
           <li key={u._id}>
             {u.usuario} <small>({u.rol})</small>{" "}
+            <ResetearPassword usuarioId={u._id} />{" "}
             <button className="peligro" onClick={() => onEliminar(u._id)}>
               Eliminar
             </button>
@@ -69,16 +72,13 @@ function PanelUsuarios({ biblioteca }) {
             required
           />
         </label>
-        <label>
-          Contraseña (mínimo 8 caracteres)
-          <input
-            type="password"
-            value={nuevaPassword}
-            onChange={(e) => setNuevaPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </label>
+        <CampoPassword
+          etiqueta="Contraseña (mínimo 8 caracteres)"
+          value={nuevaPassword}
+          onChange={(e) => setNuevaPassword(e.target.value)}
+          autoComplete="new-password"
+          required
+        />
         <button type="submit" disabled={guardando}>
           {guardando ? "Creando…" : "Crear superbibliotecario"}
         </button>
@@ -222,6 +222,7 @@ function PanelSupervisores({ bibliotecas }) {
   const [password, setPassword] = useState("");
   const [seleccionadas, setSeleccionadas] = useState([]);
   const [puedeCrearBibliotecas, setPuedeCrearBibliotecas] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -237,21 +238,41 @@ function PanelSupervisores({ bibliotecas }) {
     setSeleccionadas((actual) => (actual.includes(id) ? actual.filter((x) => x !== id) : [...actual, id]));
   }
 
-  async function onCrear(e) {
+  function onEditar(s) {
+    setEditandoId(s._id);
+    setSeleccionadas((s.bibliotecasSupervisadas || []).map((b) => (typeof b === "string" ? b : b._id)));
+    setPuedeCrearBibliotecas(!!s.puedeCrearBibliotecas);
+    setError("");
+  }
+
+  function onCancelar() {
+    setEditandoId(null);
+    setUsuario("");
+    setPassword("");
+    setSeleccionadas([]);
+    setPuedeCrearBibliotecas(false);
+    setError("");
+  }
+
+  async function onSubmit(e) {
     e.preventDefault();
     setError("");
     setGuardando(true);
     try {
-      await api.crearSupervisor({
-        usuario,
-        password,
-        bibliotecasSupervisadas: seleccionadas,
-        puedeCrearBibliotecas,
-      });
-      setUsuario("");
-      setPassword("");
-      setSeleccionadas([]);
-      setPuedeCrearBibliotecas(false);
+      if (editandoId) {
+        await api.actualizarSupervisor(editandoId, {
+          bibliotecasSupervisadas: seleccionadas,
+          puedeCrearBibliotecas,
+        });
+      } else {
+        await api.crearSupervisor({
+          usuario,
+          password,
+          bibliotecasSupervisadas: seleccionadas,
+          puedeCrearBibliotecas,
+        });
+      }
+      onCancelar();
       await recargar();
     } catch (err) {
       setError(err.message);
@@ -263,6 +284,7 @@ function PanelSupervisores({ bibliotecas }) {
   async function onEliminar(id) {
     if (!confirm("¿Eliminar este supervisor?")) return;
     await api.eliminarUsuario(id);
+    if (editandoId === id) onCancelar();
     await recargar();
   }
 
@@ -275,6 +297,10 @@ function PanelSupervisores({ bibliotecas }) {
           <li key={s._id}>
             {s.usuario} — {(s.bibliotecasSupervisadas || []).length} biblioteca(s)
             {s.puedeCrearBibliotecas ? ", puede crear bibliotecas" : ""}{" "}
+            <button className="secundario" onClick={() => onEditar(s)}>
+              Editar
+            </button>{" "}
+            <ResetearPassword usuarioId={s._id} />{" "}
             <button className="peligro" onClick={() => onEliminar(s._id)}>
               Eliminar
             </button>
@@ -282,22 +308,23 @@ function PanelSupervisores({ bibliotecas }) {
         ))}
         {supervisores?.length === 0 && <li>Sin supervisores todavía.</li>}
       </ul>
-      <form onSubmit={onCrear}>
-        <h3>Nuevo supervisor</h3>
-        <label>
-          Usuario
-          <input value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" required />
-        </label>
-        <label>
-          Contraseña (mínimo 8 caracteres)
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </label>
+      <form onSubmit={onSubmit}>
+        <h3>{editandoId ? "Editar alcance del supervisor" : "Nuevo supervisor"}</h3>
+        {!editandoId && (
+          <>
+            <label>
+              Usuario
+              <input value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" required />
+            </label>
+            <CampoPassword
+              etiqueta="Contraseña (mínimo 8 caracteres)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          </>
+        )}
         <fieldset>
           <legend>Bibliotecas que va a supervisar</legend>
           {bibliotecas.map((b) => (
@@ -320,8 +347,13 @@ function PanelSupervisores({ bibliotecas }) {
           Puede crear bibliotecas nuevas
         </label>
         <button type="submit" disabled={guardando}>
-          {guardando ? "Creando…" : "Crear supervisor"}
-        </button>
+          {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Crear supervisor"}
+        </button>{" "}
+        {editandoId && (
+          <button type="button" className="secundario" onClick={onCancelar}>
+            Cancelar
+          </button>
+        )}
       </form>
     </div>
   );

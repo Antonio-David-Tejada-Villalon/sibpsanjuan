@@ -1,16 +1,20 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import Usuario, { PERMISOS_BIBLIOTECARIO } from "../models/Usuario.js";
-import { requiereLogin, requiereSuperbibliotecario } from "../middleware/auth.js";
+import { requiereLogin, requiereAdminSupervisorOSuperbibliotecario, requiereBiblioteca } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
 
-// Cuentas "bibliotecario" — solo el superbibliotecario de una biblioteca
-// puede crear/editar/eliminar las de su propia biblioteca. bibliotecaId se
-// fuerza del lado servidor (nunca del body) — un bibliotecario siempre
-// pertenece a la biblioteca de quien lo creó, nunca a otra.
+// Cuentas "bibliotecario" — el superbibliotecario de una biblioteca gestiona
+// las suyas; admin y supervisor también pueden, dentro de su alcance, sobre
+// la biblioteca activa (?bibliotecaId=, ver requiereBiblioteca — mismo
+// mecanismo que usan Libros/Socios/etc. para admin y supervisor). En los
+// tres casos, bibliotecaId sale de req.usuario.bibliotecaId ya resuelto por
+// requiereBiblioteca — nunca del body — así que un bibliotecario siempre
+// pertenece a la biblioteca sobre la que quien lo crea está operando, nunca
+// a otra.
 const router = Router();
 
-router.use(requiereLogin, requiereSuperbibliotecario);
+router.use(requiereLogin, requiereAdminSupervisorOSuperbibliotecario, requiereBiblioteca);
 
 function normalizarPermisos(permisos) {
   const normalizados = {};

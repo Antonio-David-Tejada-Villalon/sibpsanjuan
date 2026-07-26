@@ -117,7 +117,7 @@ function NavPanelBiblioteca({ sesion }) {
         </MenuDesplegable>
       )}
       {tieneAcceso("exportar") && <NavLink to="/exportar">Exportar</NavLink>}
-      {sesion.rol === "superbibliotecario" && <NavLink to="/bibliotecarios">Bibliotecarios</NavLink>}
+      {accesoCompleto && <NavLink to="/bibliotecarios">Bibliotecarios</NavLink>}
     </>
   );
 }
@@ -190,11 +190,16 @@ export default function Layout({ children }) {
       <a href="#contenido" className="skip-link">Saltar al contenido</a>
       <header className={menuAbierto ? "app menu-abierto" : "app"}>
         <div className="brand-nav">
-          <span className="brand">
-            <img src="/DBP.png" alt="" width="28" height="28" />
+          <NavLink to="/dashboard" className="brand">
+            <img src="/logo.png" alt="" width="28" height="28" />
             SIBPSANJUAN
-          </span>
+          </NavLink>
           <nav>
+            {sesion && (
+              <NavLink to="/dashboard" end>
+                Panel
+              </NavLink>
+            )}
             {(sesion?.rol === "admin" || sesion?.rol === "supervisor") && (
               <NavLink to="/admin">Bibliotecas</NavLink>
             )}
@@ -219,7 +224,7 @@ export default function Layout({ children }) {
             <ThemeToggle />
             <span className="sesion-usuario">
               {sesion.usuario}
-              <Link to="/cambiar-password">Cambiar contraseña</Link>
+              <Link to="/cambiar-password">Mi perfil</Link>
               <button className="secundario" onClick={onLogout}>
                 Salir
               </button>

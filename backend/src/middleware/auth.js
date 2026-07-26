@@ -174,6 +174,20 @@ export function requiereSuperbibliotecario(req, res, next) {
   next();
 }
 
+// Puerta de las rutas de gestión de cuentas "bibliotecario" (ver
+// routes/bibliotecarios.js) — antes solo el superbibliotecario de la
+// biblioteca podía crear/editar sus bibliotecarios; ahora admin y
+// supervisor también pueden hacerlo directamente, dentro de su alcance
+// (ver requiereBiblioteca, que se encadena después de este middleware para
+// resolver sobre qué biblioteca operan). El borrado sigue centralizado en
+// DELETE /usuarios/:id (puedeGestionar), que ya soportaba estos tres roles.
+export function requiereAdminSupervisorOSuperbibliotecario(req, res, next) {
+  if (!["admin", "supervisor", "superbibliotecario"].includes(req.usuario?.rol)) {
+    return res.status(403).json({ error: "Requiere permisos de admin, supervisor o superbibliotecario." });
+  }
+  next();
+}
+
 // Puerta de entrada de todas las rutas de catálogo/circulación/socios/
 // export: acepta cualquiera de los dos roles de una sola biblioteca
 // (superbibliotecario tiene acceso completo; bibliotecario depende de

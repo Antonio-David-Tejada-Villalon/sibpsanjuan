@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
+import CampoPassword from "../CampoPassword.jsx";
 import { useListaCrud } from "../useListaCrud.js";
 
 const POR_PAGINA = 50;
@@ -191,18 +192,14 @@ export default function Socios() {
                         onSubmit={(e) => onGuardarCredenciales(e, socio._id)}
                         style={{ margin: "0.5rem 0" }}
                       >
-                        <label>
-                          Contraseña para el login del OPAC de {socio.nombre} {socio.apellido} (mínimo 8
-                          caracteres)
-                          <input
-                            type="password"
-                            value={nuevaPasswordSocio}
-                            onChange={(e) => setNuevaPasswordSocio(e.target.value)}
-                            autoComplete="new-password"
-                            minLength={8}
-                            required
-                          />
-                        </label>
+                        <CampoPassword
+                          etiqueta={`Contraseña para el login del OPAC de ${socio.nombre} ${socio.apellido} (mínimo 8 caracteres)`}
+                          value={nuevaPasswordSocio}
+                          onChange={(e) => setNuevaPasswordSocio(e.target.value)}
+                          autoComplete="new-password"
+                          minLength={8}
+                          required
+                        />
                         {mensajeCredenciales && (
                           <div className="flash ok" role="status">
                             {mensajeCredenciales}
