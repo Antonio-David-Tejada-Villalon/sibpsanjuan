@@ -212,6 +212,16 @@ es `admin`) — este proyecto no tiene ningún servicio de mail configurado;
 si un `admin` se queda afuera, la única vía es `scripts/crear-admin.js`
 contra la base real.
 
+Las cuatro cuentas de staff también tienen un link **"Documentación"** en
+el encabezado (`/documentacion`, `pages/Documentacion.jsx`) — una guía de
+uso completa y en lenguaje claro (qué es el sistema, roles y permisos,
+cómo catalogar, carga masiva por CSV, socios, circulación, el OPAC,
+exportar, gestión de cuentas, y una sección de preguntas técnicas
+frecuentes — por qué falla un ISBN, qué es el borrado lógico, etc.).
+Contenido estático, sin permiso puntual: cualquiera de los cuatro roles
+la ve completa, para entender el sistema aunque no tenga acceso a todas
+las pantallas que describe.
+
 ### OPAC y circulación, en corto
 
 - El OPAC vive en `/opac/<código-de-biblioteca>` (el código reemplaza al

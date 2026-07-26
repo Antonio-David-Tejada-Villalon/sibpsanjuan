@@ -819,7 +819,7 @@ tbody tr.saliendo { animation: desvanecer 150ms ease-out forwards; }
 @media (prefers-reduced-motion: reduce) {
   tbody tr.saliendo { animation: none; }
 }
-form.card, div.card {
+.card {
   border: 1px solid var(--borde);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);

@@ -358,10 +358,11 @@ con el gate de rol ampliado sobre el mismo modelo `Usuario` de siempre, sin
 campos nuevos ni backfill.
 
 El botón "Ver OPAC" en cada tarjeta de biblioteca (panel de Bibliotecas),
-la corrección de legibilidad del favicon/`og:image`, y el
-`manifest.json` nuevo para poder instalar el sitio como app en Android
-son 100% frontend — sin cambio de schema, variables de entorno ni
-dependencias nuevas.
+la corrección de legibilidad del favicon/`og:image`, el `manifest.json`
+nuevo para poder instalar el sitio como app en Android, y la página
+nueva de Documentación (`/documentacion`, contenido estático) son 100%
+frontend — sin cambio de schema, variables de entorno ni dependencias
+nuevas.
 
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan

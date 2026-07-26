@@ -224,6 +224,7 @@ export default function Layout({ children }) {
             <ThemeToggle />
             <span className="sesion-usuario">
               {sesion.usuario}
+              <Link to="/documentacion">Documentación</Link>
               <Link to="/cambiar-password">Mi perfil</Link>
               <button className="secundario" onClick={onLogout}>
                 Salir

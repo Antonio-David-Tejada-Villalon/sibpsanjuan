@@ -15,6 +15,7 @@ import OpacLayout from "./pages/opac/OpacLayout.jsx";
 // siempre, no una pantalla puntual.
 const Login = lazy(() => import("./pages/Login.jsx"));
 const CambiarPassword = lazy(() => import("./pages/CambiarPassword.jsx"));
+const Documentacion = lazy(() => import("./pages/Documentacion.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Bibliotecarios = lazy(() => import("./pages/Bibliotecarios.jsx"));
 const Libros = lazy(() => import("./pages/Libros.jsx"));
@@ -283,6 +284,14 @@ function Rutas() {
         element={
           <RutaProtegida rolesPermitidos={ROLES_STAFF}>
             <CambiarPassword />
+          </RutaProtegida>
+        }
+      />
+      <Route
+        path="/documentacion"
+        element={
+          <RutaProtegida rolesPermitidos={ROLES_STAFF}>
+            <Documentacion />
           </RutaProtegida>
         }
       />
