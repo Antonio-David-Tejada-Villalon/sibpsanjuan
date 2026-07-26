@@ -29,9 +29,10 @@ amplio) · 🟡 Medio (mejora acotada) · 🟢 Bajo (pulido/sugerencia).
 
 ## Resumen ejecutivo — lo más importante primero
 
-**Actualización 26/07/2026 (octava pasada):** 38 hallazgos ya se
+**Actualización 26/07/2026 (novena pasada):** 39 hallazgos ya se
 corrigieron y se verificaron en vivo (tests + Playwright contra una
-instancia aislada), en ocho lotes. GOB-3 y A11Y-7 se consultaron con el
+instancia aislada), en nueve lotes — **ya no queda ningún hallazgo
+abierto en toda la auditoría.** GOB-3 y A11Y-7 se consultaron con el
 usuario antes de tocarlos, porque no eran decisiones puramente técnicas:
 A11Y-7 quedó resuelto (el foco corregido con `--brand-texto`; los botones
 quedan con el naranja vivo, por decisión de diseño consciente — no una
@@ -50,10 +51,11 @@ de materia, del mismo tamaño que BIBL-1 — el usuario decidió incluirlo en
 vez de dejarlo aparte); al implementar BIBL-4 (validación de ISBN/ISSN)
 apareció un bug sistémico real — **ARQ-12** — en 9 rutas `PUT` que podían
 tirar abajo el proceso ante un error de validación no capturado, corregido
-en el mismo momento. La migración de `react-router-dom` a v7 (ARQ-9/
-CYBER-5) sigue siendo el único hallazgo abierto — deliberadamente afuera
-de estos lotes por ser un cambio mayor y de otro orden de riesgo, para
-cuando el proyecto la pida específicamente.
+en el mismo momento. En el noveno lote (26/07/2026, a pedido explícito
+del usuario, fuera del orden por impacto/esfuerzo porque bloqueaba una
+duda puntual sobre el deploy en Vercel) se cerró **ARQ-9/CYBER-5** —
+migración de `react-router-dom` de v6 a v7 — el cambio mayor que se
+había dejado deliberadamente afuera de los lotes anteriores.
 
 1. ✅ **Resuelto** — ~~`portadaUrl` está roto en producción para cualquier
    imagen externa~~ (ARQ-7/CYBER-3) — Helmet ya permite `https:` en
@@ -78,9 +80,10 @@ cuando el proyecto la pida específicamente.
    ✅ **también resuelto**: el campo "Autores" del alta individual
    rompía cualquier nombre "Apellido, Nombre" con más de un autor
    (ver BIBL-5).
-6. 🟡 `react-router-dom` tiene 2 CVEs moderados sin parche menor disponible
-   (requiere migrar a v7) — bajo riesgo práctico hoy, pero hay que
-   planificarlo (ARQ-9/CYBER-5).
+6. ✅ **Resuelto** — ~~`react-router-dom` tenía 2 CVEs moderados sin parche
+   menor disponible~~ (ARQ-9/CYBER-5) — migrado a v7.18.1 (fuera del rango
+   vulnerable); 27 tests de frontend en verde y navegación verificada en
+   vivo con Playwright, incluida la ruta anidada bajo `/opac/:codigo/*`.
 7. ✅ **Resuelto** — ~~el borrado masivo no dejaba registro de *quién*
    borró *qué*~~ (CYBER-4bis) — nuevo campo `eliminadoPor` en los 10
    modelos catalogables + Socio, completado en los 7 puntos donde se borra
@@ -132,15 +135,53 @@ eliminar una biblioteca (ARQ-6). Sigue en pie.
   tiene remoto de git configurado en este entorno — el workflow queda listo
   para activarse en cuanto el repo se conecte a GitHub.
 
-- **ARQ-9 🟡 — `react-router-dom` con 2 CVEs moderados sin parche menor.**
-  `npm audit` (frontend) reporta *"Open redirect via backslash in `<Link>`
-  y `useNavigate`"* y *"Arbitrary Constructor Injection en SSR Hydration"*
-  para el rango `6.0.0-alpha.0 - 7.17.0`. Confirmé contra el registro de
-  npm: la última versión de la línea 6.x (`6.30.4`) **sigue** dentro del
-  rango vulnerable — no hay parche menor, hace falta saltar a la v7
-  (`7.18.0+`), que es un upgrade mayor. Riesgo práctico bajo hoy (esta app
-  no usa SSR, y las rutas son fijas, no construidas con input de usuario),
-  pero conviene planificar la migración en vez de dejarlo indefinidamente.
+- **ARQ-9 ✅ Resuelto (26/07/2026) — `react-router-dom` con 2 CVEs
+  moderados sin parche menor.** `npm audit` (frontend) reportaba *"Open
+  redirect via backslash in `<Link>` y `useNavigate`"* y *"Arbitrary
+  Constructor Injection en SSR Hydration"* para el rango
+  `6.0.0-alpha.0 - 7.17.0`. La última versión de la línea 6.x (`6.30.4`)
+  seguía dentro del rango vulnerable — no había parche menor, hacía falta
+  saltar a v7.
+
+  **Antes de tocar nada, se revisó qué tan invasivo era el cambio real**
+  (el motivo original por el que este hallazgo se dejó afuera de los
+  lotes 1-8): toda la app usa el modo *declarativo* de react-router
+  (`BrowserRouter`/`Routes`/`Route`/`Link`/`NavLink`/`useNavigate`/
+  `useLocation`/`useParams`/`MemoryRouter` en los tests) — sin data
+  routers, sin `loader`/`action`, sin `<Form>`, y sin un solo `Link`/
+  `navigate()` que use un path relativo (todos son absolutos, `to="/..."`)
+  — que es justo el área donde v6→v7 cambia comportamiento por default
+  (`v7_relativeSplatPath` y el resto de los *future flags* de v6, todos
+  del mundo de data routers). Con eso confirmado, el upgrade era
+  mecánico, no un rediseño de rutas.
+
+  **Arreglo aplicado:** `react-router-dom` `^6.26.0` → `^7.18.1` (la
+  última versión de ese paquete — a partir de v8 el proyecto pasa a
+  llamarse `react-router` a secas y **exige React 19.2.7+ y Node
+  22.22+**, un salto mayor no relacionado con este CVE y fuera de alcance
+  de este arreglo; v7.18.1 corre sobre el React 18.3.1 y Node 22.15 que
+  ya usa este proyecto, sin tocar nada más).
+
+  Verificado en tres niveles: los 27 tests de frontend existentes
+  (`vitest`, incluidos los que montan `MemoryRouter`) siguen en verde sin
+  modificar ninguno; el build de producción compila igual (58.82KB →
+  64.66KB gzip en el bundle principal, diferencia esperada por el peso
+  propio de v7, cada página sigue en su chunk lazy); y en vivo con
+  Playwright contra una instancia aislada — login → navegación cliente
+  entre rutas del panel, y el caso que más podía romper con el cambio de
+  reglas de resolución de v7: una ruta anidada bajo la ruta con comodín
+  `/opac/:codigo/*` (`/opac/<código>/privacidad`) renderizó el componente
+  correcto (`<h1>Aviso de privacidad</h1>`) sin errores de consola.
+
+  **Nota:** `npm audit` sigue mostrando 1 hallazgo alto nuevo
+  (`GHSA-qwww-vcr4-c8h2`, "RSC Mode CSRF Bypass", parcheado recién en
+  `react-router@8.3.0` — un paquete que ya no tiene build de
+  `react-router-dom`) — la propia advisory aclara que **solo afecta a
+  quien use las APIs `unstable_*` de RSC** (React Server Components),
+  que este proyecto no usa ni va a usar (es una SPA con Vite, sin SSR ni
+  RSC). Mismo criterio de riesgo práctico que ya se aplicaba al hallazgo
+  original: queda anotado, no bloquea nada, y saltar a v8 traería consigo
+  la migración a React 19 — un cambio de otro orden, no pedido acá.
 
 - **ARQ-10 ✅ Resuelto (26/07/2026) — Referencia rota en la documentación.**
   `README.md:301` apuntaba a `../ARQUITECTURA.md` ("de Koha Puente") — ese
@@ -242,14 +283,15 @@ backend (`npm audit` limpio).
   cascada de `bibliotecas.js`). 2 tests nuevos (backend) verifican el
   campo tanto en un borrado individual como en el cascada.
 
-- **CYBER-5 🟡 — Ver ARQ-9.** Mismo CVE de `react-router-dom`, ángulo de
-  seguridad: el *open redirect* requiere que un `<Link>`/`navigate()` reciba
-  un path controlado por el atacante para ser explotable. Revisé los usos
-  en este proyecto: todas las rutas son fijas o vienen de `codigo`/`id`
-  ya validados server-side — no encontré un vector directo hoy, pero
-  "hoy no hay vector" no es lo mismo que "está parcheado", y cualquier
-  ruta nueva que interpole un valor de la URL en un `navigate()` reabriría
-  el riesgo sin que nadie se dé cuenta.
+- **CYBER-5 ✅ Resuelto (26/07/2026) — Ver ARQ-9.** Mismo CVE de
+  `react-router-dom`, ángulo de seguridad: el *open redirect* requería que
+  un `<Link>`/`navigate()` recibiera un path controlado por el atacante
+  para ser explotable — no había un vector directo hoy (todas las rutas
+  son fijas o vienen de `codigo`/`id` ya validados server-side), pero
+  "hoy no hay vector" no era lo mismo que "está parcheado". Con el
+  upgrade a v7.18.1 (ver ARQ-9 para el detalle completo de la migración y
+  su verificación) el paquete queda fuera del rango vulnerable — deja de
+  depender de que ninguna ruta futura reabra el riesgo sin querer.
 
 - **CYBER-6 ✅ Resuelto (26/07/2026) — `express.json()` sin límite explícito.**
   Corría con el default de `body-parser` (100kb) — razonable, pero sin
@@ -891,9 +933,13 @@ migración de router (ver más abajo):**
 36. ~~ARCHIV-4 — confirmado que `Objeto.js` ya tenía la nota aclaratoria
     pedida.~~
 
-**Cuando el proyecto lo pida — planificación de mediano plazo:**
-37. ARQ-9/CYBER-5 — migración a `react-router-dom` v7. Es el único
-    hallazgo que queda abierto en toda la auditoría — mucho más
-    riesgo/esfuerzo que el resto (breaking change en las ~20 páginas del
-    panel), y se mantuvo deliberadamente afuera de los lotes 7 y 8 para
-    cuando el proyecto la pida específicamente.
+**✅ Hecho — lote 9 (26/07/2026), a pedido explícito del usuario:**
+37. ~~ARQ-9/CYBER-5 — migración de `react-router-dom` v6→v7. Se había
+    mantenido deliberadamente afuera de los lotes 7 y 8 por su
+    riesgo/esfuerzo de otro orden que el resto; resultó ser un cambio
+    mecánico de una línea (la app no usa ningún API de v6 que v7 cambie
+    de comportamiento) — verificado con los 27 tests de frontend, el
+    build de producción, y navegación en vivo con Playwright, incluida la
+    ruta anidada bajo `/opac/:codigo/*`.~~
+
+No queda ningún hallazgo abierto en toda la auditoría.
