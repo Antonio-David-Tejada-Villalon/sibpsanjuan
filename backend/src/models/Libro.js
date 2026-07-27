@@ -22,13 +22,40 @@ const libroSchema = new Schema({
   },
   titulo: { type: String, required: true, trim: true },
   subtitulo: { type: String, trim: true },
+  // 245$c — mención de responsabilidad (ej. "por Jorge Luis Borges").
+  mencionResponsabilidad: { type: String, trim: true },
+  // 246 — forma variante del título (ej. título en la tapa distinto del de portada).
+  tituloVariante: { type: String, trim: true },
+  // 250$a — mención de edición (ej. "2a ed.", "Edición corregida y aumentada").
+  edicion: { type: String, trim: true },
   autores: { type: [String], default: [] },
+  // 110$b — entidad corporativa como autor (ej. para anuarios/informes/memorias
+  // institucionales, donde el responsable es una institución y no una persona).
+  autorCorporativo: { type: String, trim: true },
   editorial: { type: String, trim: true },
   lugarPublicacion: { type: String, trim: true },
   anio: { type: String, trim: true },
   paginas: { type: String, trim: true },
+  // 300$b/$c/$e — resto de la descripción física, además de la extensión (paginas).
+  detallesFisicos: { type: String, trim: true },
+  dimensiones: { type: String, trim: true },
+  materialComplementario: { type: String, trim: true },
+  // 080$a — Clasificación Decimal Universal.
+  cdu: { type: String, trim: true },
+  // 082$a — Clasificación Decimal Dewey.
+  dewey: { type: String, trim: true },
+  // 490 — mención de serie a la que pertenece el libro (colección editorial).
+  serie: { type: String, trim: true },
+  serieVolumen: { type: String, trim: true },
+  issn: { type: String, trim: true },
   materias: { type: [String], default: [] },
   notas: { type: String, trim: true },
+  // 521$a — a qué público está dirigido (ej. "Para niños de 8 a 10 años").
+  notaAudiencia: { type: String, trim: true },
+  // 546$a — idioma(s) del contenido, cuando no es obvio o hay más de uno.
+  notaIdioma: { type: String, trim: true },
+  // 856$i — texto que acompaña al enlace de urlAcceso (ej. "Acceder al texto completo").
+  urlInstruccion: { type: String, trim: true },
   // Subtipos dentro del bucket "Libros" (impreso sigue siendo el caso
   // común). urlAcceso solo tiene sentido para "digital"/"ebook" — mapea a
   // MARC 856 $u y es lo que el frontend usa para ofrecer "Acceder" en vez

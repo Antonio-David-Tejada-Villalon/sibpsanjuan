@@ -29,16 +29,17 @@ amplio) · 🟡 Medio (mejora acotada) · 🟢 Bajo (pulido/sugerencia).
 
 ## Resumen ejecutivo — lo más importante primero
 
-**Actualización 26/07/2026 (décima pasada):** 41 hallazgos ya se
+**Actualización 26/07/2026 (undécima pasada):** 42 hallazgos ya se
 corrigieron y se verificaron en vivo (tests + Playwright contra una
-instancia aislada), en diez lotes — **ya no queda ningún hallazgo
-abierto en toda la auditoría.** Los últimos dos (UX-5, UX-6) no salieron
-de esta auditoría en sí: aparecieron al investigar un reporte del usuario
-después de desplegar a producción (Vercel + Render + Atlas, ver
-`DEPLOY.md`) y al armar la página de Documentación, respectivamente —
-igual que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo
-criterio de "lo que se encuentra en el camino se corrige y se documenta
-acá". GOB-3 y
+instancia aislada), en once lotes — **ya no queda ningún hallazgo
+abierto en toda la auditoría.** Los últimos tres (UX-5, UX-6, BIBL-6) no
+salieron de esta auditoría en sí: aparecieron al investigar un reporte
+del usuario después de desplegar a producción (Vercel + Render + Atlas,
+ver `DEPLOY.md`), al armar la página de Documentación, y al llevar el
+formulario de Libros a un editor MARC completo por solapas (a pedido
+explícito del usuario, con el editor de Koha como referencia) — igual
+que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo criterio de
+"lo que se encuentra en el camino se corrige y se documenta acá". GOB-3 y
 A11Y-7 se consultaron con el usuario antes de tocarlos, porque no eran
 decisiones puramente técnicas:
 A11Y-7 quedó resuelto (el foco corregido con `--brand-texto`; los botones
@@ -834,6 +835,62 @@ gestión pública debería tener por defecto.
   el mismo formato (`;`). Confirmado también en `MaterialGrafico.jsx`
   como muestra representativa del resto.
 
+- **BIBL-6 ✅ Resuelto (26/07/2026) — El alta/edición individual de Libros
+  solo exponía un subconjunto chico de MARC21 (isbn/título/subtítulo/
+  autores/editorial/lugar/año/páginas/materias/notas/url), como un único
+  formulario plano sin agrupar — nada de clasificación (CDU/Dewey), autor
+  corporativo, mención de edición, título variante, mención de
+  responsabilidad, descripción física completa (300 $b/$c/$e), serie/ISSN
+  (490), notas de audiencia/idioma (521/546), ni instrucción del enlace
+  (856 $i). El usuario pidió explícitamente llevarlo a la altura de un
+  editor MARC profesional (Koha "Add MARC record" como referencia), con
+  campos organizados por solapas numeradas y soporte real para campos
+  repetibles.
+
+  **Arreglo aplicado:**
+  - `models/Libro.js` suma 15 campos opcionales nuevos (`edicion`, `cdu`,
+    `dewey`, `autorCorporativo`, `mencionResponsabilidad`,
+    `tituloVariante`, `detallesFisicos`, `dimensiones`,
+    `materialComplementario`, `serie`, `serieVolumen`, `issn`,
+    `notaAudiencia`, `notaIdioma`, `urlInstruccion`) — puro aditivo, sin
+    migración, sin volver obligatorio nada que no lo era.
+  - `Libros.jsx` se reorganizó en un editor de 9 solapas numeradas (0-8),
+    calcadas del layout de Koha: 0 Clasificación (000/020/080/082/900),
+    1 Autores (100/110/700), 2 Título y publicación (245/246/250/260),
+    3 Descripción física (300), 4 Serie (490), 5 Notas (500/521/546),
+    6 Materias (650), 7 Acceso electrónico (856), 8 Ejemplares (952,
+    campo local de Koha). Los datos que no son MARC (subtipo interno,
+    portada) quedaron aparte, marcados explícitamente como "no forman
+    parte del estándar".
+  - Autores y materias pasaron de un textarea delimitado por separador a
+    una lista de filas repetibles de verdad (componente `GrupoRepetible`),
+    con un ícono "◨ Repetir" (agrega una fila) y "✕ Quitar" (solo visible
+    si hay más de una fila) por cada campo — mismo mecanismo que Koha, sin
+    tener que tipear un delimitador a mano. El primer autor sigue siendo
+    el asiento principal (100) y el resto asientos secundarios (700),
+    igual que ya hacía `marcxml.js` — no cambió el modelo de datos
+    (sigue siendo `autores: [String]`), solo la forma de editarlo.
+  - `marc/marcxml.js` (`libroARecord`) ahora emite también 080, 082, 110,
+    245 $c, 246, 250, 300 $b/$c/$e, 490 y 521/546, y agrega 856 $i junto
+    al $u existente — todos opcionales (`if` guardado, igual que el resto
+    del archivo), así que un libro mínimo sigue exportando exactamente lo
+    mismo que antes.
+  - Deliberadamente **no** se sumaron 111 (nombre de reunión), 240/243
+    (títulos uniformes), 522/526 (cobertura geográfica/programa de
+    estudio) ni los asientos de materia 600/610/630/651 con subdivisiones
+    $x/$y/$z/$v — son campos de uso excepcional para una biblioteca chica
+    y hubieran significado inflar el modelo de datos sin un beneficio real
+    para este proyecto; si hicieran falta más adelante, se pueden agregar
+    con el mismo patrón aditivo.
+
+  Verificado en vivo (Playwright contra `dev:local`): se cargó un libro
+  completo llenando las 9 solapas (dos autores repetidos, dos materias
+  repetidas, clasificación, serie, descripción física, notas, acceso
+  electrónico y ejemplares), se guardó, y se volvió a abrir en edición —
+  los datos de todas las solapas, incluidos los campos repetidos,
+  coincidían exactamente con lo cargado. 124 tests de backend + 27 de
+  frontend en verde, build de producción sin errores.
+
 - **ARCHIV-1 ✅ Confirmado (26/07/2026), no requería acción — El modelo
   `Archivo` ya es honesto y está bien resuelto para lo que se propone.**
   `models/Archivo.js` mapea explícitamente varios elementos ISAD(G) (3.1.1
@@ -1008,5 +1065,16 @@ producción:**
     página ya tenía. Encontrado al sacar la captura de ejemplo para
     Documentación y notar que el badge seguía en "NO" después de
     guardar. Verificado en vivo.~~
+
+**✅ Hecho — lote 11 (26/07/2026), a pedido explícito del usuario:**
+40. ~~BIBL-6 — el formulario de Libros solo cubría un subconjunto chico de
+    MARC21, como un único bloque sin agrupar. Se llevó a un editor de 9
+    solapas numeradas calcado del layout de Koha, con 15 campos MARC
+    nuevos (edición, CDU/Dewey, autor corporativo, título variante,
+    mención de responsabilidad, descripción física completa, serie/ISSN,
+    notas de audiencia/idioma, instrucción de acceso) y campos repetibles
+    de verdad (autores/materias) con íconos "Repetir"/"Quitar". Verificado
+    en vivo con Playwright: carga completa de las 9 solapas, guardado, y
+    reapertura en edición con todos los datos intactos.~~
 
 No queda ningún hallazgo abierto en toda la auditoría.

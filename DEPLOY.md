@@ -367,6 +367,16 @@ dependencias nuevas. El `recargar()` agregado en `Socios.jsx` (ver UX-6
 en `AUDITORIA.md`, el badge "OPAC: sí/no" que no se actualizaba solo)
 tampoco tiene impacto de deploy — mismo criterio.
 
+El editor MARC por solapas de Libros (ver BIBL-6 en `AUDITORIA.md`) suma
+15 campos opcionales a `models/Libro.js` (edición, CDU, Dewey, autor
+corporativo, título variante, mención de responsabilidad, descripción
+física extendida, serie/ISSN, notas de audiencia/idioma, instrucción de
+acceso) — todos `String` opcionales sin `default` obligatorio, así que
+Mongoose los agrega solos a cualquier documento existente la primera vez
+que se lee/guarda: **no hace falta ninguna migración ni backfill.** Los
+libros ya cargados en producción siguen funcionando exactamente igual,
+simplemente con esos campos nuevos vacíos hasta que alguien los edite.
+
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan
 apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el

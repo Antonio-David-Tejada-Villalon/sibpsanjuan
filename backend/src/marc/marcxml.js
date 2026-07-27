@@ -156,15 +156,36 @@ function libroARecord(collection, libro) {
     agregarDatafield(record, "020", " ", " ", [["a", libro.isbn]]);
   }
 
+  if (libro.cdu) {
+    agregarDatafield(record, "080", " ", " ", [["a", libro.cdu]]);
+  }
+
+  if (libro.dewey) {
+    agregarDatafield(record, "082", " ", " ", [["a", libro.dewey]]);
+  }
+
   const [primerAutor, ...otrosAutores] = libro.autores || [];
   if (primerAutor) {
     agregarDatafield(record, "100", "1", " ", [["a", primerAutor]]);
   }
 
+  if (libro.autorCorporativo) {
+    agregarDatafield(record, "110", "2", " ", [["b", libro.autorCorporativo]]);
+  }
+
   agregarDatafield(record, "245", primerAutor ? "1" : "0", "0", [
     ["a", libro.titulo],
     ["b", libro.subtitulo],
+    ["c", libro.mencionResponsabilidad],
   ]);
+
+  if (libro.tituloVariante) {
+    agregarDatafield(record, "246", " ", " ", [["a", libro.tituloVariante]]);
+  }
+
+  if (libro.edicion) {
+    agregarDatafield(record, "250", " ", " ", [["a", libro.edicion]]);
+  }
 
   if (libro.lugarPublicacion || libro.editorial || libro.anio) {
     agregarDatafield(record, "260", " ", " ", [
@@ -174,8 +195,21 @@ function libroARecord(collection, libro) {
     ]);
   }
 
-  if (libro.paginas) {
-    agregarDatafield(record, "300", " ", " ", [["a", `${libro.paginas} p.`]]);
+  if (libro.paginas || libro.detallesFisicos || libro.dimensiones || libro.materialComplementario) {
+    agregarDatafield(record, "300", " ", " ", [
+      ["a", libro.paginas ? `${libro.paginas} p.` : undefined],
+      ["b", libro.detallesFisicos],
+      ["c", libro.dimensiones],
+      ["e", libro.materialComplementario],
+    ]);
+  }
+
+  if (libro.serie || libro.serieVolumen || libro.issn) {
+    agregarDatafield(record, "490", "1", " ", [
+      ["a", libro.serie],
+      ["v", libro.serieVolumen],
+      ["x", libro.issn],
+    ]);
   }
 
   for (const materia of libro.materias || []) {
@@ -190,10 +224,21 @@ function libroARecord(collection, libro) {
     agregarDatafield(record, "500", " ", " ", [["a", libro.notas]]);
   }
 
+  if (libro.notaAudiencia) {
+    agregarDatafield(record, "521", " ", " ", [["a", libro.notaAudiencia]]);
+  }
+
+  if (libro.notaIdioma) {
+    agregarDatafield(record, "546", " ", " ", [["a", libro.notaIdioma]]);
+  }
+
   // 856: solo si hay urlAcceso (subtipo digital/ebook) — mismo campo que
   // usa recursoElectronicoARecord, el punto de acceso directo.
   if (libro.urlAcceso) {
-    agregarDatafield(record, "856", "4", "0", [["u", libro.urlAcceso]]);
+    agregarDatafield(record, "856", "4", "0", [
+      ["i", libro.urlInstruccion],
+      ["u", libro.urlAcceso],
+    ]);
   }
 
   // 952: uno por ejemplar. Es lo que hace que Koha, al importar, cree

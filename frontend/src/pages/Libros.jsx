@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
@@ -26,81 +26,193 @@ const SUBTIPOS_LIBRO = [
 
 const VACIO = {
   isbn: "",
+  cdu: "",
+  dewey: "",
   titulo: "",
   subtitulo: "",
-  autoresTexto: "",
+  mencionResponsabilidad: "",
+  tituloVariante: "",
+  edicion: "",
+  autores: [""],
+  autorCorporativo: "",
   editorial: "",
   lugarPublicacion: "",
   anio: "",
   paginas: "",
-  materiasTexto: "",
+  detallesFisicos: "",
+  dimensiones: "",
+  materialComplementario: "",
+  serie: "",
+  serieVolumen: "",
+  issn: "",
+  materias: [""],
   notas: "",
+  notaAudiencia: "",
+  notaIdioma: "",
   subtipo: "impreso",
   urlAcceso: "",
+  urlInstruccion: "",
   portadaUrl: "",
   ejemplaresTexto: "",
   ejemplaresExistentes: [],
+  // Informativos (900/005) — no se mandan al servidor, ver mapFormADatos.
+  creado: "",
+  actualizado: "",
 };
-
-function aLista(texto) {
-  return texto
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-// Punto y coma, no coma: a diferencia de "materias", cada autor acá suele
-// venir en formato "Apellido, Nombre" — la forma estándar bibliotecaria —
-// que ya trae una coma adentro. Partir por coma simple rompía "Borges,
-// Jorge Luis" en dos fragmentos apenas había un segundo autor en el mismo
-// campo (ver BIBL-5 en AUDITORIA.md). La carga masiva por CSV ya usaba
-// este mismo criterio (`;` dentro de la celda) — esto solo alinea el
-// alta/edición individual con lo que el CSV ya hacía bien.
-function aListaAutores(texto) {
-  return texto
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 function mapEntidadAForm(libro) {
   return {
     isbn: libro.isbn || "",
+    cdu: libro.cdu || "",
+    dewey: libro.dewey || "",
     titulo: libro.titulo || "",
     subtitulo: libro.subtitulo || "",
-    autoresTexto: (libro.autores || []).join("; "),
+    mencionResponsabilidad: libro.mencionResponsabilidad || "",
+    tituloVariante: libro.tituloVariante || "",
+    edicion: libro.edicion || "",
+    autores: libro.autores?.length ? libro.autores : [""],
+    autorCorporativo: libro.autorCorporativo || "",
     editorial: libro.editorial || "",
     lugarPublicacion: libro.lugarPublicacion || "",
     anio: libro.anio || "",
     paginas: libro.paginas || "",
-    materiasTexto: (libro.materias || []).join(", "),
+    detallesFisicos: libro.detallesFisicos || "",
+    dimensiones: libro.dimensiones || "",
+    materialComplementario: libro.materialComplementario || "",
+    serie: libro.serie || "",
+    serieVolumen: libro.serieVolumen || "",
+    issn: libro.issn || "",
+    materias: libro.materias?.length ? libro.materias : [""],
     notas: libro.notas || "",
+    notaAudiencia: libro.notaAudiencia || "",
+    notaIdioma: libro.notaIdioma || "",
     subtipo: libro.subtipo || "impreso",
     urlAcceso: libro.urlAcceso || "",
+    urlInstruccion: libro.urlInstruccion || "",
     portadaUrl: libro.portadaUrl || "",
     ejemplaresTexto: "",
     // Solo para mostrarlos (de solo lectura) mientras se edita — no se
     // manda de vuelta al servidor (ver mapFormADatos, que no la incluye).
     ejemplaresExistentes: libro.ejemplares || [],
+    creado: libro.creado || "",
+    actualizado: libro.actualizado || "",
   };
+}
+
+function limpiarLista(valores) {
+  return valores.map((v) => v.trim()).filter(Boolean);
 }
 
 function mapFormADatos(form) {
   return {
     isbn: form.isbn,
+    cdu: form.cdu,
+    dewey: form.dewey,
     titulo: form.titulo,
     subtitulo: form.subtitulo,
-    autores: aListaAutores(form.autoresTexto),
+    mencionResponsabilidad: form.mencionResponsabilidad,
+    tituloVariante: form.tituloVariante,
+    edicion: form.edicion,
+    autores: limpiarLista(form.autores),
+    autorCorporativo: form.autorCorporativo,
     editorial: form.editorial,
     lugarPublicacion: form.lugarPublicacion,
     anio: form.anio,
     paginas: form.paginas,
-    materias: aLista(form.materiasTexto),
+    detallesFisicos: form.detallesFisicos,
+    dimensiones: form.dimensiones,
+    materialComplementario: form.materialComplementario,
+    serie: form.serie,
+    serieVolumen: form.serieVolumen,
+    issn: form.issn,
+    materias: limpiarLista(form.materias),
     notas: form.notas,
+    notaAudiencia: form.notaAudiencia,
+    notaIdioma: form.notaIdioma,
     subtipo: form.subtipo,
     urlAcceso: form.urlAcceso,
+    urlInstruccion: form.urlInstruccion,
     portadaUrl: form.portadaUrl,
   };
+}
+
+// Las nueve solapas replican el layout del editor MARC de Koha ("Add MARC
+// record"): cada una agrupa los campos/subcampos MARC21 que le
+// corresponden, en el mismo orden. 952 (ejemplares) es un campo local de
+// Koha, no del estándar — se deja como última solapa porque es donde
+// vive el resto de los datos "operativos" (códigos de barras/signaturas).
+const SOLAPAS_LIBRO = [
+  { indice: 0, titulo: "Clasificación", tags: "000 · 020 · 080 · 082 · 900" },
+  { indice: 1, titulo: "Autores", tags: "100 · 110 · 700" },
+  { indice: 2, titulo: "Título y publicación", tags: "245 · 246 · 250 · 260" },
+  { indice: 3, titulo: "Descripción física", tags: "300" },
+  { indice: 4, titulo: "Serie", tags: "490" },
+  { indice: 5, titulo: "Notas", tags: "500 · 521 · 546" },
+  { indice: 6, titulo: "Materias", tags: "650" },
+  { indice: 7, titulo: "Acceso electrónico", tags: "856" },
+  { indice: 8, titulo: "Ejemplares", tags: "952 (local)" },
+];
+
+// Grupo de campos repetibles (100/700 para autores, 650 para materias): un
+// "◨ Repetir" agrega una fila nueva vacía (como el ícono de duplicar del
+// editor de Koha) y "✕ Quitar" borra una fila ya repetida — solo aparece
+// si hay más de una, porque no tiene sentido "quitar" el único campo.
+function GrupoRepetible({ valores, onCambiar, etiquetaFila, placeholder }) {
+  function actualizarFila(indice, valor) {
+    const copia = [...valores];
+    copia[indice] = valor;
+    onCambiar(copia);
+  }
+  function agregarFila() {
+    onCambiar([...valores, ""]);
+  }
+  function quitarFila(indice) {
+    const copia = valores.filter((_, i) => i !== indice);
+    onCambiar(copia.length ? copia : [""]);
+  }
+  return (
+    <div className="marc-grupo">
+      {valores.map((valor, indice) => (
+        <div className="marc-grupo__fila" key={indice}>
+          <label>
+            {etiquetaFila(indice)}
+            <input value={valor} placeholder={placeholder} onChange={(e) => actualizarFila(indice, e.target.value)} />
+          </label>
+          <div className="marc-grupo__acciones">
+            <button
+              type="button"
+              className="marc-icono-boton"
+              onClick={agregarFila}
+              title="Repetir este campo (agregar otro)"
+              aria-label={`Repetir el campo ${etiquetaFila(indice)}`}
+            >
+              <span aria-hidden="true">⧉</span>
+            </button>
+            {valores.length > 1 && (
+              <button
+                type="button"
+                className="marc-icono-boton marc-icono-boton--peligro"
+                onClick={() => quitarFila(indice)}
+                title="Quitar este campo repetido"
+                aria-label={`Quitar el campo ${etiquetaFila(indice)}`}
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function fechaLegible(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return null;
+  }
 }
 
 // Carga masiva por CSV: una fila por libro, con sus ejemplares (columna
@@ -354,122 +466,311 @@ export default function Libros() {
     mapFormADatos,
   });
 
+  const [solapaActiva, setSolapaActiva] = useState(0);
+  useEffect(() => {
+    setSolapaActiva(0);
+  }, [editandoId]);
+
   return (
     <>
       <h1>Libros</h1>
       <form className="card" onSubmit={onSubmit}>
         <h2>{editandoId ? "Editar libro" : "Nuevo libro"}</h2>
         {error && <div className="flash error" role="alert">{error}</div>}
-        <Campo nombre="titulo" etiqueta="Título (245$a) *" form={form} onCambiar={onCambiarCampo} required />
-        <Campo nombre="subtitulo" etiqueta="Subtítulo (245$b)" form={form} onCambiar={onCambiarCampo} />
-        <Campo
-          nombre="portadaUrl"
-          etiqueta="URL de portada/imagen (opcional)"
-          type="url"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
-        <Campo
-          nombre="autoresTexto"
-          etiqueta="Autores (separados por punto y coma) (100$a / 700$a)"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
-        <p>
-          <small>
-            Punto y coma entre un autor y el siguiente — no coma, porque cada autor suele ir en formato
-            "Apellido, Nombre" (ej. <code>Borges, Jorge Luis; Cortázar, Julio</code>).
-          </small>
-        </p>
-        <Campo nombre="isbn" etiqueta="ISBN (020$a)" form={form} onCambiar={onCambiarCampo} />
-        <Campo nombre="editorial" etiqueta="Editorial (260$b)" form={form} onCambiar={onCambiarCampo} />
-        <Campo nombre="lugarPublicacion" etiqueta="Lugar de publicación (260$a)" form={form} onCambiar={onCambiarCampo} />
-        <Campo nombre="anio" etiqueta="Año (260$c)" form={form} onCambiar={onCambiarCampo} />
-        <Campo nombre="paginas" etiqueta="Páginas (300$a)" form={form} onCambiar={onCambiarCampo} />
-        <Campo
-          nombre="materiasTexto"
-          etiqueta="Materias (separadas por coma) (650$a)"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
-        <Campo
-          nombre="subtipo"
-          etiqueta="Subtipo"
-          tipo="select"
-          opciones={SUBTIPOS_LIBRO}
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
-        <Campo
-          nombre="urlAcceso"
-          etiqueta="URL de acceso (opcional) (856$u)"
-          type="url"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
-        <p>
-          <small>
-            Un libro puede tener ejemplares físicos y además una URL de acceso digital al mismo tiempo — el
-            OPAC muestra las dos opciones si corresponde, no hace falta elegir una sola.
-          </small>
-        </p>
-        <label>
-          Notas (500$a)
-          <textarea value={form.notas} onChange={(e) => onCambiarCampo("notas", e.target.value)} />
-        </label>
-        {editandoId ? (
-          <div>
-            <label>Ejemplares (952$p / $o)</label>
-            {form.ejemplaresExistentes.length > 0 ? (
-              <ul className="lista-ejemplares">
-                {form.ejemplaresExistentes.map((e) => (
-                  <FilaEjemplar
-                    key={e._id}
-                    libroId={editandoId}
-                    ejemplar={e}
-                    onCambiar={(actualizado) =>
-                      onCambiarCampo(
-                        "ejemplaresExistentes",
-                        form.ejemplaresExistentes.map((x) => (x._id === actualizado._id ? actualizado : x))
-                      )
-                    }
-                    onEliminar={() =>
-                      onCambiarCampo(
-                        "ejemplaresExistentes",
-                        form.ejemplaresExistentes.filter((x) => x._id !== e._id)
-                      )
-                    }
-                  />
-                ))}
-              </ul>
-            ) : (
-              <p>
-                <small>Este libro todavía no tiene ejemplares cargados.</small>
-              </p>
+
+        <div className="card marc-extra">
+          <h3>Datos internos de SIBPSANJUAN</h3>
+          <p className="marc-panel__ayuda">
+            Estos dos campos no forman parte del estándar MARC21 — son de uso interno del sistema (ícono en el
+            catálogo, imagen en el OPAC).
+          </p>
+          <Campo
+            nombre="subtipo"
+            etiqueta="Subtipo"
+            tipo="select"
+            opciones={SUBTIPOS_LIBRO}
+            form={form}
+            onCambiar={onCambiarCampo}
+          />
+          <Campo
+            nombre="portadaUrl"
+            etiqueta="URL de portada/imagen (opcional)"
+            type="url"
+            form={form}
+            onCambiar={onCambiarCampo}
+          />
+        </div>
+
+        <div className="marc-editor">
+          <div className="marc-tabs" role="tablist" aria-label="Campos del registro bibliográfico (MARC21)">
+            {SOLAPAS_LIBRO.map((s) => (
+              <button
+                key={s.indice}
+                type="button"
+                role="tab"
+                id={`solapa-libro-${s.indice}`}
+                aria-selected={solapaActiva === s.indice}
+                aria-controls={`panel-libro-${s.indice}`}
+                className="marc-tab"
+                onClick={() => setSolapaActiva(s.indice)}
+                title={s.tags}
+              >
+                <span className="marc-tab__numero">{s.indice}</span>
+                {s.titulo}
+              </button>
+            ))}
+          </div>
+
+          <div
+            id="panel-libro-0"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-0"
+            className="marc-panel"
+            hidden={solapaActiva !== 0}
+          >
+            <h3>Clasificación</h3>
+            <div className="marc-campo-fijo">
+              000 — Registro bibliográfico de tipo Libro (MARC21 Bibliographic, nivel monografía).
+            </div>
+            <Campo nombre="isbn" etiqueta="ISBN (020 $a)" form={form} onCambiar={onCambiarCampo} />
+            <Campo nombre="cdu" etiqueta="Clasificación Decimal Universal — CDU (080 $a)" form={form} onCambiar={onCambiarCampo} />
+            <Campo nombre="dewey" etiqueta="Clasificación Decimal Dewey (082 $a)" form={form} onCambiar={onCambiarCampo} />
+            {editandoId && (form.creado || form.actualizado) && (
+              <div className="marc-campo-fijo">
+                900 — Bibliotecario responsable: carga {fechaLegible(form.creado) || "—"}, última modificación{" "}
+                {fechaLegible(form.actualizado) || "—"}.
+              </div>
             )}
-            <FormularioNuevoEjemplar
-              libroId={editandoId}
-              onAgregado={(nuevo) =>
-                onCambiarCampo("ejemplaresExistentes", [...form.ejemplaresExistentes, nuevo])
-              }
+          </div>
+
+          <div
+            id="panel-libro-1"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-1"
+            className="marc-panel"
+            hidden={solapaActiva !== 1}
+          >
+            <h3>Autores</h3>
+            <p className="marc-panel__ayuda">
+              El primer autor es el asiento principal (100); los que agregues con "Repetir" son asientos
+              secundarios (700).
+            </p>
+            <GrupoRepetible
+              valores={form.autores}
+              onCambiar={(nuevos) => onCambiarCampo("autores", nuevos)}
+              placeholder="Apellido, Nombre"
+              etiquetaFila={(i) => (i === 0 ? "Autor/a principal (100 $a)" : `Autor/a secundario/a (700 $a)`)}
+            />
+            <Campo
+              nombre="autorCorporativo"
+              etiqueta="Entidad corporativa / institución responsable (110 $b)"
+              form={form}
+              onCambiar={onCambiarCampo}
             />
           </div>
-        ) : (
-          <label>
-            Ejemplares (uno por línea: código de barras, signatura) (952$p / $o)
-            <textarea
-              rows={3}
-              placeholder={"BPSJ-000001, 863 BOR\nBPSJ-000002, 863 BOR"}
-              value={form.ejemplaresTexto}
-              onChange={(e) => onCambiarCampo("ejemplaresTexto", e.target.value)}
+
+          <div
+            id="panel-libro-2"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-2"
+            className="marc-panel"
+            hidden={solapaActiva !== 2}
+          >
+            <h3>Título y publicación</h3>
+            <Campo nombre="titulo" etiqueta="Título propiamente dicho (245 $a) *" form={form} onCambiar={onCambiarCampo} required />
+            <Campo nombre="subtitulo" etiqueta="Parte restante del título (245 $b)" form={form} onCambiar={onCambiarCampo} />
+            <Campo
+              nombre="mencionResponsabilidad"
+              etiqueta="Mención de responsabilidad (245 $c)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. por Jorge Luis Borges"
             />
-            <small>
-              A diferencia de Autores/Materias (donde la coma separa cada ítem de la lista), acá la coma separa
-              el código de barras de la signatura <em>dentro de la misma línea</em> — cada línea nueva es un
-              ejemplar distinto.
-            </small>
-          </label>
-        )}
+            <Campo nombre="tituloVariante" etiqueta="Forma variante del título (246)" form={form} onCambiar={onCambiarCampo} />
+            <Campo nombre="edicion" etiqueta="Mención de edición (250 $a)" form={form} onCambiar={onCambiarCampo} placeholder="ej. 2a ed." />
+            <Campo nombre="lugarPublicacion" etiqueta="Lugar de publicación (260 $a)" form={form} onCambiar={onCambiarCampo} />
+            <Campo nombre="editorial" etiqueta="Nombre del editor (260 $b)" form={form} onCambiar={onCambiarCampo} />
+            <Campo nombre="anio" etiqueta="Fecha de publicación (260 $c)" form={form} onCambiar={onCambiarCampo} />
+          </div>
+
+          <div
+            id="panel-libro-3"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-3"
+            className="marc-panel"
+            hidden={solapaActiva !== 3}
+          >
+            <h3>Descripción física</h3>
+            <Campo nombre="paginas" etiqueta="Extensión — cantidad de páginas (300 $a)" form={form} onCambiar={onCambiarCampo} />
+            <Campo
+              nombre="detallesFisicos"
+              etiqueta="Otros detalles físicos (300 $b)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. il."
+            />
+            <Campo nombre="dimensiones" etiqueta="Dimensiones (300 $c)" form={form} onCambiar={onCambiarCampo} placeholder="ej. 21 cm" />
+            <Campo
+              nombre="materialComplementario"
+              etiqueta="Material complementario (300 $e)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. 1 CD-ROM"
+            />
+          </div>
+
+          <div
+            id="panel-libro-4"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-4"
+            className="marc-panel"
+            hidden={solapaActiva !== 4}
+          >
+            <h3>Serie</h3>
+            <Campo nombre="serie" etiqueta="Mención de serie (490 $a)" form={form} onCambiar={onCambiarCampo} />
+            <Campo
+              nombre="serieVolumen"
+              etiqueta="Designación numérica/secuencial del volumen (490 $v)"
+              form={form}
+              onCambiar={onCambiarCampo}
+            />
+            <Campo nombre="issn" etiqueta="ISSN de la serie (490 $x)" form={form} onCambiar={onCambiarCampo} />
+          </div>
+
+          <div
+            id="panel-libro-5"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-5"
+            className="marc-panel"
+            hidden={solapaActiva !== 5}
+          >
+            <h3>Notas</h3>
+            <label>
+              Nota general (500 $a)
+              <textarea value={form.notas} onChange={(e) => onCambiarCampo("notas", e.target.value)} />
+            </label>
+            <Campo
+              nombre="notaAudiencia"
+              etiqueta="Nota de audiencia (521 $a)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. Para niños de 8 a 10 años"
+            />
+            <Campo
+              nombre="notaIdioma"
+              etiqueta="Nota de idioma (546 $a)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. Texto en español, con resumen en inglés"
+            />
+          </div>
+
+          <div
+            id="panel-libro-6"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-6"
+            className="marc-panel"
+            hidden={solapaActiva !== 6}
+          >
+            <h3>Materias</h3>
+            <GrupoRepetible
+              valores={form.materias}
+              onCambiar={(nuevos) => onCambiarCampo("materias", nuevos)}
+              placeholder="ej. Literatura argentina"
+              etiquetaFila={(i) => `Materia ${i + 1} (650 $a)`}
+            />
+          </div>
+
+          <div
+            id="panel-libro-7"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-7"
+            className="marc-panel"
+            hidden={solapaActiva !== 7}
+          >
+            <h3>Acceso electrónico</h3>
+            <Campo
+              nombre="urlInstruccion"
+              etiqueta="Instrucción / texto del enlace (856 $i)"
+              form={form}
+              onCambiar={onCambiarCampo}
+              placeholder="ej. Acceder al texto completo"
+            />
+            <Campo nombre="urlAcceso" etiqueta="Dirección web (856 $u)" type="url" form={form} onCambiar={onCambiarCampo} />
+            <p>
+              <small>
+                Un libro puede tener ejemplares físicos y además una URL de acceso digital al mismo tiempo — el
+                OPAC muestra las dos opciones si corresponde, no hace falta elegir una sola.
+              </small>
+            </p>
+          </div>
+
+          <div
+            id="panel-libro-8"
+            role="tabpanel"
+            aria-labelledby="solapa-libro-8"
+            className="marc-panel"
+            hidden={solapaActiva !== 8}
+          >
+            <h3>Ejemplares</h3>
+            <p className="marc-panel__ayuda">
+              952 es un campo local (de Koha), no del estándar MARC21 — acá viven los códigos de barras y
+              signaturas de cada copia física.
+            </p>
+            {editandoId ? (
+              <div>
+                <label>Ejemplares (952 $p / $o)</label>
+                {form.ejemplaresExistentes.length > 0 ? (
+                  <ul className="lista-ejemplares">
+                    {form.ejemplaresExistentes.map((e) => (
+                      <FilaEjemplar
+                        key={e._id}
+                        libroId={editandoId}
+                        ejemplar={e}
+                        onCambiar={(actualizado) =>
+                          onCambiarCampo(
+                            "ejemplaresExistentes",
+                            form.ejemplaresExistentes.map((x) => (x._id === actualizado._id ? actualizado : x))
+                          )
+                        }
+                        onEliminar={() =>
+                          onCambiarCampo(
+                            "ejemplaresExistentes",
+                            form.ejemplaresExistentes.filter((x) => x._id !== e._id)
+                          )
+                        }
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p>
+                    <small>Este libro todavía no tiene ejemplares cargados.</small>
+                  </p>
+                )}
+                <FormularioNuevoEjemplar
+                  libroId={editandoId}
+                  onAgregado={(nuevo) => onCambiarCampo("ejemplaresExistentes", [...form.ejemplaresExistentes, nuevo])}
+                />
+              </div>
+            ) : (
+              <label>
+                Ejemplares (uno por línea: código de barras, signatura) (952 $p / $o)
+                <textarea
+                  rows={3}
+                  placeholder={"BPSJ-000001, 863 BOR\nBPSJ-000002, 863 BOR"}
+                  value={form.ejemplaresTexto}
+                  onChange={(e) => onCambiarCampo("ejemplaresTexto", e.target.value)}
+                />
+                <small>
+                  A diferencia de Autores/Materias (donde cada fila es un ítem de la lista), acá la coma separa
+                  el código de barras de la signatura <em>dentro de la misma línea</em> — cada línea nueva es un
+                  ejemplar distinto.
+                </small>
+              </label>
+            )}
+          </div>
+        </div>
+
         <button type="submit" disabled={guardando}>
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Guardar"}
         </button>{" "}

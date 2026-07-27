@@ -46,7 +46,15 @@ formulario + circulación + export MARC propio cada uno):
 
 - **Libros**, con subtipos: impreso, digital, ebook, folleto, manual,
   diccionario, enciclopedia, tesis, tesina, monografía, atlas, anuario,
-  memoria, informe.
+  memoria, informe. El alta/edición individual es un editor MARC21 por
+  solapas numeradas (0-8), calcado del layout de Koha ("Add MARC
+  record"): 0 Clasificación (ISBN/CDU/Dewey), 1 Autores (principal y
+  secundarios, con campos repetibles de verdad), 2 Título y publicación
+  (incluida mención de edición y título variante), 3 Descripción física,
+  4 Serie, 5 Notas (general/audiencia/idioma), 6 Materias (repetibles),
+  7 Acceso electrónico, 8 Ejemplares (ver BIBL-6 en `AUDITORIA.md`). Los
+  demás 9 tipos de material siguen con su formulario plano de siempre —
+  este nivel de detalle solo se justificaba para Libros.
 - **Publicaciones seriadas** (revistas, diarios, boletines, journals):
   ISSN, periodicidad, numeración en vez de los campos de un libro.
 - **Material sonoro** (CD, vinilo, cassette, audiolibros, podcast, MP3,
