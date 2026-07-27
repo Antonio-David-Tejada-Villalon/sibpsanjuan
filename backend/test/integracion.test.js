@@ -2296,7 +2296,7 @@ test("carga masiva de Libros por CSV: /api/libros/plantilla-csv y /api/libros/im
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/csv/);
   const plantilla = await res.text();
-  assert.match(plantilla, /^titulo,subtitulo,isbn,autores/);
+  assert.match(plantilla, /^titulo,subtitulo,mencionResponsabilidad,tituloVariante,edicion,autores/);
 
   // --- importar dos filas válidas (una con ejemplares) y una inválida (sin título) ---
   const csv = [

@@ -6,43 +6,76 @@ import Libro from "../models/Libro.js";
 // pueda desincronizarse si el enum de Libro.js cambia.
 const SUBTIPOS_VALIDOS = new Set(Libro.schema.path("subtipo").enumValues);
 
-// Mismas columnas que el formulario de Libros.jsx, en formato plano para
+// Mismas columnas que el editor MARC de Libros.jsx, en formato plano para
 // Excel/CSV — autores y materias van separados por ";" (no por "," como en
 // el formulario) porque una coma es perfectamente válida dentro de un
 // nombre de autor ("Borges, Jorge Luis") y el CSV ya usa la coma como
-// separador de columnas.
+// separador de columnas. Las columnas de las solapas 0-7 del editor (ver
+// BIBL-6 en AUDITORIA.md) son todas opcionales — una fila puede dejarlas
+// vacías sin problema, igual que el campo correspondiente en el formulario
+// individual.
 const COLUMNAS = [
   "titulo",
   "subtitulo",
-  "isbn",
+  "mencionResponsabilidad",
+  "tituloVariante",
+  "edicion",
   "autores",
+  "autorCorporativo",
+  "isbn",
+  "cdu",
+  "dewey",
   "editorial",
   "lugarPublicacion",
   "anio",
   "paginas",
+  "detallesFisicos",
+  "dimensiones",
+  "materialComplementario",
+  "serie",
+  "serieVolumen",
+  "issn",
   "materias",
+  "notas",
+  "notaAudiencia",
+  "notaIdioma",
   "subtipo",
   "urlAcceso",
+  "urlInstruccion",
   "portadaUrl",
-  "notas",
   "ejemplares",
 ];
 
 export function plantillaLibrosCsv() {
   const ejemplo = {
     titulo: "Ficciones",
-    subtitulo: "",
+    subtitulo: "Cuentos",
+    mencionResponsabilidad: "por Jorge Luis Borges",
+    tituloVariante: "",
+    edicion: "2a ed.",
     isbn: "9789500000000",
     autores: "Borges, Jorge Luis",
+    autorCorporativo: "",
+    cdu: "863",
+    dewey: "863.44",
     editorial: "Emecé",
     lugarPublicacion: "Buenos Aires",
     anio: "1944",
     paginas: "203",
+    detallesFisicos: "",
+    dimensiones: "21 cm",
+    materialComplementario: "",
+    serie: "",
+    serieVolumen: "",
+    issn: "",
     materias: "Literatura argentina; Cuentos",
     subtipo: "impreso",
     urlAcceso: "",
+    urlInstruccion: "",
     portadaUrl: "",
     notas: "Fila de ejemplo — borrala antes de subir tu propio archivo.",
+    notaAudiencia: "",
+    notaIdioma: "",
     ejemplares: "BPSJ-000001,863 BOR;BPSJ-000002,863 BOR",
   };
   return stringify([ejemplo], { header: true, columns: COLUMNAS });
@@ -114,17 +147,32 @@ export function parseLibrosCsv(texto) {
       _fila: numeroFila,
       titulo,
       subtitulo: (fila.subtitulo || "").trim(),
+      mencionResponsabilidad: (fila.mencionResponsabilidad || "").trim(),
+      tituloVariante: (fila.tituloVariante || "").trim(),
+      edicion: (fila.edicion || "").trim(),
       isbn: (fila.isbn || "").trim(),
       autores: aLista(fila.autores),
+      autorCorporativo: (fila.autorCorporativo || "").trim(),
+      cdu: (fila.cdu || "").trim(),
+      dewey: (fila.dewey || "").trim(),
       editorial: (fila.editorial || "").trim(),
       lugarPublicacion: (fila.lugarPublicacion || "").trim(),
       anio: (fila.anio || "").trim(),
       paginas: (fila.paginas || "").trim(),
+      detallesFisicos: (fila.detallesFisicos || "").trim(),
+      dimensiones: (fila.dimensiones || "").trim(),
+      materialComplementario: (fila.materialComplementario || "").trim(),
+      serie: (fila.serie || "").trim(),
+      serieVolumen: (fila.serieVolumen || "").trim(),
+      issn: (fila.issn || "").trim(),
       materias: aLista(fila.materias),
       subtipo,
       urlAcceso: (fila.urlAcceso || "").trim(),
+      urlInstruccion: (fila.urlInstruccion || "").trim(),
       portadaUrl: (fila.portadaUrl || "").trim(),
       notas: (fila.notas || "").trim(),
+      notaAudiencia: (fila.notaAudiencia || "").trim(),
+      notaIdioma: (fila.notaIdioma || "").trim(),
       ejemplares: aEjemplares(fila.ejemplares),
     });
   });
