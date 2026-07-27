@@ -10,6 +10,7 @@ const INDICE = [
   { id: "que-es", etiqueta: "Qué es SIBPSANJUAN" },
   { id: "roles", etiqueta: "Roles: quién puede hacer qué" },
   { id: "catalogar", etiqueta: "Catalogar material" },
+  { id: "catalogar-libros", etiqueta: "Cargar un libro (editor MARC)" },
   { id: "carga-masiva", etiqueta: "Carga masiva de libros (CSV/Excel)" },
   { id: "socios", etiqueta: "Socios" },
   { id: "circulacion", etiqueta: "Circulación y préstamos" },
@@ -131,7 +132,7 @@ export default function Documentacion() {
         <p>El menú <strong>Catalogar</strong> agrupa los 10 tipos de material que soporta el sistema:</p>
         <Captura
           src="/docs/catalogar.png"
-          alt='Formulario "Nuevo libro" completado como ejemplo: título, autores separados por punto y coma, ISBN, editorial, lugar y año.'
+          alt='Solapa "Clasificación" del editor de Libros, con el ISBN, la CDU y la clasificación Dewey completados como ejemplo.'
         />
         <ul>
           <li>
@@ -145,6 +146,11 @@ export default function Documentacion() {
             en la norma ISAD(G)) y Objetos de museo. Son piezas únicas que se consultan, no se prestan.
           </li>
         </ul>
+        <p>
+          <strong>Libros</strong> tiene su propio editor por solapas MARC21 — ver la sección siguiente para el
+          detalle paso a paso. Los otros 9 tipos usan un formulario más simple, de una sola pantalla, con estas
+          convenciones:
+        </p>
         <p>
           <strong>Ejemplares.</strong> Al cargar un ítem que circula, el textarea de ejemplares pide{" "}
           <code>código de barras, signatura</code> por línea — una línea por copia física. Sin ejemplares cargados,
@@ -170,6 +176,91 @@ export default function Documentacion() {
           agrupa las variantes bajo la forma autorizada al facetar y filtrar. No hace falta cargar nada acá para que
           el catálogo funcione — sin autoridades cargadas, cada texto tal como se escribió es su propia faceta,
           igual que siempre.
+        </p>
+      </Seccion>
+
+      <Seccion id="catalogar-libros" titulo="Cómo cargar un libro con el editor MARC">
+        <p>
+          Libros → "Nuevo libro" abre un editor organizado en <strong>9 solapas numeradas (0 a 8)</strong>, calcado
+          del editor de registros MARC de Koha — cada solapa agrupa los campos y subcampos MARC21 que le
+          corresponden, con la etiqueta de cada campo mostrando siempre su número de tag entre paréntesis (ej.{" "}
+          <code>245 $a</code>). No hace falta llenar las 9: solo <strong>Título propiamente dicho</strong> (solapa
+          2) es obligatorio, el resto queda vacío sin problema si no aplica o no lo tenés a mano todavía.
+        </p>
+        <ol>
+          <li>
+            <strong>Antes de las solapas</strong>, un recuadro aparte ("Datos internos de SIBPSANJUAN") pide el{" "}
+            <strong>Subtipo</strong> (impreso, digital, ebook, etc. — define el ícono en el catálogo) y, opcional,
+            una <strong>URL de portada</strong>. Estos dos campos no son MARC, son de uso interno del sistema.
+          </li>
+          <li>
+            <strong>Solapa 0 — Clasificación:</strong> ISBN (validado con dígito verificador), Clasificación
+            Decimal Universal (CDU) y clasificación Dewey — las tres opcionales, y las tres de un solo valor.
+          </li>
+          <li>
+            <strong>Solapa 1 — Autores:</strong> a diferencia del resto de los tipos de material, acá cada autor va
+            en <strong>su propia fila</strong>, no separado por punto y coma dentro de un mismo campo. La primera
+            fila es el autor/a principal (100), y cada fila que agregues con el ícono{" "}
+            <strong>"◨ Repetir"</strong> es un autor/a secundario/a (700). El ícono <strong>"✕ Quitar"</strong>{" "}
+            (en rojo) borra una fila ya repetida — solo aparece cuando hay más de una, porque el primer autor nunca
+            se puede quitar del todo (podés dejarlo vacío si no aplica). También hay un campo aparte para{" "}
+            <strong>entidad corporativa</strong> (110), para cuando el responsable es una institución y no una
+            persona — típico de anuarios, informes o memorias institucionales.
+          </li>
+        </ol>
+        <Captura
+          src="/docs/libros-marc-autores.png"
+          alt='Solapa "Autores" con dos autores cargados (Borges, Jorge Luis como principal y Bioy Casares, Adolfo como secundario) y los íconos "Repetir" (cuadrado) y "Quitar" (X roja) junto a cada fila.'
+        />
+        <ol start={4}>
+          <li>
+            <strong>Solapa 2 — Título y publicación:</strong> título, subtítulo, mención de responsabilidad ("por
+            Jorge Luis Borges"), forma variante del título, <strong>mención de edición</strong> ("2a ed."), lugar de
+            publicación, editorial y año.
+          </li>
+        </ol>
+        <Captura
+          src="/docs/libros-marc-titulo.png"
+          alt='Solapa "Título y publicación" completa: Ficciones, subtítulo Cuentos, mención de responsabilidad, edición "2a ed.", Buenos Aires, Emecé, 1944.'
+        />
+        <ol start={5}>
+          <li>
+            <strong>Solapa 3 — Descripción física:</strong> cantidad de páginas, otros detalles físicos (ej.
+            "il." para ilustrado), dimensiones (ej. "21 cm") y material complementario (ej. "1 CD-ROM").
+          </li>
+          <li>
+            <strong>Solapa 4 — Serie:</strong> si el libro pertenece a una colección editorial, su nombre, el número
+            de volumen dentro de la colección, y el ISSN de la serie si lo tiene.
+          </li>
+          <li>
+            <strong>Solapa 5 — Notas:</strong> una nota general de texto libre, más dos notas puntuales opcionales
+            (audiencia — "Para niños de 8 a 10 años" — e idioma, para cuando el contenido no está solo en español).
+          </li>
+          <li>
+            <strong>Solapa 6 — Materias:</strong> mismo mecanismo de filas repetibles que Autores — una materia por
+            fila, con "Repetir"/"Quitar".
+          </li>
+          <li>
+            <strong>Solapa 7 — Acceso electrónico:</strong> solo tiene sentido si el libro (o su subtipo
+            digital/ebook) tiene una URL de acceso — el texto del enlace y la dirección web. Un libro puede tener
+            ejemplares físicos <em>y</em> acceso digital al mismo tiempo, no hay que elegir uno solo.
+          </li>
+          <li>
+            <strong>Solapa 8 — Ejemplares:</strong> igual que en el resto de los tipos de material, una línea por
+            copia física (<code>código de barras, signatura</code>). Es un campo local de Koha (952), no del
+            estándar MARC21 en sí.
+          </li>
+        </ol>
+        <Captura
+          src="/docs/libros-marc-ejemplares.png"
+          alt='Solapa "Ejemplares" con dos copias físicas cargadas: BPSJ-000001 y BPSJ-000002, ambas con signatura "863 BOR".'
+        />
+        <p>
+          Al guardar, todo lo cargado en las 9 solapas queda en el mismo registro — y al volver a abrir el libro
+          para editarlo, cada solapa trae sus datos ya completos, filas repetidas incluidas. Los campos que no se
+          usan quedan simplemente vacíos: no aparecen en el catálogo ni en el export MARC (ver{" "}
+          <a href="#exportar">Exportar</a> más abajo), a diferencia de forzar un valor inventado solo para
+          completar el campo.
         </p>
       </Seccion>
 
@@ -370,9 +461,12 @@ export default function Documentacion() {
           detecta que está tardando.
         </p>
         <p>
-          <strong>¿Por qué autores/materias se separan por punto y coma y no por coma?</strong> Porque un nombre en
-          formato bibliotecario estándar ("Apellido, Nombre") ya trae una coma adentro — usarla también como
-          separador entre autores distintos rompería cualquier campo con más de uno.
+          <strong>¿Por qué autores/materias se separan por punto y coma y no por coma?</strong> Aplica a la carga
+          masiva por CSV y al formulario de los 9 tipos de material que no son Libros — porque un nombre en formato
+          bibliotecario estándar ("Apellido, Nombre") ya trae una coma adentro, usarla también como separador entre
+          autores distintos rompería cualquier campo con más de uno. El editor MARC de Libros evita el problema de
+          otra forma: cada autor/materia va en su propia fila repetible, sin necesitar ningún separador (ver{" "}
+          <a href="#catalogar-libros">Cargar un libro</a> más arriba).
         </p>
         <p>
           <strong>¿Los campos de catalogación siguen alguna norma?</strong> Sí — MARC21 para el export
