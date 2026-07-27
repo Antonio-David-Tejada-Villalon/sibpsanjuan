@@ -28,19 +28,23 @@ function Seccion({ id, titulo, children }) {
   );
 }
 
+// Captura de pantalla real de ejemplo, no una maqueta — cada una se
+// generó navegando la app de verdad. figcaption explica qué se ve, para
+// quien use un lector de pantalla y no vea la imagen en sí.
+function Captura({ src, alt }) {
+  return (
+    <figure className="doc-captura">
+      <img src={src} alt={alt} loading="lazy" />
+      <figcaption>{alt}</figcaption>
+    </figure>
+  );
+}
+
 export default function Documentacion() {
   return (
-    <div style={{ maxWidth: 840 }}>
-      <h1>Documentación</h1>
-      <p>
-        Guía de uso de SIBPSANJUAN para el staff — qué hace cada pantalla, cómo catalogar, cómo funciona la
-        circulación, y algunas explicaciones técnicas de por qué el sistema se comporta como se comporta. No
-        reemplaza lo que ya te explica cada pantalla (mensajes de error, textos de ayuda puntuales); es la vista
-        completa, para cuando hace falta más contexto.
-      </p>
-
-      <nav className="card" aria-label="Índice de la documentación">
-        <h2 style={{ marginTop: 0 }}>Índice</h2>
+    <div className="doc-layout">
+      <nav className="card doc-sidebar" aria-label="Índice de la documentación">
+        <h2>Índice</h2>
         <ul>
           {INDICE.map((item) => (
             <li key={item.id}>
@@ -50,7 +54,16 @@ export default function Documentacion() {
         </ul>
       </nav>
 
-      <Seccion id="que-es" titulo="Qué es SIBPSANJUAN">
+      <div className="doc-contenido">
+        <h1>Documentación</h1>
+        <p>
+          Guía de uso de SIBPSANJUAN para el staff — qué hace cada pantalla, cómo catalogar, cómo funciona la
+          circulación, y algunas explicaciones técnicas de por qué el sistema se comporta como se comporta. No
+          reemplaza lo que ya te explica cada pantalla (mensajes de error, textos de ayuda puntuales); es la vista
+          completa, para cuando hace falta más contexto.
+        </p>
+
+        <Seccion id="que-es" titulo="Qué es SIBPSANJUAN">
         <p>
           Es una herramienta liviana para cargar el catálogo bibliotecario y los socios de una biblioteca{" "}
           <strong>ahora</strong>, sin necesitar un servidor propio ni un dominio pagado, y exportarlos en formatos
@@ -116,6 +129,10 @@ export default function Documentacion() {
 
       <Seccion id="catalogar" titulo="Catalogar material">
         <p>El menú <strong>Catalogar</strong> agrupa los 10 tipos de material que soporta el sistema:</p>
+        <Captura
+          src="/docs/catalogar.png"
+          alt='Formulario "Nuevo libro" completado como ejemplo: título, autores separados por punto y coma, ISBN, editorial, lugar y año.'
+        />
         <ul>
           <li>
             <strong>8 tipos con export a MARC</strong> (tienen ejemplares que se prestan, salvo los subtipos
@@ -177,6 +194,10 @@ export default function Documentacion() {
           </li>
           <li>Subí el archivo. Cada fila se valida por separado — una fila con errores no aborta el resto.</li>
         </ol>
+        <Captura
+          src="/docs/carga-masiva.png"
+          alt='Panel "Carga masiva desde CSV/Excel" desplegado en Libros, con el link para descargar la plantilla y el selector de archivo.'
+        />
         <p>
           Al terminar, el sistema te muestra <strong>cuántos se cargaron</strong> y una lista de{" "}
           <strong>qué filas fallaron y por qué</strong>. La causa más común, de lejos, es un <strong>ISBN
@@ -206,6 +227,10 @@ export default function Documentacion() {
           vistazo quién ya tiene acceso configurado. Si un socio dice que "no puede entrar" al OPAC, revisá primero
           ese indicador: si dice "no", nunca tuvo contraseña asignada (no es que la haya olvidado).
         </p>
+        <Captura
+          src="/docs/socios.png"
+          alt='Tabla de Socios: fila de un socio con los botones "Editar" y "Login OPAC", y el indicador "OPAC: sí".'
+        />
         <p>
           El borrado de un socio (individual o masivo, con checkbox por fila) es <strong>lógico</strong>: el
           registro queda marcado como eliminado y recuperable desde la base, no se pierde al instante — ver la
@@ -229,6 +254,10 @@ export default function Documentacion() {
             título/ISBN/código de barras.
           </li>
         </ul>
+        <Captura
+          src="/docs/circulacion.png"
+          alt='Pantalla de Circulación → Solicitudes pendientes, con un préstamo pedido desde el OPAC esperando "Aprobar" o "Rechazar".'
+        />
         <p>
           <strong>Devoluciones</strong> y <strong>renovaciones</strong> (tanto pedidas por el socio como cargadas
           directo por el staff) se procesan desde las mismas pantallas de Circulación/Préstamos.
@@ -247,6 +276,10 @@ export default function Documentacion() {
           una instancia Koha real. Desde el panel de Bibliotecas, el botón <strong>"Ver OPAC"</strong> en cada
           tarjeta lo abre directo en una pestaña nueva.
         </p>
+        <Captura
+          src="/docs/opac.png"
+          alt="Catálogo público del OPAC: filtros de disponibilidad, tipo de ítem, autores y materias a la izquierda, resultados a la derecha."
+        />
         <p>
           Es un catálogo unificado (los 10 tipos de material juntos) con filtros por tipo de ítem, disponibilidad,
           autor y materia, buscador de texto, y "Ver detalle" con la ficha completa de cada ítem. El socio que
@@ -305,6 +338,10 @@ export default function Documentacion() {
           necesitar la vieja — para cuando alguien se la olvida de verdad) y eliminar. Ningún nivel puede tocar una
           cuenta de su propio rango ni de uno superior — ni siquiera el admin puede gestionar a otro admin.
         </p>
+        <Captura
+          src="/docs/cuentas.png"
+          alt='Fila de un bibliotecario con sus permisos otorgados y el formulario inline de "Resetear contraseña" abierto.'
+        />
         <p>
           Para admin/supervisor, la gestión de bibliotecarios se hace sobre la biblioteca elegida en el selector
           del encabezado (igual que Catalogar/Socios/Circulación).
@@ -345,6 +382,7 @@ export default function Documentacion() {
           arriba) — es captura simplificada, suficiente para migrar a un Koha real más adelante.
         </p>
       </Seccion>
+      </div>
     </div>
   );
 }

@@ -48,6 +48,7 @@ export default function Socios() {
     error,
     cargando,
     guardando,
+    recargar,
     onBuscar,
     onEditar,
     onCancelarEdicion,
@@ -86,6 +87,7 @@ export default function Socios() {
       await api.crearCredencialesSocio(id, nuevaPasswordSocio);
       setMensajeCredenciales("Login creado/actualizado.");
       setNuevaPasswordSocio("");
+      await recargar();
     } catch (err) {
       setError(err.message);
     } finally {

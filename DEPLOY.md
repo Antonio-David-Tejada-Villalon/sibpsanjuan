@@ -360,9 +360,12 @@ campos nuevos ni backfill.
 El botón "Ver OPAC" en cada tarjeta de biblioteca (panel de Bibliotecas),
 la corrección de legibilidad del favicon/`og:image`, el `manifest.json`
 nuevo para poder instalar el sitio como app en Android, y la página
-nueva de Documentación (`/documentacion`, contenido estático) son 100%
-frontend — sin cambio de schema, variables de entorno ni dependencias
-nuevas.
+nueva de Documentación (`/documentacion`, contenido estático, con su
+sidebar y las capturas de pantalla de ejemplo en `frontend/public/docs/`)
+son 100% frontend — sin cambio de schema, variables de entorno ni
+dependencias nuevas. El `recargar()` agregado en `Socios.jsx` (ver UX-6
+en `AUDITORIA.md`, el badge "OPAC: sí/no" que no se actualizaba solo)
+tampoco tiene impacto de deploy — mismo criterio.
 
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan

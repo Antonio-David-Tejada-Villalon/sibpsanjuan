@@ -665,6 +665,60 @@ main:has(.catalogo-layout) { max-width: 1280px; }
   .catalogo-filtros { position: static; }
 }
 
+/* Documentacion.jsx — mismo patrón que .catalogo-layout de arriba
+   (sidebar angosto fijo en pantalla + contenido), reutilizado acá para
+   el índice en vez de duplicar la idea con nombres distintos. */
+main:has(.doc-layout) { max-width: 1100px; }
+.doc-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+.doc-sidebar {
+  position: sticky;
+  top: var(--space-4);
+  max-height: calc(100vh - var(--space-5) * 2);
+  overflow-y: auto;
+}
+.doc-sidebar h2 {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-tenue);
+  margin: 0 0 var(--space-3);
+}
+.doc-sidebar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.doc-sidebar a { display: block; }
+.doc-contenido { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+@media (max-width: 800px) {
+  .doc-layout { grid-template-columns: 1fr; }
+  .doc-sidebar { position: static; max-height: none; }
+}
+
+/* Capturas de pantalla reales dentro de Documentacion.jsx — borde y
+   sombra leve para que se lean como "recorte de la app", no como una
+   imagen suelta; el ancho se limita para que una captura panorámica no
+   fuerce scroll horizontal en el resto de la página. */
+.doc-captura {
+  margin: 0;
+  max-width: 100%;
+}
+.doc-captura img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px var(--sombra);
+}
+.doc-captura figcaption {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--texto-tenue);
+  text-align: center;
+}
+
 /* Modal de detalle de un ítem del catálogo (CatalogoPublico.jsx) */
 .modal-overlay {
   position: fixed;

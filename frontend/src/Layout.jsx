@@ -207,6 +207,10 @@ export default function Layout({ children }) {
               sesion?.rol === "bibliotecario" ||
               sesion?.rol === "admin" ||
               sesion?.rol === "supervisor") && <NavPanelBiblioteca sesion={sesion} />}
+            {/* Última a propósito: es referencia/ayuda, no una tarea — mismo
+                criterio que separa "Panel" (primero, siempre visible) del
+                resto de los ítems funcionales/con permiso. */}
+            {sesion && <NavLink to="/documentacion">Documentación</NavLink>}
           </nav>
         </div>
         <button
@@ -224,7 +228,6 @@ export default function Layout({ children }) {
             <ThemeToggle />
             <span className="sesion-usuario">
               {sesion.usuario}
-              <Link to="/documentacion">Documentación</Link>
               <Link to="/cambiar-password">Mi perfil</Link>
               <button className="secundario" onClick={onLogout}>
                 Salir

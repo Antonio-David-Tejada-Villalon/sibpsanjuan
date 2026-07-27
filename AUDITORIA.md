@@ -29,14 +29,16 @@ amplio) · 🟡 Medio (mejora acotada) · 🟢 Bajo (pulido/sugerencia).
 
 ## Resumen ejecutivo — lo más importante primero
 
-**Actualización 26/07/2026 (décima pasada):** 40 hallazgos ya se
+**Actualización 26/07/2026 (décima pasada):** 41 hallazgos ya se
 corrigieron y se verificaron en vivo (tests + Playwright contra una
 instancia aislada), en diez lotes — **ya no queda ningún hallazgo
-abierto en toda la auditoría.** El décimo (UX-5) no salió de esta
-auditoría en sí: apareció al investigar un reporte del usuario después de
-desplegar a producción (Vercel + Render + Atlas, ver `DEPLOY.md`), igual
-que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo criterio de
-"lo que se encuentra en el camino se corrige y se documenta acá". GOB-3 y
+abierto en toda la auditoría.** Los últimos dos (UX-5, UX-6) no salieron
+de esta auditoría en sí: aparecieron al investigar un reporte del usuario
+después de desplegar a producción (Vercel + Render + Atlas, ver
+`DEPLOY.md`) y al armar la página de Documentación, respectivamente —
+igual que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo
+criterio de "lo que se encuentra en el camino se corrige y se documenta
+acá". GOB-3 y
 A11Y-7 se consultaron con el usuario antes de tocarlos, porque no eran
 decisiones puramente técnicas:
 A11Y-7 quedó resuelto (el foco corregido con `--brand-texto`; los botones
@@ -468,6 +470,23 @@ triplicar la lógica de listar/crear/editar/eliminar en 12 páginas.
   **no** se toca — un espacio ahí podría ser parte real de ella. Test de
   integración nuevo: un login con `"  0001  "` (espacios de más) contra la
   contraseña correcta ahora entra igual.
+
+- **UX-6 ✅ Resuelto (26/07/2026) — Descubierto al armar capturas de
+  pantalla reales para la página de Documentación: el badge "OPAC: sí/no"
+  de la tabla de Socios no se actualizaba solo después de guardar una
+  contraseña con "Login OPAC".** `onGuardarCredenciales`
+  (`Socios.jsx`) llamaba a `api.crearCredencialesSocio` — que sí invalida
+  la caché del lado del cliente (`cacheInvalidate`, ver FE-5) — pero nunca
+  volvía a pedir la lista, así que la fila seguía mostrando "OPAC: no"
+  hasta recargar la página a mano o navegar afuera y volver. Contradice
+  directamente el propósito del indicador (UX-1: que el staff sepa de un
+  vistazo si un socio ya tiene login sin tener que adivinar).
+  **Arreglo aplicado:** se agregó `await recargar()` (ya expuesto por
+  `useListaCrud`, el mismo mecanismo que ya usan crear/editar/eliminar en
+  esta y todas las demás pantallas de listado) después de guardar la
+  contraseña. Verificado en vivo: el badge pasa de "OPAC: NO" a
+  "OPAC: SÍ" apenas se guarda, sin recargar manualmente — capturado en la
+  imagen de ejemplo de la sección "Socios" de `/documentacion`.
 
 ## 6. Senior Accessibility Engineer — `A11Y-N`
 
@@ -973,8 +992,9 @@ migración de router (ver más abajo):**
     build de producción, y navegación en vivo con Playwright, incluida la
     ruta anidada bajo `/opac/:codigo/*`.~~
 
-**✅ Hecho — lote 10 (26/07/2026), aparecido al investigar un reporte del
-usuario ya con el sistema en producción:**
+**✅ Hecho — lote 10 (26/07/2026), aparecidos al investigar un reporte del
+usuario y al armar la página de Documentación, ambos con el sistema ya en
+producción:**
 38. ~~UX-5 — el login del OPAC no recortaba espacios de más en el número
     de socio, a diferencia de cómo se guarda. No era la causa del caso
     puntual reportado (nunca se logró reproducir que admin/supervisor no
@@ -982,5 +1002,11 @@ usuario ya con el sistema en producción:**
     falle distinto según quién lo haya creado — se verificó extensamente
     que ambas cosas funcionan bien), pero es un bug real encontrado en el
     camino y se corrigió igual. Test de integración nuevo.~~
+39. ~~UX-6 — el badge "OPAC: sí/no" de la tabla de Socios no se
+    actualizaba solo después de guardar una contraseña con "Login OPAC"
+    — faltaba un `recargar()` que el resto de las mutaciones de la
+    página ya tenía. Encontrado al sacar la captura de ejemplo para
+    Documentación y notar que el badge seguía en "NO" después de
+    guardar. Verificado en vivo.~~
 
 No queda ningún hallazgo abierto en toda la auditoría.
