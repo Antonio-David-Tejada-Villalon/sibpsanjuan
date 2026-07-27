@@ -3,6 +3,7 @@ import api from "../../api.js";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useAvisoCargaLenta } from "../../useAvisoCargaLenta.js";
 import Pager from "../../Pager.jsx";
+import ListaColapsable from "../../ListaColapsable.jsx";
 
 const POR_PAGINA_OPAC = 24;
 
@@ -392,7 +393,10 @@ export default function CatalogoPublico() {
         conteo.set(canon, (conteo.get(canon) || 0) + 1);
       }
     }
-    return [...conteo.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 15);
+    // Sin tope artificial de cantidad (antes .slice(0, 15)) — ListaColapsable
+    // ya se encarga de no mostrar más de 5 de entrada, con "Ver más" para el
+    // resto (ver UX/BIBL-6 en AUDITORIA.md).
+    return [...conteo.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todos, mapaMaterias]);
 
@@ -404,7 +408,8 @@ export default function CatalogoPublico() {
         conteo.set(canon, (conteo.get(canon) || 0) + 1);
       }
     }
-    return [...conteo.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 15);
+    // Sin tope artificial de cantidad, mismo criterio que materiasDisponibles.
+    return [...conteo.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todos, mapaAutores]);
 
@@ -543,10 +548,12 @@ export default function CatalogoPublico() {
             </label>
           </div>
 
-          <div className="catalogo-filtros__grupo">
-            <h2>Tipos de ítem</h2>
-            {CONFIG_TIPOS.map((t) => (
-              <label key={t.itemTipo} style={{ display: "block", fontWeight: "normal" }}>
+          <ListaColapsable
+            titulo="Tipos de ítem"
+            items={CONFIG_TIPOS}
+            claveItem={(t) => t.itemTipo}
+            renderItem={(t) => (
+              <label style={{ display: "block", fontWeight: "normal" }}>
                 <input
                   type="checkbox"
                   checked={tiposActivos.has(t.itemTipo)}
@@ -554,46 +561,40 @@ export default function CatalogoPublico() {
                 />{" "}
                 {t.etiquetaTipo} ({conteoPorTipo.get(t.itemTipo) || 0})
               </label>
-            ))}
-          </div>
+            )}
+          />
 
-          {autoresDisponibles.length > 0 && (
-            <div className="catalogo-filtros__grupo">
-              <h2>Autores</h2>
-              <ul className="catalogo-filtros__materias">
-                {autoresDisponibles.map(([autor, cantidad]) => (
-                  <li key={autor}>
-                    <button
-                      type="button"
-                      className={autoresActivos.has(autor) ? "activa" : ""}
-                      onClick={() => onToggleAutor(autor)}
-                    >
-                      {autor} ({cantidad})
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <ListaColapsable
+            titulo="Autores"
+            items={autoresDisponibles}
+            claveItem={([autor]) => autor}
+            className="catalogo-filtros__materias"
+            renderItem={([autor, cantidad]) => (
+              <button
+                type="button"
+                className={autoresActivos.has(autor) ? "activa" : ""}
+                onClick={() => onToggleAutor(autor)}
+              >
+                {autor} ({cantidad})
+              </button>
+            )}
+          />
 
-          {materiasDisponibles.length > 0 && (
-            <div className="catalogo-filtros__grupo">
-              <h2>Materias</h2>
-              <ul className="catalogo-filtros__materias">
-                {materiasDisponibles.map(([materia, cantidad]) => (
-                  <li key={materia}>
-                    <button
-                      type="button"
-                      className={materiasActivas.has(materia) ? "activa" : ""}
-                      onClick={() => onToggleMateria(materia)}
-                    >
-                      {materia} ({cantidad})
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <ListaColapsable
+            titulo="Materias"
+            items={materiasDisponibles}
+            claveItem={([materia]) => materia}
+            className="catalogo-filtros__materias"
+            renderItem={([materia, cantidad]) => (
+              <button
+                type="button"
+                className={materiasActivas.has(materia) ? "activa" : ""}
+                onClick={() => onToggleMateria(materia)}
+              >
+                {materia} ({cantidad})
+              </button>
+            )}
+          />
         </aside>
 
         <div className="catalogo-resultados">

@@ -536,6 +536,33 @@ main:has(.catalogo-layout) { max-width: 1280px; }
   font-size: var(--text-xs);
 }
 .catalogo-filtros__materias button:hover { border-color: var(--brand); color: var(--brand-texto); }
+/* Ver más / Ver menos — ver ListaColapsable.jsx, compartido entre el
+   sidebar de filtros del OPAC y el del buscador de catálogo del panel. */
+.catalogo-filtros__vermas {
+  display: block;
+  background: transparent;
+  border: none;
+  padding: var(--space-2) 0 0;
+  margin: 0;
+  color: var(--brand-texto);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-align: left;
+  width: 100%;
+}
+.catalogo-filtros__vermas:hover { text-decoration: underline; filter: none; }
+/* Búsqueda especializada — ver BuscarCatalogo.jsx. Vive dentro de un
+   .card que ya trae borde propio, por eso el <details> en sí no repite
+   ese estilo (a diferencia de "Carga masiva desde CSV/Excel" en
+   Libros.jsx, que SÍ es su propio .card suelto). */
+.busqueda-avanzada { margin-top: var(--space-3); }
+.busqueda-avanzada summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--brand-texto); }
+.busqueda-avanzada__campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
 .catalogo-filtros__materias button.activa {
   background: var(--brand);
   color: white;
@@ -779,6 +806,18 @@ main:has(.doc-layout) { max-width: 1100px; }
   row-gap: var(--space-1);
   margin: var(--space-3) 0;
   font-size: var(--text-sm);
+}
+/* Ver FichaIsbd.jsx — el párrafo con la puntuación ISBD real (": " / " — "
+   / " / ", etc.), destacado con un borde izquierdo para que se lea como
+   una cita bibliográfica y no como texto suelto. */
+.ficha-isbd__parrafo {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--brand);
+  background: var(--bg-sutil);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 .modal-detalle__campos dt { color: var(--texto-mudo); }
 .modal-detalle__campos dd { margin: 0; }

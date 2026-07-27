@@ -12,6 +12,7 @@ const INDICE = [
   { id: "catalogar", etiqueta: "Catalogar material" },
   { id: "catalogar-libros", etiqueta: "Cargar un libro (editor MARC)" },
   { id: "carga-masiva", etiqueta: "Carga masiva de libros (CSV/Excel)" },
+  { id: "buscar-catalogo", etiqueta: "Buscar en el catálogo" },
   { id: "socios", etiqueta: "Socios" },
   { id: "circulacion", etiqueta: "Circulación y préstamos" },
   { id: "opac", etiqueta: "El catálogo público (OPAC)" },
@@ -285,6 +286,13 @@ export default function Documentacion() {
           </li>
           <li>Subí el archivo. Cada fila se valida por separado — una fila con errores no aborta el resto.</li>
         </ol>
+        <p>
+          La plantilla trae las mismas columnas que las 9 solapas del editor MARC de{" "}
+          <a href="#catalogar-libros">Cargar un libro</a> (edición, CDU/Dewey, autor corporativo, título variante,
+          descripción física, serie/ISSN, notas de audiencia/idioma, instrucción de acceso, además de las de
+          siempre) — todas opcionales salvo el título. No hace falta completarlas todas: una fila con solo título,
+          autor e ISBN se carga igual de bien que antes.
+        </p>
         <Captura
           src="/docs/carga-masiva.png"
           alt='Panel "Carga masiva desde CSV/Excel" desplegado en Libros, con el link para descargar la plantilla y el selector de archivo.'
@@ -303,6 +311,63 @@ export default function Documentacion() {
           Un <code>subtipo</code> que no coincida exactamente con los valores esperados (ej. "Novela" en vez de
           "impreso") no hace fallar la fila: se avisa y el libro se carga igual con el subtipo por defecto,
           corregible después editándolo.
+        </p>
+      </Seccion>
+
+      <Seccion id="buscar-catalogo" titulo="Buscar en el catálogo">
+        <p>
+          Panel → <strong>"Buscar en el catálogo"</strong>: todo lo que catalogaste, de los 10 tipos de material,
+          en una sola tabla — con el mismo sidebar de filtros que ve el socio en el OPAC (tipo de ítem, autor,
+          materia), más las acciones del staff que no tiene sentido ofrecerle al público: editar, ver la ficha
+          completa, y eliminar.
+        </p>
+        <Captura
+          src="/docs/buscar-catalogo.png"
+          alt='Pantalla "Buscar en el catálogo": sidebar de filtros a la izquierda (tipos de ítem, autores, materias) y tabla de resultados a la derecha, con los botones Editar, Ficha ISBD y Eliminar en cada fila.'
+        />
+        <p>
+          <strong>Búsqueda simple</strong>, arriba de todo: un solo campo que busca por título, autor, materia o
+          ISBN/ISSN a la vez. Si necesitás precisión — por ejemplo, un autor puntual sin traer todo lo que tenga esa
+          palabra en el título — desplegá <strong>"Búsqueda especializada"</strong>: título, autor, materia,
+          ISBN/ISSN y año, cada uno por separado. Los campos completados se combinan entre sí (todos tienen que
+          coincidir) y con la búsqueda simple de arriba, si también tiene algo escrito.
+        </p>
+        <p>
+          <strong>Filtros del sidebar.</strong> Tipos de ítem, Autores y Materias funcionan igual que en el OPAC —
+          multi-selección, con la cantidad de resultados entre paréntesis. Si hay más de cinco valores distintos en
+          cualquiera de los tres grupos, solo se muestran los primeros cinco con un botón{" "}
+          <strong>"Ver N más"</strong> — evita que un catálogo con muchos autores o materias se coma toda la
+          pantalla apenas se entra. Un segundo click ("Ver menos") vuelve a las primeras cinco. El mismo mecanismo
+          se aplica también en el sidebar del OPAC.
+        </p>
+        <p>
+          <strong>Ficha ISBD.</strong> Cada fila tiene un botón que abre, en un modal, la descripción bibliográfica
+          completa del ítem en formato <strong>ISBD</strong> (International Standard Bibliographic Description) —
+          la misma puntuación que se usa en una ficha catalográfica real:
+        </p>
+        <Captura
+          src="/docs/ficha-isbd.png"
+          alt='Modal "Ficha ISBD — Libro" mostrando el párrafo "Ficciones : Cuentos / Borges, Jorge Luis. — Buenos Aires : Emecé, 1944. — ISBN 9789500000000", las materias como etiquetas, el subtipo y la disponibilidad de ejemplares.'
+        />
+        <p>
+          <code>Título : subtítulo / mención de responsabilidad. — Mención de edición. — Lugar de publicación :
+          editorial, fecha. — Extensión : otros detalles ; dimensiones + material complementario. — (Serie ; volumen,
+          ISSN). — Notas. — ISBN.</code> Cada área se omite si el campo correspondiente está vacío — no se inventa
+          nada. Debajo del párrafo, una ficha técnica corta con lo que no entra en la puntuación ISBD clásica (CDU,
+          Dewey, entidad corporativa, subtipo, y los campos propios de cada tipo de material: periodicidad, escala,
+          técnica, edad recomendada, etc.), las materias, y la disponibilidad de ejemplares.
+        </p>
+        <p>
+          <strong>Editar</strong> lleva a la pantalla propia de ese tipo de material (Libros, Seriadas, etc.) con el
+          formulario ya precargado — no hace falta volver a buscar el ítem ahí. <strong>Eliminar</strong> funciona
+          igual que en cualquier otra lista del sistema (borrado lógico, recuperable) y también admite{" "}
+          <strong>selección múltiple</strong>: tildá varias filas (de cualquier tipo, mezcladas) y "Eliminar
+          seleccionados" las borra de una, mostrando antes qué se va a eliminar.
+        </p>
+        <p>
+          Por ahora, solo <strong>Libros</strong> tiene el editor completo por solapas — los otros 9 tipos siguen
+          con su formulario simple de siempre (ver <a href="#catalogar">Catalogar material</a>), pero ya aparecen
+          acá, buscables y editables, igual que Libros.
         </p>
       </Seccion>
 

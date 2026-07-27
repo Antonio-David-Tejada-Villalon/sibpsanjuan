@@ -29,17 +29,19 @@ amplio) · 🟡 Medio (mejora acotada) · 🟢 Bajo (pulido/sugerencia).
 
 ## Resumen ejecutivo — lo más importante primero
 
-**Actualización 26/07/2026 (undécima pasada):** 42 hallazgos ya se
+**Actualización 27/07/2026 (duodécima pasada):** 43 hallazgos ya se
 corrigieron y se verificaron en vivo (tests + Playwright contra una
-instancia aislada), en once lotes — **ya no queda ningún hallazgo
-abierto en toda la auditoría.** Los últimos tres (UX-5, UX-6, BIBL-6) no
-salieron de esta auditoría en sí: aparecieron al investigar un reporte
-del usuario después de desplegar a producción (Vercel + Render + Atlas,
-ver `DEPLOY.md`), al armar la página de Documentación, y al llevar el
-formulario de Libros a un editor MARC completo por solapas (a pedido
-explícito del usuario, con el editor de Koha como referencia) — igual
-que BIBL-5/ARQ-12 aparecieron al construir otra cosa — mismo criterio de
-"lo que se encuentra en el camino se corrige y se documenta acá". GOB-3 y
+instancia aislada), en doce lotes — **ya no queda ningún hallazgo
+abierto en toda la auditoría.** Los últimos cuatro (UX-5, UX-6, BIBL-6,
+UX-7) no salieron de esta auditoría en sí: aparecieron al investigar un
+reporte del usuario después de desplegar a producción (Vercel + Render +
+Atlas, ver `DEPLOY.md`), al armar la página de Documentación, al llevar
+el formulario de Libros a un editor MARC completo por solapas, y al
+construir el buscador unificado de catálogo en el panel — los últimos
+dos, a pedido explícito del usuario, con el editor y el buscador de Koha
+como referencia — igual que BIBL-5/ARQ-12 aparecieron al construir otra
+cosa — mismo criterio de "lo que se encuentra en el camino se corrige y
+se documenta acá". GOB-3 y
 A11Y-7 se consultaron con el usuario antes de tocarlos, porque no eran
 decisiones puramente técnicas:
 A11Y-7 quedó resuelto (el foco corregido con `--brand-texto`; los botones
@@ -488,6 +490,56 @@ triplicar la lógica de listar/crear/editar/eliminar en 12 páginas.
   contraseña. Verificado en vivo: el badge pasa de "OPAC: NO" a
   "OPAC: SÍ" apenas se guarda, sin recargar manualmente — capturado en la
   imagen de ejemplo de la sección "Socios" de `/documentacion`.
+
+- **UX-7 ✅ Resuelto (27/07/2026) — El único lugar para ver "qué libros ya
+  están cargados" era una tabla al pie del formulario de alta de Libros —
+  sin filtros más allá de un texto libre, sin ficha completa del ítem, y
+  sin ningún equivalente para los otros 9 tipos de material.** A pedido
+  explícito del usuario: un buscador unificado, en el panel de biblioteca,
+  con el mismo lenguaje visual que ya tiene el catálogo del OPAC
+  (`CatalogoPublico.jsx`) pero con las acciones que necesita el staff.
+
+  **Arreglo aplicado:**
+  - Página nueva `BuscarCatalogo.jsx` (menú Panel → "Buscar en el
+    catálogo"), que combina los 10 tipos de material en una sola tabla —
+    mismo patrón de agregación cliente-side que ya probó `CatalogoPublico.jsx`
+    (10 fetches en paralelo, sin backend nuevo), reutilizando los
+    endpoints `GET` que cada tipo ya tenía para su propio listado.
+  - Búsqueda simple (texto libre sobre título/autor/materia/ISBN-ISSN) +
+    **búsqueda especializada** (`<details>` con Título/Autor/Materia/
+    ISBN-ISSN/Año por separado, combinados con AND) + filtros por tipo,
+    autor y materia (sidebar `.catalogo-filtros`, idéntico al del OPAC).
+  - Selección múltiple con "Eliminar seleccionados" (igual criterio que
+    `useListaCrud`: lista qué se va a borrar antes de confirmar, nota de
+    "se puede restaurar"), agrupando por tipo para llamar al endpoint de
+    borrado que corresponda a cada ítem.
+  - **Ficha ISBD** (`FichaIsbd.jsx`, botón nuevo en cada fila y modal
+    aparte): arma el párrafo con la puntuación ISBD real (`título :
+    subtítulo / mención de responsabilidad. — lugar : editorial, fecha. —
+    ISBN`, con `[S.l.]`/`[s.n.]`/`[s.a.]` para lo que falte, igual que un
+    catálogo bibliotecario de verdad) a partir de los mismos campos que ya
+    captura cada formulario — sin backend nuevo, es puramente un
+    formateador del lado del cliente.
+  - "Editar" navega a la pantalla propia de cada tipo con la entidad
+    completa en el `state` de la navegación (`useEditarDesdeNavegacion.js`,
+    un hook de una sola línea agregado a los 10 formularios) — precarga el
+    modo edición sin tener que buscar el ítem de nuevo ahí.
+  - La tabla que antes vivía al pie de `Libros.jsx` se sacó de ahí (quedó
+    solo el editor MARC + un link a "Buscar en el catálogo").
+  - De paso: el sidebar de filtros (tipos/autores/materias), tanto acá
+    como en el OPAC, ahora colapsa a 5 entradas con un botón "Ver N más"/
+    "Ver menos" (`ListaColapsable.jsx`, componente compartido) — antes el
+    OPAC directamente recortaba a las primeras 15 sin avisar que había más.
+
+  Verificado en vivo con Playwright: se cargó un libro completo (con
+  autores y materias repetidos) y una publicación seriada, se los ubicó
+  desde "Buscar en el catálogo" combinados en una sola tabla, se abrió la
+  ficha ISBD (párrafo correcto, con los ejemplares disponibles), se probó
+  "Ver 5 más"/"Ver menos" en Tipos de ítem, se seleccionaron ambos y se
+  los eliminó de una, y "Editar" sobre el libro llevó de vuelta a
+  `/libros` con el formulario ya precargado. 6 tests nuevos
+  (`BuscarCatalogo.test.jsx`) + 2 tests de `Libros.test.jsx` reescritos
+  para la navegación con `state`.
 
 ## 6. Senior Accessibility Engineer — `A11Y-N`
 
@@ -1076,5 +1128,16 @@ producción:**
     de verdad (autores/materias) con íconos "Repetir"/"Quitar". Verificado
     en vivo con Playwright: carga completa de las 9 solapas, guardado, y
     reapertura en edición con todos los datos intactos.~~
+
+**✅ Hecho — lote 12 (27/07/2026), a pedido explícito del usuario:**
+41. ~~UX-7 — la única forma de ver "qué está cargado" era la tabla al pie
+    del formulario de Libros, sin filtros más allá de texto libre y sin
+    equivalente para los otros 9 tipos. Se armó "Buscar en el catálogo"
+    (nueva página en el panel), que combina los 10 tipos en una sola
+    tabla con los mismos filtros que el OPAC (tipo/autor/materia,
+    colapsados a 5 con "Ver más"), búsqueda simple + especializada,
+    ficha ISBD por ítem, y selección múltiple para eliminar. La plantilla
+    CSV de Libros también se actualizó con los 15 campos nuevos del
+    editor MARC. Verificado en vivo con Playwright.~~
 
 No queda ningún hallazgo abierto en toda la auditoría.

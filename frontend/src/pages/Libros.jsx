@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../api.js";
-import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import { useListaCrud } from "../useListaCrud.js";
+import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
 
 const POR_PAGINA = 50;
@@ -432,29 +433,15 @@ function FormularioNuevoEjemplar({ libroId, onAgregado }) {
 
 export default function Libros() {
   const {
-    items: libros,
-    total,
-    pagina,
-    setPagina,
-    busqueda,
     form,
     editandoId,
-    eliminandoId,
-    seleccionados,
-    eliminandoSeleccion,
     error,
-    cargando,
     guardando,
     recargar,
-    onBuscar,
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
     onSubmit,
-    onEliminar,
-    onToggleSeleccion,
-    onToggleSeleccionTodos,
-    onEliminarSeleccionados,
   } = useListaCrud({
     listar: (pagina, porPagina, q) => api.listarLibrosPaginado(pagina, porPagina, q),
     crear: (datos, form) => api.crearLibro({ ...datos, ejemplares: aEjemplares(form.ejemplaresTexto) }),
@@ -465,6 +452,10 @@ export default function Libros() {
     mapEntidadAForm,
     mapFormADatos,
   });
+
+  // Si se llegó acá con "Editar" desde "Buscar en el catálogo" (ver
+  // BuscarCatalogo.jsx), precarga esa entidad en el formulario.
+  useEditarDesdeNavegacion(onEditar);
 
   const [solapaActiva, setSolapaActiva] = useState(0);
   useEffect(() => {
@@ -783,107 +774,11 @@ export default function Libros() {
 
       <CargaMasivaLibros onImportado={recargar} />
 
-      <label>
-        Buscar por título, autor o ISBN
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => onBuscar(e.target.value)}
-          placeholder="Ej: Borges, o 978..."
-        />
-      </label>
-
-      {cargando ? (
-        <p>Cargando...</p>
-      ) : (
-        <>
-          {seleccionados.size > 0 && (
-            <div className="barra-seleccion">
-              <span>{seleccionados.size} seleccionado(s)</span>
-              <button
-                type="button"
-                className="peligro"
-                onClick={() => onEliminarSeleccionados("¿Eliminar los libros seleccionados?")}
-                disabled={eliminandoSeleccion}
-              >
-                {eliminandoSeleccion ? "Eliminando…" : "Eliminar seleccionados"}
-              </button>
-            </div>
-          )}
-          <table>
-            <caption className="sr-only">
-              Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
-            </caption>
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={libros.length > 0 && seleccionados.size === libros.length}
-                    onChange={onToggleSeleccionTodos}
-                    aria-label="Seleccionar todos"
-                  />
-                </th>
-                <th>Título</th>
-                <th>Autores</th>
-                <th>Año</th>
-                <th>Ejemplares</th>
-                <th><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {libros.map((libro) => (
-                <tr key={libro._id} className={eliminandoId === libro._id ? "saliendo" : ""}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={seleccionados.has(libro._id)}
-                      onChange={() => onToggleSeleccion(libro._id)}
-                      aria-label={`Seleccionar ${libro.titulo}`}
-                    />
-                  </td>
-                  <td>{libro.titulo}</td>
-                  <td>{(libro.autores || []).join(", ")}</td>
-                  <td>{libro.anio}</td>
-                  <td>{(libro.ejemplares || []).length}</td>
-                  <td>
-                    <button className="secundario" onClick={() => onEditar(libro)}>
-                      Editar
-                    </button>{" "}
-                    <button className="peligro" onClick={() => onEliminar(libro._id, "¿Eliminar este libro?")}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {libros.length === 0 && (
-                <tr>
-                  <td colSpan={6}>
-                    {busqueda ? (
-                      "Ningún libro coincide con la búsqueda."
-                    ) : (
-                      <>
-                        Todavía no cargaste ningún libro. Si tenés varios, probá la{" "}
-                        <a
-                          href="#carga-masiva-csv"
-                          onClick={() => {
-                            const detalle = document.getElementById("carga-masiva-csv");
-                            if (detalle) detalle.open = true;
-                          }}
-                        >
-                          carga masiva desde CSV/Excel
-                        </a>
-                        .
-                      </>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-      <Pager pagina={pagina} porPagina={POR_PAGINA} total={total} onCambiar={setPagina} etiqueta="libros" />
+      <p className="card">
+        ¿Buscás un libro ya cargado (para editarlo, ver su ficha ISBD o eliminarlo)?{" "}
+        <Link to="/catalogo">Buscá en el catálogo</Link> — ahí también aparecen el resto de los tipos de
+        material, con filtros por autor, materia, tipo y disponibilidad.
+      </p>
     </>
   );
 }

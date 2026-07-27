@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import Libros from "./Libros.jsx";
 import api from "../api.js";
 
@@ -26,6 +27,19 @@ const LIBRO = {
   ejemplares: [{ _id: "ej1", codigoBarras: "BPSJ-1", estado: "disponible" }],
 };
 
+// El listado y la búsqueda de libros ya cargados viven en
+// BuscarCatalogo.jsx (ver BuscarCatalogo.test.jsx) — este archivo se movió
+// junto con esa pantalla. Acá solo queda el editor MARC (alta/edición) y su
+// precarga vía navegación (state:{ editar }), que reemplazó al viejo botón
+// "Editar" de la tabla que este archivo tenía antes.
+function renderLibros({ state } = {}) {
+  return render(
+    <MemoryRouter initialEntries={[{ pathname: "/libros", state }]}>
+      <Libros />
+    </MemoryRouter>
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   window.scrollTo = vi.fn();
@@ -33,33 +47,24 @@ beforeEach(() => {
 });
 
 describe("Libros", () => {
-  it("lista los libros cargados", async () => {
-    render(<Libros />);
-    expect(await screen.findByText("Ficciones")).toBeInTheDocument();
-  });
-
   it("crea un libro nuevo", async () => {
     api.crearLibro.mockResolvedValue({ ...LIBRO, _id: "2", titulo: "Rayuela" });
     const user = userEvent.setup();
-    render(<Libros />);
-    await screen.findByText("Ficciones");
+    renderLibros();
 
-    await user.type(screen.getByLabelText(/^título/i), "Rayuela");
+    await user.type(screen.getByLabelText(/^título propiamente dicho/i), "Rayuela");
     await user.click(screen.getByRole("button", { name: /^guardar$/i }));
 
     expect(api.crearLibro).toHaveBeenCalledWith(expect.objectContaining({ titulo: "Rayuela" }));
     expect(api.actualizarLibro).not.toHaveBeenCalled();
   });
 
-  it("editar precarga el formulario y guarda con actualizarLibro, no con crearLibro", async () => {
+  it("precarga el formulario al navegar con state:{ editar } (desde Buscar en el catálogo) y guarda con actualizarLibro", async () => {
     api.actualizarLibro.mockResolvedValue({ ...LIBRO, titulo: "Ficciones (editado)" });
     const user = userEvent.setup();
-    render(<Libros />);
-    await screen.findByText("Ficciones");
+    renderLibros({ state: { editar: LIBRO } });
 
-    await user.click(screen.getByRole("button", { name: /editar/i }));
-
-    const tituloInput = screen.getByLabelText(/^título/i);
+    const tituloInput = await screen.findByLabelText(/^título propiamente dicho/i);
     expect(tituloInput).toHaveValue("Ficciones");
     expect(screen.getByRole("heading", { name: /editar libro/i })).toBeInTheDocument();
 
@@ -71,11 +76,10 @@ describe("Libros", () => {
     expect(api.crearLibro).not.toHaveBeenCalled();
   });
 
-  it("avisa antes de salir si hay cambios sin guardar, y deja de avisar tras guardar o cancelar (ver UX-4)", async () => {
+  it("avisa antes de salir si hay cambios sin guardar, y deja de avisar tras guardar (ver UX-4)", async () => {
     api.crearLibro.mockResolvedValue({ ...LIBRO, _id: "2", titulo: "Rayuela" });
     const user = userEvent.setup();
-    render(<Libros />);
-    await screen.findByText("Ficciones");
+    renderLibros();
 
     function disparaBeforeUnload() {
       const evento = new Event("beforeunload", { cancelable: true });
@@ -85,25 +89,23 @@ describe("Libros", () => {
 
     expect(disparaBeforeUnload().defaultPrevented).toBe(false);
 
-    await user.type(screen.getByLabelText(/^título/i), "Rayuela");
+    await user.type(screen.getByLabelText(/^título propiamente dicho/i), "Rayuela");
     expect(disparaBeforeUnload().defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: /^guardar$/i }));
-    await waitFor(() => expect(screen.getByLabelText(/^título/i)).toHaveValue(""));
+    await waitFor(() => expect(screen.getByLabelText(/^título propiamente dicho/i)).toHaveValue(""));
     expect(disparaBeforeUnload().defaultPrevented).toBe(false);
   });
 
-  it("cancelar la edición vuelve el formulario a 'Nuevo libro' vacío", async () => {
+  it("cancelar la edición precargada por navegación vuelve el formulario a 'Nuevo libro' vacío", async () => {
     const user = userEvent.setup();
-    render(<Libros />);
-    await screen.findByText("Ficciones");
+    renderLibros({ state: { editar: LIBRO } });
 
-    await user.click(screen.getByRole("button", { name: /editar/i }));
-    expect(screen.getByRole("heading", { name: /editar libro/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /editar libro/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /cancelar/i }));
 
     expect(screen.getByRole("heading", { name: /nuevo libro/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^título/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^título propiamente dicho/i)).toHaveValue("");
   });
 });

@@ -254,6 +254,7 @@ const api = {
     }),
 
   // --- Recursos electrónicos: sin ejemplares, no hay método de "prestar" ---
+  listarRecursosElectronicos: () => apiFetchCacheable(`${BASE}/recursosElectronicos`),
   listarRecursosElectronicosPaginado: (pagina, porPagina, q = "") =>
     apiFetchPaginadoCacheable(
       `${BASE}/recursosElectronicos?pagina=${pagina}&porPagina=${porPagina}&q=${encodeURIComponent(q)}`

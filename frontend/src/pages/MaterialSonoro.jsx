@@ -3,6 +3,7 @@ import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import { useListaCrud } from "../useListaCrud.js";
+import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
 
 const POR_PAGINA = 50;
@@ -120,6 +121,8 @@ export default function MaterialSonoro() {
     mapEntidadAForm,
     mapFormADatos,
   });
+
+  useEditarDesdeNavegacion(onEditar);
 
   return (
     <>

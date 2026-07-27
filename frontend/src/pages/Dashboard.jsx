@@ -11,6 +11,12 @@ const MODULOS = [
   { permiso: "circulacion", to: "/circulacion", etiqueta: "Circulación", descripcion: "Solicitudes pendientes y préstamos activos" },
   { permiso: "socios", to: "/socios", etiqueta: "Socios", descripcion: "Alta, edición y credenciales de OPAC" },
   { permiso: "catalogar", to: "/libros", etiqueta: "Catalogación", descripcion: "Los 10 tipos de material" },
+  {
+    permiso: "catalogar",
+    to: "/catalogo",
+    etiqueta: "Buscar en el catálogo",
+    descripcion: "Todo lo cargado, con filtros, ficha ISBD y edición",
+  },
   { permiso: "exportar", to: "/exportar", etiqueta: "Exportar", descripcion: "MARCXML/CSV para Koha o DigiBepé" },
 ];
 

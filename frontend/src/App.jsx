@@ -19,6 +19,7 @@ const Documentacion = lazy(() => import("./pages/Documentacion.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Bibliotecarios = lazy(() => import("./pages/Bibliotecarios.jsx"));
 const Libros = lazy(() => import("./pages/Libros.jsx"));
+const BuscarCatalogo = lazy(() => import("./pages/BuscarCatalogo.jsx"));
 const Autores = lazy(() => import("./pages/Autores.jsx"));
 const Materias = lazy(() => import("./pages/Materias.jsx"));
 const Seriadas = lazy(() => import("./pages/Seriadas.jsx"));
@@ -156,6 +157,14 @@ function Rutas() {
         element={
           <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
             <Libros />
+          </RutaProtegida>
+        }
+      />
+      <Route
+        path="/catalogo"
+        element={
+          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
+            <BuscarCatalogo />
           </RutaProtegida>
         }
       />

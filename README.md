@@ -54,7 +54,10 @@ formulario + circulación + export MARC propio cada uno):
   4 Serie, 5 Notas (general/audiencia/idioma), 6 Materias (repetibles),
   7 Acceso electrónico, 8 Ejemplares (ver BIBL-6 en `AUDITORIA.md`). Los
   demás 9 tipos de material siguen con su formulario plano de siempre —
-  este nivel de detalle solo se justificaba para Libros.
+  este nivel de detalle solo se justificaba para Libros. La plantilla CSV
+  de carga masiva (Libros → "Carga masiva desde CSV/Excel") tiene las
+  mismas 28 columnas que el editor por solapas — todas opcionales salvo
+  título.
 - **Publicaciones seriadas** (revistas, diarios, boletines, journals):
   ISSN, periodicidad, numeración en vez de los campos de un libro.
 - **Material sonoro** (CD, vinilo, cassette, audiolibros, podcast, MP3,
@@ -417,6 +420,20 @@ patrón estándar de "logo lleva al inicio" — sin duplicar la lógica: los
 dos apuntan a `/dashboard`, y para admin/supervisor sin biblioteca activa
 elegida se comportan igual que cualquier otro link a una pantalla scoped
 a biblioteca (mensaje para elegir una desde el selector, no un error).
+
+**Buscar en el catálogo** (`/catalogo`, tarjeta nueva en el Panel) combina
+los 10 tipos de material en una sola tabla, con el mismo sidebar de
+filtros que el catálogo público del OPAC (tipo/autor/materia, colapsados
+a 5 con "Ver más" — ver UX-7 en `AUDITORIA.md`), búsqueda simple y una
+**búsqueda especializada** (título/autor/materia/ISBN-ISSN/año por
+separado). Cada fila tiene **Editar** (lleva a la pantalla propia de ese
+tipo con el formulario ya precargado), **Ficha ISBD** (modal con el
+párrafo bibliográfico completo, en la puntuación real de la norma ISBD —
+título, edición, publicación, descripción física, serie, notas, número
+normalizado) y **Eliminar**, más selección múltiple para borrar varios a
+la vez. Es la evolución de la tabla que antes vivía al pie del formulario
+de Libros — se sacó de ahí porque ya no alcanzaba con un solo tipo de
+material ni con un buscador de texto libre nomás.
 
 El encabezado (staff y OPAC) es responsive: por debajo de 860px, la
 navegación y el bloque de la derecha (selector de biblioteca, tema,

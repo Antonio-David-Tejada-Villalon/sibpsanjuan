@@ -377,6 +377,15 @@ que se lee/guarda: **no hace falta ninguna migración ni backfill.** Los
 libros ya cargados en producción siguen funcionando exactamente igual,
 simplemente con esos campos nuevos vacíos hasta que alguien los edite.
 
+"Buscar en el catálogo" (`/catalogo`, ver UX-7 en `AUDITORIA.md`), la
+ficha ISBD, y el colapso "Ver más"/"Ver menos" en los sidebars de
+filtros (OPAC y panel) son 100% frontend — sin ruta backend nueva (la
+página combina los `GET` que cada tipo de material ya tenía), sin cambio
+de schema ni variables de entorno. La plantilla CSV de Libros ampliada
+con las columnas nuevas (`importarLibrosCsv.js`) tampoco toca el schema
+— usa los mismos 15 campos que ya sumó BIBL-6, solo cambia qué columnas
+lee el parser.
+
 El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
 `sameSite` configurable de la cookie de sesión son aditivos y quedan
 apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el
