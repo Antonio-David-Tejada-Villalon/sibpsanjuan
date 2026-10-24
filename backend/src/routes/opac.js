@@ -28,6 +28,7 @@ import { puedeRenovar, estaVencido, calcularMulta, resolverPolitica, superaMaxPr
 import { politicaDeSocio, contarPrestamosEnCurso } from "../circulacion/categorias.js";
 import { esIdValido } from "../utils/objectId.js";
 import { crearLimitadorLogin } from "../middleware/rateLimit.js";
+import { idempotente } from "../middleware/idempotencia.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
 
 // Montado en /api/opac/:codigo — el código de biblioteca reemplaza al
@@ -409,7 +410,7 @@ router.get("/mis-solicitudes", async (req, res) => {
   res.json(solicitudes);
 });
 
-router.post("/solicitudes", async (req, res) => {
+router.post("/solicitudes", idempotente, async (req, res) => {
   const { tipo, itemTipo, itemId, prestamoId } = req.body || {};
   let itemReservado = null;
   if (tipo !== "prestamo" && tipo !== "renovacion") {
@@ -489,6 +490,11 @@ router.post("/solicitudes", async (req, res) => {
     // dejarlo trabado en "reservado" sin ninguna solicitud asociada.
     if (itemReservado) {
       await Ejemplar.findByIdAndUpdate(itemReservado._id, { estado: "disponible" });
+    }
+    // Dos pedidos iguales al mismo tiempo (doble toque): el índice único de
+    // Solicitud deja pasar solo el primero.
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "Ya tenés una solicitud pendiente igual a esta." });
     }
     // Acá ya se validó todo lo que un socio puede escribir mal (tipo,
     // itemTipo/itemId, prestamoId) — si igual falla, es un error interno,

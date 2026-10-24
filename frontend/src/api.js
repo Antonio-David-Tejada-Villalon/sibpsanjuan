@@ -21,13 +21,37 @@ function conBibliotecaActiva(url) {
   return `${url}${separador}bibliotecaId=${encodeURIComponent(id)}`;
 }
 
+// crypto.randomUUID() solo existe en contextos seguros (https o
+// localhost); en una intranet servida por http queda getRandomValues().
+export function nuevaClaveIdempotencia() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const REINTENTOS_IDEMPOTENTES = 2;
+const SIN_CONEXION = "No hay conexión con el servidor. Revisá tu conexión y probá de nuevo.";
+
+// opciones.idempotente: para operaciones de circulación que no se pueden
+// repetir sin daño (prestar, devolver, renovar, aprobar, pedir). Llevan una
+// Idempotency-Key y, si la red falla antes de recibir la respuesta, se
+// reintentan con la MISMA clave: si el servidor ya la había procesado,
+// devuelve el resultado original en vez de repetirla (ver
+// middleware/idempotencia.js en el backend). El resto no se reintenta.
 async function apiFetch(url, opciones = {}) {
   url = conBibliotecaActiva(url);
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: opciones.body ? { "Content-Type": "application/json" } : undefined,
-    ...opciones,
-  });
+  const { idempotente, ...resto } = opciones;
+  const headers = { ...(resto.body ? { "Content-Type": "application/json" } : {}), ...resto.headers };
+  if (idempotente) headers["Idempotency-Key"] = nuevaClaveIdempotencia();
+  let res;
+  for (let intento = 0; ; intento++) {
+    try {
+      res = await fetch(url, { credentials: "include", ...resto, headers });
+      break;
+    } catch {
+      if (!idempotente || intento >= REINTENTOS_IDEMPOTENTES) throw new Error(SIN_CONEXION);
+      await new Promise((r) => setTimeout(r, 1000 * (intento + 1)));
+    }
+  }
   let cuerpo = null;
   const texto = await res.text();
   if (texto) {
@@ -327,6 +351,7 @@ const api = {
     apiFetch(`${BASE}/circulacion/solicitudes/${id}/aprobar`, {
       method: "POST",
       body: JSON.stringify(ejemplarId ? { ejemplarId } : {}),
+      idempotente: true,
     }).then((r) => {
       // Aprobar reserva un ejemplar (cambia su estado a "prestado"), lo que
       // afecta el conteo de "disponibles" que muestra Prestamos.jsx para
@@ -339,21 +364,23 @@ const api = {
     apiFetch(`${BASE}/circulacion/solicitudes/${id}/rechazar`, {
       method: "POST",
       body: JSON.stringify({ notaStaff }),
+      idempotente: true,
     }),
   listarPrestamos: (estado) => apiFetch(`${BASE}/circulacion/prestamos${estado ? `?estado=${estado}` : ""}`),
   crearPrestamoDirecto: (datos) =>
-    apiFetch(`${BASE}/circulacion/prestamos`, { method: "POST", body: JSON.stringify(datos) }).then((r) => {
+    apiFetch(`${BASE}/circulacion/prestamos`, { method: "POST", body: JSON.stringify(datos), idempotente: true }).then((r) => {
       invalidarCachesCirculantes();
       return r;
     }),
   procesarDevolucion: (id) =>
-    apiFetch(`${BASE}/circulacion/prestamos/${id}/devolucion`, { method: "POST" }).then((r) => {
+    apiFetch(`${BASE}/circulacion/prestamos/${id}/devolucion`, { method: "POST", idempotente: true }).then((r) => {
       invalidarCachesCirculantes();
       return r;
     }),
   // Renovación directa del staff (a diferencia de aprobarSolicitud con tipo
   // "renovacion", no hace falta que el socio la haya pedido primero).
-  renovarPrestamo: (id) => apiFetch(`${BASE}/circulacion/prestamos/${id}/renovar`, { method: "POST" }),
+  renovarPrestamo: (id) =>
+    apiFetch(`${BASE}/circulacion/prestamos/${id}/renovar`, { method: "POST", idempotente: true }),
 
   // --- OPAC (público / socio), todo scoped al código de biblioteca ---
   opacCatalogo: (codigo) => apiFetch(`${BASE}/opac/${codigo}/libros`),
@@ -381,11 +408,13 @@ const api = {
     apiFetch(`${BASE}/opac/${codigo}/solicitudes`, {
       method: "POST",
       body: JSON.stringify({ tipo: "prestamo", itemTipo, itemId }),
+      idempotente: true,
     }),
   opacSolicitarRenovacion: (codigo, prestamoId) =>
     apiFetch(`${BASE}/opac/${codigo}/solicitudes`, {
       method: "POST",
       body: JSON.stringify({ tipo: "renovacion", prestamoId }),
+      idempotente: true,
     }),
 };
 

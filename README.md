@@ -292,6 +292,15 @@ describe.
   Para bibliotecas creadas antes de esto: `npm run migrar-categorias`
   (con `--verificar` primero) agrega Alumno/Docente y da de alta los
   códigos que sus socios ya usan, sin tocar ningún socio.
+- **Sin operaciones dobles.** Devolver, renovar y aprobar/rechazar son
+  atómicos (dos clics o dos personas a la vez: pasa uno solo, el otro
+  recibe 409), y un socio no puede tener dos pedidos pendientes iguales
+  (índice único parcial en `Solicitud`). Además, prestar, devolver,
+  renovar, aprobar, rechazar y pedir desde el OPAC aceptan la cabecera
+  `Idempotency-Key` (`middleware/idempotencia.js`): si la conexión se
+  corta antes de ver la respuesta, el frontend reintenta con la misma
+  clave y el servidor devuelve el resultado original en vez de repetir la
+  operación. Solo se guardan respuestas 2xx, durante 24 h.
 - Cada tarjeta de biblioteca en "Bibliotecas" (admin/supervisor) tiene un
   botón **"Ver OPAC"** que abre el catálogo público de esa biblioteca en
   una pestaña nueva (`/opac/<código>`) — para revisar cómo queda de cara

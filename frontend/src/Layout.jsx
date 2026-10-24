@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "./AuthContext.jsx";
 import { useFocoEnRuta } from "./useFocoEnRuta.js";
 import api from "./api.js";
@@ -220,7 +221,7 @@ export default function Layout({ children }) {
           aria-expanded={menuAbierto}
           onClick={() => setMenuAbierto((a) => !a)}
         >
-          <span aria-hidden="true">{menuAbierto ? "✕" : "☰"}</span>
+          {menuAbierto ? <X size={22} strokeWidth={1.5} aria-hidden="true" /> : <Menu size={22} strokeWidth={1.5} aria-hidden="true" />}
         </button>
         {sesion && (
           <div className="header-derecha">

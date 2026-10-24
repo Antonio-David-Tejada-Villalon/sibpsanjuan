@@ -5,6 +5,7 @@ import Ejemplar from "../models/Ejemplar.js";
 import Socio from "../models/Socio.js";
 import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
+import { idempotente } from "../middleware/idempotencia.js";
 import { calcularVencimiento, puedeRenovar, estaVencido, superaMaxPrestamos } from "../circulacion/reglas.js";
 import { politicaDeSocio, contarPrestamosEnCurso, mensajeMaxPrestamos } from "../circulacion/categorias.js";
 import { esIdValido, requiereIdValido } from "../utils/objectId.js";
@@ -114,10 +115,23 @@ async function renovar(req, prestamo) {
   if (!puedeRenovar(prestamo, politica)) {
     throw Object.assign(new Error("Alcanzó el máximo de renovaciones."), { status: 409 });
   }
-  prestamo.fechaVencimiento = calcularVencimiento(new Date(), politica.diasPrestamo, politica);
-  prestamo.renovaciones += 1;
-  await prestamo.save();
-  return prestamo;
+  // Solo si nadie lo tocó desde que se leyó (mismas renovaciones, sin
+  // devolver): dos renovaciones simultáneas no pueden pasar el tope.
+  const renovado = await Prestamo.findOneAndUpdate(
+    { _id: prestamo._id, fechaDevolucion: null, renovaciones: prestamo.renovaciones },
+    {
+      $set: { fechaVencimiento: calcularVencimiento(new Date(), politica.diasPrestamo, politica) },
+      $inc: { renovaciones: 1 },
+    },
+    { new: true }
+  );
+  if (!renovado) {
+    throw Object.assign(
+      new Error("El préstamo cambió mientras se renovaba (otra renovación o una devolución). Actualizá y probá de nuevo."),
+      { status: 409 }
+    );
+  }
+  return renovado;
 }
 
 // Adjunta el ítem (Libro o Seriada, según itemTipo) a cada solicitud/
@@ -161,15 +175,36 @@ router.get("/solicitudes", async (req, res) => {
   );
 });
 
-router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereIdValido(), async (req, res) => {
-  const solicitud = await Solicitud.findOne({
-    _id: req.params.id,
-    bibliotecaId: req.usuario.bibliotecaId,
-    estado: "pendiente",
-  });
-  if (!solicitud) {
-    return res.status(404).json({ error: "Solicitud no encontrada o ya resuelta." });
+// Cuánto dura el "candado" de una solicitud mientras se aprueba (ver
+// Solicitud.bloqueadaHasta): de sobra para crear un préstamo, y corto si el
+// proceso se corta a mitad de camino.
+const BLOQUEO_SOLICITUD_MS = 30 * 1000;
+
+function noBloqueada(ahora) {
+  return { $or: [{ bloqueadaHasta: null }, { bloqueadaHasta: { $lt: ahora } }] };
+}
+
+// 409 si la solicitud sigue pendiente pero alguien la está resolviendo en
+// este momento; 404 si no existe o ya se resolvió.
+async function respuestaSolicitudNoDisponible(req, res) {
+  const pendiente = await Solicitud.exists({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, estado: "pendiente" });
+  if (pendiente) {
+    return res.status(409).json({ error: "Otra persona está resolviendo esta solicitud en este momento. Actualizá en unos segundos." });
   }
+  return res.status(404).json({ error: "Solicitud no encontrada o ya resuelta." });
+}
+
+router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereIdValido(), idempotente, async (req, res) => {
+  // Se toma la solicitud de forma atómica antes de hacer nada: si dos
+  // personas (o un doble clic) la aprueban a la vez, solo una avanza.
+  const ahora = new Date();
+  const solicitud = await Solicitud.findOneAndUpdate(
+    { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, estado: "pendiente", ...noBloqueada(ahora) },
+    { bloqueadaHasta: new Date(ahora.getTime() + BLOQUEO_SOLICITUD_MS) },
+    { new: true }
+  );
+  if (!solicitud) return respuestaSolicitudNoDisponible(req, res);
+  const liberar = () => Solicitud.updateOne({ _id: solicitud._id }, { bloqueadaHasta: null });
 
   try {
     if (solicitud.tipo === "prestamo") {
@@ -191,24 +226,26 @@ router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereId
         bibliotecaId: req.usuario.bibliotecaId,
       });
       if (!prestamo || prestamo.fechaDevolucion) {
-        return res.status(409).json({ error: "El préstamo ya no está activo." });
+        throw Object.assign(new Error("El préstamo ya no está activo."), { status: 409 });
       }
       await renovar(req, prestamo);
     }
   } catch (err) {
+    await liberar();
     return res.status(err.status || 400).json({ error: err.message });
   }
 
   solicitud.estado = "aprobada";
   solicitud.fechaResolucion = new Date();
   solicitud.resueltoPor = req.usuario.id;
+  solicitud.bloqueadaHasta = null;
   await solicitud.save();
   res.json(solicitud);
 });
 
-router.post("/solicitudes/:id/rechazar", requierePermiso("prestamos"), requiereIdValido(), async (req, res) => {
+router.post("/solicitudes/:id/rechazar", requierePermiso("prestamos"), requiereIdValido(), idempotente, async (req, res) => {
   const solicitud = await Solicitud.findOneAndUpdate(
-    { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, estado: "pendiente" },
+    { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, estado: "pendiente", ...noBloqueada(new Date()) },
     {
       estado: "rechazada",
       fechaResolucion: new Date(),
@@ -217,9 +254,7 @@ router.post("/solicitudes/:id/rechazar", requierePermiso("prestamos"), requiereI
     },
     { new: true }
   );
-  if (!solicitud) {
-    return res.status(404).json({ error: "Solicitud no encontrada o ya resuelta." });
-  }
+  if (!solicitud) return respuestaSolicitudNoDisponible(req, res);
   // El ejemplar que quedó reservado al pedirla (ver POST /solicitudes en
   // opac.js) vuelve a estar disponible — rechazar no debería dejarlo
   // trabado en "reservado" para siempre.
@@ -231,7 +266,7 @@ router.post("/solicitudes/:id/rechazar", requierePermiso("prestamos"), requiereI
 
 // --- Préstamos (vista de circulación del staff) ---
 
-router.post("/prestamos", requierePermiso("prestamos"), async (req, res) => {
+router.post("/prestamos", requierePermiso("prestamos"), idempotente, async (req, res) => {
   const { socioId, itemTipo, itemId, ejemplarId } = req.body || {};
   if (!socioId || !itemTipo || !itemId) {
     return res.status(400).json({ error: "socioId, itemTipo e itemId son obligatorios." });
@@ -247,7 +282,7 @@ router.post("/prestamos", requierePermiso("prestamos"), async (req, res) => {
 // Renovación directa desde el lado del staff (a diferencia de
 // POST /solicitudes/:id/aprobar con tipo "renovacion", acá no hace falta
 // que el socio la haya pedido primero por el OPAC).
-router.post("/prestamos/:id/renovar", requierePermiso("prestamos"), requiereIdValido(), async (req, res) => {
+router.post("/prestamos/:id/renovar", requierePermiso("prestamos"), requiereIdValido(), idempotente, async (req, res) => {
   const prestamo = await Prestamo.findOne({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId });
   if (!prestamo) {
     return res.status(404).json({ error: "No encontrado." });
@@ -262,20 +297,20 @@ router.post("/prestamos/:id/renovar", requierePermiso("prestamos"), requiereIdVa
   }
 });
 
-router.post("/prestamos/:id/devolucion", requierePermiso("devoluciones"), requiereIdValido(), async (req, res) => {
-  const prestamo = await Prestamo.findOne({
-    _id: req.params.id,
-    bibliotecaId: req.usuario.bibliotecaId,
-  });
+router.post("/prestamos/:id/devolucion", requierePermiso("devoluciones"), requiereIdValido(), idempotente, async (req, res) => {
+  // Atómico: leer "no devuelto" y marcarlo devuelto en dos pasos dejaba que
+  // dos devoluciones simultáneas del mismo préstamo pasaran las dos.
+  const prestamo = await Prestamo.findOneAndUpdate(
+    { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, fechaDevolucion: null },
+    { fechaDevolucion: new Date(), devueltoPor: req.usuario.id },
+    { new: true }
+  );
   if (!prestamo) {
-    return res.status(404).json({ error: "No encontrado." });
+    const existe = await Prestamo.exists({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId });
+    return existe
+      ? res.status(409).json({ error: "Ese préstamo ya fue devuelto." })
+      : res.status(404).json({ error: "No encontrado." });
   }
-  if (prestamo.fechaDevolucion) {
-    return res.status(409).json({ error: "Ese préstamo ya fue devuelto." });
-  }
-  prestamo.fechaDevolucion = new Date();
-  prestamo.devueltoPor = req.usuario.id;
-  await prestamo.save();
   await Ejemplar.findByIdAndUpdate(prestamo.ejemplarId, { estado: "disponible" });
   res.json(prestamo);
 });

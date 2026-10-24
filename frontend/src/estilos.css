@@ -290,18 +290,25 @@ header.app .menu-desplegable__panel a.active {
    cómo terminen wrappeando brand+nav, que pasan a ocupar todo el ancho. */
 @media (max-width: 860px) {
   header.app { position: relative; }
+  /* 44 px: área táctil mínima (y 3.5rem de margen a la derecha de la
+     marca, para que nunca quede debajo del botón). */
   .boton-hamburguesa {
     display: inline-flex;
     position: absolute;
     top: var(--space-3);
     right: var(--space-5);
+    width: 2.75rem;
+    height: 2.75rem;
   }
   header.app .brand-nav {
     flex-direction: column;
     align-items: flex-start;
     width: 100%;
-    padding-right: 3rem;
+    padding-right: 3.5rem;
   }
+  /* A 320–400 px "SIBPSANJUAN" + "Catálogo público" no entran en una
+     línea: la etiqueta baja a la siguiente en vez de pisar el botón. */
+  header.app .brand { flex-wrap: wrap; white-space: normal; row-gap: var(--space-1); }
   header.app .brand-nav nav,
   header.app .header-derecha {
     display: none;
@@ -818,6 +825,53 @@ main:has(.doc-layout) { max-width: 1100px; }
 /* Reglas de la categoría del socio en el OPAC (MisPrestamos.jsx) */
 .mis-reglas ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
 .mis-reglas li { margin-bottom: var(--space-1); }
+
+/* Préstamos del socio en el OPAC: tarjetas en una columna en el teléfono y
+   en grilla en pantallas anchas. El estado va con ícono y texto, nunca
+   solo con color. */
+.lista-mis-prestamos {
+  list-style: none;
+  margin: var(--space-4) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+.tarjeta-prestamo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-tarjeta);
+}
+.tarjeta-prestamo__titulo { margin: 0; font-size: var(--text-lg); line-height: 1.25; }
+.tarjeta-prestamo__datos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.tarjeta-prestamo__datos dt { color: var(--texto-tenue); }
+.tarjeta-prestamo__datos dd { margin: 0; }
+.tarjeta-prestamo button { align-self: flex-start; min-height: 44px; }
+.estado-prestamo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radio-etiqueta);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.estado-prestamo--vigente { background: var(--informativo-fondo); color: var(--informativo); }
+.estado-prestamo--vencido { background: var(--vencido-fondo); color: var(--vencido); }
+.estado-prestamo--devuelto { background: var(--disponible-fondo); color: var(--disponible); }
 .pill-estado {
   font-size: var(--text-xs);
   text-transform: uppercase;

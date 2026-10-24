@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useFocoEnRuta } from "../../useFocoEnRuta.js";
 import SelectorTema from "../../SelectorTema.jsx";
@@ -42,7 +43,7 @@ export default function OpacLayout({ children }) {
           aria-expanded={menuAbierto}
           onClick={() => setMenuAbierto((a) => !a)}
         >
-          <span aria-hidden="true">{menuAbierto ? "✕" : "☰"}</span>
+          {menuAbierto ? <X size={22} strokeWidth={1.5} aria-hidden="true" /> : <Menu size={22} strokeWidth={1.5} aria-hidden="true" />}
         </button>
         <div className="header-derecha">
           <SelectorTema sobreTinta compacto />

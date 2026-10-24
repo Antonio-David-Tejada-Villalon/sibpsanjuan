@@ -23,6 +23,23 @@ const solicitudSchema = new Schema({
   // Usuario de biblioteca (staff) que aprobó o rechazó — null mientras está
   // pendiente. Sin esto no hay forma de reconstruir quién resolvió qué.
   resueltoPor: { type: Schema.Types.ObjectId, ref: "Usuario", default: null },
+  // Mientras alguien del staff la está aprobando (ver POST
+  // /solicitudes/:id/aprobar): nadie más la puede aprobar ni rechazar hasta
+  // esta hora. Es un plazo y no un sí/no para que, si el proceso se corta a
+  // mitad de camino, la solicitud se libere sola.
+  bloqueadaHasta: { type: Date, default: null },
 });
+
+// Un socio no puede tener dos pedidos pendientes iguales: antes lo evitaba
+// solo un findOne previo, y un doble toque en el OPAC podía colar dos (y
+// reservar dos ejemplares). Con el índice, el segundo choca al crearse.
+solicitudSchema.index(
+  { socioId: 1, itemTipo: 1, itemId: 1 },
+  { unique: true, partialFilterExpression: { tipo: "prestamo", estado: "pendiente" } }
+);
+solicitudSchema.index(
+  { socioId: 1, prestamoId: 1 },
+  { unique: true, partialFilterExpression: { tipo: "renovacion", estado: "pendiente" } }
+);
 
 export default model("Solicitud", solicitudSchema);

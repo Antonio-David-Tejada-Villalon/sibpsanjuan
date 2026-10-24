@@ -2957,10 +2957,10 @@ async function bibliotecaDePrueba(base, codigo) {
     body: JSON.stringify({ usuario: codigo, password: "clavesegura1", bibliotecaId: biblioteca._id }),
   });
   const cookie = await login(base, codigo, "clavesegura1");
-  const enviar = (metodo, ruta, cuerpo) =>
+  const enviar = (metodo, ruta, cuerpo, cabeceras = {}) =>
     fetch(`${base}/api${ruta}`, {
       method: metodo,
-      headers: cuerpo ? { ...JSON_CT, Cookie: cookie } : { Cookie: cookie },
+      headers: { ...(cuerpo ? JSON_CT : {}), Cookie: cookie, ...cabeceras },
       body: cuerpo ? JSON.stringify(cuerpo) : undefined,
     });
   return {
@@ -2992,10 +2992,10 @@ async function bibliotecaDePrueba(base, codigo) {
       });
       assert.equal(r.status, 200);
       const cookieSocio = extraerCookie(r);
-      return (metodo, ruta, cuerpo) =>
+      return (metodo, ruta, cuerpo, cabeceras = {}) =>
         fetch(`${base}/api/opac/${codigo}${ruta}`, {
           method: metodo,
-          headers: cuerpo ? { ...JSON_CT, Cookie: cookieSocio } : { Cookie: cookieSocio },
+          headers: { ...(cuerpo ? JSON_CT : {}), Cookie: cookieSocio, ...cabeceras },
           body: cuerpo ? JSON.stringify(cuerpo) : undefined,
         });
     },
@@ -3235,4 +3235,125 @@ test("migración de categorías: las bibliotecas viejas reciben Alumno/Docente y
   );
 
   assert.equal((await migrarCategorias()).creadas, 0, "una segunda corrida no crea nada");
+});
+
+// --- Circulación robusta: concurrencia e idempotencia ---
+
+test("idempotencia: el mismo préstamo reintentado con la misma Idempotency-Key se registra una sola vez", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpidem");
+  const socio = await b.crearSocio("I1", "DOCENTE");
+  const libro = await b.crearLibro("Libro idempotente", ["IDEM-1", "IDEM-2"]);
+  const cuerpo = { socioId: socio._id, itemTipo: "Libro", itemId: libro._id };
+  const clave = { "Idempotency-Key": "prestamo-reintento-0001" };
+
+  let res = await b.enviar("POST", "/circulacion/prestamos", cuerpo, clave);
+  assert.equal(res.status, 201);
+  const primero = await res.json();
+  // --- el "reintento" (se cortó la conexión antes de ver la respuesta) ---
+  res = await b.enviar("POST", "/circulacion/prestamos", cuerpo, clave);
+  assert.equal(res.status, 201);
+  assert.equal(res.headers.get("idempotent-replayed"), "true");
+  assert.equal((await res.json())._id, primero._id);
+  assert.equal(await Prestamo.countDocuments({ socioId: socio._id }), 1, "un solo préstamo");
+  assert.equal(await Ejemplar.countDocuments({ itemId: libro._id, estado: "prestado" }), 1);
+
+  // --- la misma clave para otro pedido es un error, no un reintento ---
+  res = await b.enviar("POST", "/circulacion/prestamos", { ...cuerpo, ejemplarId: undefined, itemId: socio._id }, clave);
+  assert.equal(res.status, 422);
+  // --- una clave con formato inválido se rechaza ---
+  res = await b.enviar("POST", "/circulacion/prestamos", cuerpo, { "Idempotency-Key": "corta" });
+  assert.equal(res.status, 400);
+
+  // --- un error no se guarda: el reintento vuelve a intentarlo (y ahora puede salir bien) ---
+  const otroLibro = await b.crearLibro("Libro sin stock al principio", []);
+  const claveSinStock = { "Idempotency-Key": "prestamo-sin-stock-0001" };
+  const pedido = { socioId: socio._id, itemTipo: "Libro", itemId: otroLibro._id };
+  res = await b.enviar("POST", "/circulacion/prestamos", pedido, claveSinStock);
+  assert.equal(res.status, 409);
+  await Ejemplar.create({ bibliotecaId: b.biblioteca._id, itemTipo: "Libro", itemId: otroLibro._id, codigoBarras: "IDEM-3" });
+  res = await b.enviar("POST", "/circulacion/prestamos", pedido, claveSinStock);
+  assert.equal(res.status, 201);
+
+  // --- devolución reintentada: misma respuesta, sin "ya fue devuelto" ---
+  const claveDevolucion = { "Idempotency-Key": "devolucion-reintento-01" };
+  res = await b.enviar("POST", `/circulacion/prestamos/${primero._id}/devolucion`, undefined, claveDevolucion);
+  assert.equal(res.status, 200);
+  res = await b.enviar("POST", `/circulacion/prestamos/${primero._id}/devolucion`, undefined, claveDevolucion);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("idempotent-replayed"), "true");
+
+  // --- OPAC: el pedido reintentado con la misma clave crea una sola solicitud ---
+  const opac = await b.loginOpac(socio, "clavedocente1");
+  const claveOpac = { "Idempotency-Key": "opac-pedido-reintento-1" };
+  const pedidoOpac = { tipo: "prestamo", itemTipo: "Libro", itemId: libro._id };
+  res = await opac("POST", "/solicitudes", pedidoOpac, claveOpac);
+  assert.equal(res.status, 201);
+  const solicitud = await res.json();
+  res = await opac("POST", "/solicitudes", pedidoOpac, claveOpac);
+  assert.equal(res.status, 201);
+  assert.equal((await res.json())._id, solicitud._id);
+  assert.equal(await Solicitud.countDocuments({ socioId: socio._id, estado: "pendiente" }), 1);
+});
+
+test("concurrencia: devoluciones, renovaciones, aprobaciones y pedidos simultáneos no se duplican", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpconcurr");
+  const alumno = (await (await b.enviar("GET", b.categorias)).json()).find((c) => c.codigo === "ALUMNO");
+  await b.enviar("PUT", `${b.categorias}/${alumno._id}`, { maxRenovaciones: 1 });
+  const socio = await b.crearSocio("C1", "ALUMNO");
+  const libro = await b.crearLibro("Libro concurrido", ["CON-1", "CON-2", "CON-3"]);
+
+  // --- dos renovaciones a la vez con tope 1: entra una ---
+  let res = await b.prestar(socio, libro);
+  const prestamo = await res.json();
+  const renovaciones = await Promise.all([
+    b.enviar("POST", `/circulacion/prestamos/${prestamo._id}/renovar`),
+    b.enviar("POST", `/circulacion/prestamos/${prestamo._id}/renovar`),
+  ]);
+  assert.deepEqual(renovaciones.map((r) => r.status).sort(), [200, 409]);
+  assert.equal((await Prestamo.findById(prestamo._id)).renovaciones, 1);
+
+  // --- dos devoluciones a la vez: una sola registra la devolución ---
+  const devoluciones = await Promise.all([
+    b.enviar("POST", `/circulacion/prestamos/${prestamo._id}/devolucion`),
+    b.enviar("POST", `/circulacion/prestamos/${prestamo._id}/devolucion`),
+  ]);
+  assert.deepEqual(devoluciones.map((r) => r.status).sort(), [200, 409]);
+
+  // --- dos toques al mismo pedido en el OPAC (sin clave): queda uno y reserva un ejemplar ---
+  const opac = await b.loginOpac(socio, "clavealumno1");
+  const pedido = { tipo: "prestamo", itemTipo: "Libro", itemId: libro._id };
+  const pedidos = await Promise.all([opac("POST", "/solicitudes", pedido), opac("POST", "/solicitudes", pedido)]);
+  assert.deepEqual(pedidos.map((r) => r.status).sort(), [201, 409]);
+  assert.equal(await Solicitud.countDocuments({ socioId: socio._id, estado: "pendiente" }), 1);
+  assert.equal(await Ejemplar.countDocuments({ itemId: libro._id, estado: "reservado" }), 1);
+  const solicitud = await Solicitud.findOne({ socioId: socio._id, estado: "pendiente" });
+
+  // --- aprobar y rechazar la misma solicitud a la vez: gana una sola acción ---
+  const resoluciones = await Promise.all([
+    b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/aprobar`),
+    b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/aprobar`),
+    b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/rechazar`, { notaStaff: "duplicado" }),
+  ]);
+  const exitosas = resoluciones.filter((r) => r.status === 200);
+  assert.equal(exitosas.length, 1, `estados: ${resoluciones.map((r) => r.status).join(", ")}`);
+  for (const r of resoluciones.filter((x) => x.status !== 200)) assert.ok([404, 409].includes(r.status));
+  const final = await Solicitud.findById(solicitud._id);
+  const prestamosNuevos = await Prestamo.countDocuments({ socioId: socio._id, fechaDevolucion: null });
+  if (final.estado === "aprobada") {
+    assert.equal(prestamosNuevos, 1);
+    assert.equal(await Ejemplar.countDocuments({ itemId: libro._id, estado: "prestado" }), 1);
+  } else {
+    assert.equal(final.estado, "rechazada");
+    assert.equal(prestamosNuevos, 0);
+  }
+  assert.equal(await Ejemplar.countDocuments({ itemId: libro._id, estado: "reservado" }), 0, "no queda nada trabado");
+  assert.equal(final.bloqueadaHasta, null);
 });
