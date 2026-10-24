@@ -13,6 +13,7 @@
     "migrar-item-polimorfico": "node scripts/migrar-item-polimorfico.js",
     "migrar-roles-jerarquia": "node scripts/migrar-roles-jerarquia.js",
     "migrar-categorias": "node scripts/migrar-categorias.js",
+    "migrar-portadas": "node scripts/migrar-portadas.js",
     "test": "node --test"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.0",
+    "sharp": "^0.35.5",
     "xmlbuilder2": "^4.0.3"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api.js";
 import Campo from "../Campo.jsx";
+import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
 import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
@@ -483,13 +484,7 @@ export default function Libros() {
             form={form}
             onCambiar={onCambiarCampo}
           />
-          <Campo
-            nombre="portadaUrl"
-            etiqueta="URL de portada/imagen (opcional)"
-            type="url"
-            form={form}
-            onCambiar={onCambiarCampo}
-          />
+          <GestorPortada itemTipo="Libro" itemId={editandoId} titulo={form.titulo} isbn={form.isbn} />
         </div>
 
         <div className="marc-editor">

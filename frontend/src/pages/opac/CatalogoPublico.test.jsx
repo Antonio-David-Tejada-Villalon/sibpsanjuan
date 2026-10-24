@@ -12,6 +12,7 @@ import api from "../../api.js";
 // autoridades de autor de BIBL-1) y no tenía ningún test (ver FE-7 en
 // AUDITORIA.md).
 vi.mock("../../api.js", () => ({
+  urlPortada: (codigo, id, version) => (version ? `/portadas/${id}.webp?v=${version}` : null),
   default: {
     opacCatalogo: vi.fn(),
     opacCatalogoSeriadas: vi.fn(),

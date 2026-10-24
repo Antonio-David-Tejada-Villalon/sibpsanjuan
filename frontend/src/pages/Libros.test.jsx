@@ -16,6 +16,7 @@ vi.mock("../api.js", () => ({
     agregarEjemplaresLibro: vi.fn(),
     actualizarEjemplarLibro: vi.fn(),
     eliminarEjemplarLibro: vi.fn(),
+    obtenerPortada: vi.fn(() => Promise.reject(Object.assign(new Error("Sin portada"), { status: 404 }))),
   },
 }));
 

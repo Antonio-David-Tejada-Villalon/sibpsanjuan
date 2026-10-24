@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
+import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
 import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
 
@@ -166,13 +167,7 @@ export default function Archivos() {
         {error && <div className="flash error" role="alert">{error}</div>}
         <Campo nombre="titulo" etiqueta="Título *" form={form} onCambiar={onCambiarCampo} required />
         <Campo nombre="subtitulo" etiqueta="Subtítulo" form={form} onCambiar={onCambiarCampo} />
-        <Campo
-          nombre="portadaUrl"
-          etiqueta="URL de foto/imagen (opcional)"
-          type="url"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
+        <GestorPortada itemTipo="Archivo" itemId={editandoId} titulo={form.titulo} />
         <Campo nombre="codigoReferencia" etiqueta="Código de referencia" form={form} onCambiar={onCambiarCampo} />
         <Campo
           nombre="subtipo"

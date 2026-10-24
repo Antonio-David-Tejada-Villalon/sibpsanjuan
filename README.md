@@ -244,9 +244,37 @@ describe.
   subdominio que tendría una instancia Koha real). El catálogo es **uno
   solo, unificado** (los 10 tipos de material combinados, como el
   buscador de Koha) con filtros laterales por tipo de ítem, materia y
-  disponibilidad, "ordenar por" (relevancia/título/año), y portada
-  opcional por ítem (`portadaUrl` — si no se cargó ninguna, se muestra un
-  placeholder "Sin imagen de cubierta disponible").
+  disponibilidad, "ordenar por" (relevancia/título/año), y portada por
+  ítem (ver "Portadas" abajo; sin portada se dibuja una tapa con título y
+  autor, nunca un recuadro gris).
+- **Portadas** (`backend/src/portadas/`, `models/Portada.js`):
+  - Orden: por ISBN en **Open Library**, después **Google Books**, y como
+    última opción una **URL** que pega el staff; si no hay ninguna, el OPAC
+    dibuja una **tapa tipográfica** (`Portada.jsx`). Un libro con ISBN la
+    busca solo, en segundo plano, al cargarse o editarse (cola en memoria,
+    un libro cada 3,5 s); el resto se maneja desde el recuadro "Portada"
+    del formulario de cada material.
+  - Toda imagen la descarga el **servidor** (`portadas/descargar.js`):
+    solo http/https a puertos 80/443, sin IP privadas, de loopback,
+    link-local (169.254.169.254) ni reservadas — revisado al conectar y en
+    cada redirección —, máximo 5 MB, 10 s y 5 redirecciones, y límite de
+    40 descargas cada 10 minutos por persona. `sharp` la decodifica, le
+    quita el EXIF y la guarda como WebP de 360 y 120 px **en MongoDB** (el
+    disco de Render no dura). El OPAC la sirve desde
+    `/api/opac/<código>/portadas/<id>/(grande|miniatura).webp` y la CSP
+    volvió a `img-src 'self'`: el navegador nunca le pide imágenes a un
+    tercero.
+  - Licencias (revisadas en octubre de 2026): Open Library pide no
+    rastrear ni descargar en masa y agradece un enlace (va en la ficha);
+    hay un límite propio de 90 pedidos cada 5 minutos, debajo de los 100
+    que permite. Los Términos de las APIs de Google (§5e) no permiten
+    guardar copias más allá de lo que diga la cabecera de caché: una
+    portada de Google Books se guarda solo hasta entonces (`expiraEn`), y
+    si la respuesta no permite caché, no se usa. En producción conviene
+    `GOOGLE_BOOKS_API_KEY` (la cuota anónima se agota).
+  - Lo ya cargado: `npm run migrar-portadas` pasa las `portadaUrl` viejas a
+    portadas procesadas, y con `--buscar-isbn` busca la de cada libro con
+    ISBN, de a una (`--verificar` primero para ver cuántas son).
 - El staff da de alta el login del socio (nunca autoregistro) desde
   Socios → "Login OPAC".
 - El OPAC tiene un aviso de privacidad público, sin necesitar sesión

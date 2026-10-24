@@ -63,9 +63,18 @@ async function apiFetch(url, opciones = {}) {
   }
   if (!res.ok) {
     const mensaje = (cuerpo && cuerpo.error) || `Error ${res.status}`;
-    throw new Error(mensaje);
+    // status: para distinguir "no hay" (404) de un error real donde importa.
+    throw Object.assign(new Error(mensaje), { status: res.status });
   }
   return cuerpo;
+}
+
+// URL pública de la portada procesada de un ítem del OPAC (ver
+// models/Portada.js). Con la versión en la URL el navegador la puede
+// guardar en caché sin quedarse con una vieja.
+export function urlPortada(codigo, itemId, version, tamano = "miniatura") {
+  if (!version) return null;
+  return `${BASE}/opac/${codigo}/portadas/${itemId}/${tamano}.webp?v=${encodeURIComponent(version)}`;
 }
 
 // Como apiFetch() solo expone el cuerpo ya parseado, un fetch aparte para
@@ -340,6 +349,13 @@ const api = {
   // Datos de contacto completos (la lista y el formulario los traen
   // enmascarados). Requiere el permiso "datosSocios" y queda registrado.
   verDatosContactoSocio: (id) => apiFetch(`${BASE}/socios/${id}/datos-contacto`, { method: "POST" }),
+
+  // --- Portadas (ver backend/src/routes/portadas.js) ---
+  obtenerPortada: (itemTipo, id) => apiFetch(`${BASE}/portadas/${itemTipo}/${id}`),
+  buscarPortadaPorIsbn: (itemTipo, id) => apiFetch(`${BASE}/portadas/${itemTipo}/${id}/buscar`, { method: "POST" }),
+  portadaDesdeUrl: (itemTipo, id, url) =>
+    apiFetch(`${BASE}/portadas/${itemTipo}/${id}/desde-url`, { method: "POST", body: JSON.stringify({ url }) }),
+  quitarPortada: (itemTipo, id) => apiFetch(`${BASE}/portadas/${itemTipo}/${id}`, { method: "DELETE" }),
   crearCredencialesSocio: (id, password) =>
     apiFetch(`${BASE}/socios/${id}/credenciales`, { method: "POST", body: JSON.stringify({ password }) }).then(
       (r) => {

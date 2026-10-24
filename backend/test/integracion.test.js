@@ -24,6 +24,11 @@ import Auditoria from "../src/models/Auditoria.js";
 import { migrarColeccion } from "../scripts/migrar-item-polimorfico.js";
 import { migrarRolesJerarquia } from "../scripts/migrar-roles-jerarquia.js";
 import { migrarCategorias } from "../scripts/migrar-categorias.js";
+import { migrarPortadas } from "../scripts/migrar-portadas.js";
+import Portada from "../src/models/Portada.js";
+import { descargarImagen, esDireccionPublica } from "../src/portadas/descargar.js";
+import http from "node:http";
+import sharp from "sharp";
 
 process.env.JWT_SECRET = "clave-de-test";
 process.env.COOKIE_SECURE = "0";
@@ -33,6 +38,9 @@ process.env.COOKIE_SECURE = "0";
 // nada que ver entre sí empiezan a fallar con 429 simplemente por venir
 // "después" de otros en el mismo archivo.
 process.env.LOGIN_RATE_LIMIT = "1000";
+// Sin búsqueda de portadas en segundo plano al cargar libros con ISBN: iría
+// a Open Library de verdad. Los tests de portadas usan fuentes falsas.
+process.env.PORTADAS_AUTOMATICAS = "0";
 
 let mongod;
 let app;
@@ -3471,4 +3479,151 @@ test("socios: la API enmascara el contacto, alumnos con datos mínimos, y ver da
   assert.equal(res.status, 200);
   assert.match(await res.text(), /30111222/);
   assert.equal(await Auditoria.countDocuments({ bibliotecaId: b.biblioteca._id, accion: "socios.exportar_csv" }), 1);
+});
+
+// --- Portadas: Open Library → Google Books → URL del staff → tapa tipográfica ---
+
+test("portadas: búsqueda por ISBN, URL del staff segura, servido desde el OPAC y migración", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  // "Internet" de mentira: Open Library tiene un ISBN, Google Books otro (uno
+  // con caché permitida y otro sin), y una URL suelta para el staff.
+  const tapa = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#a34d00" } }).jpeg().toBuffer();
+  const externo = http.createServer((req, res) => {
+    const conImagen = ["/ol/9788498381498.jpg", "/gb/9789871138012.jpg", "/otra.jpg", "/vieja.jpg"];
+    if (conImagen.includes(req.url)) {
+      const cache = req.url.startsWith("/gb/") ? { "Cache-Control": "public, max-age=3600" } : {};
+      res.writeHead(200, { "Content-Type": "image/jpeg", ...cache });
+      return res.end(tapa);
+    }
+    if (req.url === "/gb/9780306406157.jpg") {
+      res.writeHead(200, { "Content-Type": "image/jpeg" }); // sin cabecera de caché
+      return res.end(tapa);
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise((r) => externo.listen(0, "127.0.0.1", r));
+  const puertoExterno = String(externo.address().port);
+  const enExterno = (ruta) => `http://portadas.prueba:${puertoExterno}${ruta}`;
+  const descargar = (url, opciones) =>
+    descargarImagen(url, {
+      ...opciones,
+      resolver: async (host) =>
+        host === "portadas.prueba" ? [{ address: "127.0.0.1", family: 4 }] : [{ address: "10.0.0.9", family: 4 }],
+      permitirDireccion: (ip) => ip === "127.0.0.1" || esDireccionPublica(ip),
+      puertosPermitidos: ["80", "443", puertoExterno],
+    });
+  app.locals.portadas = {
+    descargar,
+    hayCupoOpenLibrary: () => true,
+    urlOpenLibrary: (isbn) => enExterno(`/ol/${isbn}.jpg`),
+    buscarGoogleBooks: async (isbn) =>
+      ["9789871138012", "9780306406157"].includes(isbn) ? enExterno(`/gb/${isbn}.jpg`) : null,
+  };
+  t.after(() => {
+    delete app.locals.portadas;
+    externo.closeAllConnections();
+    externo.close();
+    server.close();
+  });
+
+  const b = await bibliotecaDePrueba(base, "bpportadas");
+  const crearLibro = async (titulo, isbn) => (await b.enviar("POST", "/libros", { titulo, isbn })).json();
+  const conOpenLibrary = await crearLibro("Harry Potter y la piedra filosofal", "978-84-9838-149-8");
+  const conGoogle = await crearLibro("Libro en Google", "9789871138012");
+  const googleSinCache = await crearLibro("Google sin caché", "9780306406157");
+  const sinIsbn = await crearLibro("Apuntes de la cátedra");
+
+  // --- 1. Open Library ---
+  let res = await b.enviar("POST", `/portadas/Libro/${conOpenLibrary._id}/buscar`);
+  assert.equal(res.status, 200);
+  const deOpenLibrary = await res.json();
+  assert.equal(deOpenLibrary.fuente, "openlibrary");
+  assert.ok(
+    deOpenLibrary.url.startsWith(`/api/v1/opac/bpportadas/portadas/${conOpenLibrary._id}/grande.webp?v=`),
+    deOpenLibrary.url
+  );
+
+  // --- 2. Google Books, con caché permitida: se guarda solo hasta que vence ---
+  res = await b.enviar("POST", `/portadas/Libro/${conGoogle._id}/buscar`);
+  assert.equal(res.status, 200);
+  const deGoogle = await res.json();
+  assert.equal(deGoogle.fuente, "googlebooks");
+  const minutos = (new Date(deGoogle.expiraEn) - Date.now()) / 60000;
+  assert.ok(minutos > 55 && minutos <= 60, `vence en ~1 h, dio ${minutos}`);
+  // ...y sin cabecera de caché no se guarda (Términos de las APIs de Google, §5e)
+  res = await b.enviar("POST", `/portadas/Libro/${googleSinCache._id}/buscar`);
+  assert.equal(res.status, 404);
+  assert.match((await res.json()).error, /Podés cargarla desde una URL/);
+  res = await b.enviar("POST", `/portadas/Libro/${sinIsbn._id}/buscar`);
+  assert.equal(res.status, 400);
+
+  // --- 3. El OPAC lista la versión (nunca la URL externa) y sirve el WebP ---
+  await Libro.updateOne({ _id: conOpenLibrary._id }, { portadaUrl: "https://sitio-externo.example/tapa.jpg" });
+  res = await fetch(`${base}/api/opac/bpportadas/libros`);
+  const catalogo = await res.json();
+  const enCatalogo = catalogo.find((l) => l._id === conOpenLibrary._id);
+  assert.equal(enCatalogo.portada, deOpenLibrary.version);
+  assert.equal("portadaUrl" in enCatalogo, false, "la URL externa no llega al navegador");
+  assert.equal(catalogo.find((l) => l._id === sinIsbn._id).portada, null);
+  res = await fetch(`${base}${deOpenLibrary.url}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/webp");
+  assert.match(res.headers.get("cache-control"), /max-age=31536000, immutable/);
+  assert.equal((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width, 360);
+  // CSP: el navegador ya no puede pedir imágenes a terceros
+  assert.match(res.headers.get("content-security-policy"), /img-src 'self' data:(;|$)/);
+  res = await fetch(`${base}/api/opac/bpportadas/portadas/${conOpenLibrary._id}/miniatura.webp`);
+  assert.match(res.headers.get("cache-control"), /max-age=300/, "sin ?v= la caché es corta");
+  assert.equal((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width, 120);
+  res = await fetch(`${base}${deGoogle.url}`);
+  const maxAge = Number(res.headers.get("cache-control").match(/max-age=(\d+)/)[1]);
+  assert.ok(maxAge <= 3600, "la caché del navegador tampoco pasa lo que permite Google");
+
+  // --- 4. Vencida, deja de mostrarse ---
+  await Portada.updateOne({ itemId: conGoogle._id }, { expiraEn: new Date(Date.now() - 1000) });
+  res = await fetch(`${base}/api/opac/bpportadas/libros`);
+  assert.equal((await res.json()).find((l) => l._id === conGoogle._id).portada, null);
+  res = await fetch(`${base}${deGoogle.url}`);
+  assert.equal(res.status, 404);
+
+  // --- 5. URL del staff: segura, y procesada ---
+  res = await b.enviar("POST", `/portadas/Libro/${sinIsbn._id}/desde-url`, { url: "http://169.254.169.254/latest/meta-data/" });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /red interna/);
+  res = await b.enviar("POST", `/portadas/Libro/${sinIsbn._id}/desde-url`, {
+    url: `http://interno.prueba:${puertoExterno}/otra.jpg`,
+  });
+  assert.equal(res.status, 400, "un nombre que resuelve a una IP privada tampoco");
+  res = await b.enviar("POST", `/portadas/Libro/${sinIsbn._id}/desde-url`, { url: enExterno("/no-existe.jpg") });
+  assert.equal(res.status, 400);
+  res = await b.enviar("POST", `/portadas/Libro/${sinIsbn._id}/desde-url`, { url: enExterno("/otra.jpg") });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).fuente, "url");
+
+  // --- 6. Quitarla: vuelve la tapa tipográfica ---
+  res = await b.enviar("DELETE", `/portadas/Libro/${sinIsbn._id}`);
+  assert.equal(res.status, 200);
+  res = await b.enviar("GET", `/portadas/Libro/${sinIsbn._id}`);
+  assert.equal(res.status, 404);
+
+  // --- 7. Permisos y alcance ---
+  await b.enviar("POST", "/bibliotecarios", { usuario: "bibportadas", password: "clavesegura1", permisos: { socios: true } });
+  const cookieBib = await login(base, "bibportadas", "clavesegura1");
+  res = await fetch(`${base}/api/portadas/Libro/${sinIsbn._id}/buscar`, { method: "POST", headers: { Cookie: cookieBib } });
+  assert.equal(res.status, 403, "sin permiso de catalogar");
+  const ajena = await bibliotecaDePrueba(base, "bpportadasajena");
+  res = await ajena.enviar("POST", `/portadas/Libro/${conOpenLibrary._id}/buscar`);
+  assert.equal(res.status, 404, "un libro de otra biblioteca no existe para ella");
+  res = await fetch(`${base}/api/opac/bpportadasajena/portadas/${conOpenLibrary._id}/grande.webp`);
+  assert.equal(res.status, 404);
+
+  // --- 8. Migración: las portadaUrl ya cargadas pasan a portadas procesadas ---
+  const viejo = await crearLibro("Cargado antes del cambio");
+  await Libro.updateOne({ _id: viejo._id }, { portadaUrl: enExterno("/vieja.jpg") });
+  const resumen = await migrarPortadas({ deps: { ...app.locals.portadas }, pausaMs: 0 });
+  assert.ok(resumen.desdeUrl >= 1, JSON.stringify(resumen));
+  assert.equal((await Portada.findOne({ itemId: viejo._id })).fuente, "url");
 });

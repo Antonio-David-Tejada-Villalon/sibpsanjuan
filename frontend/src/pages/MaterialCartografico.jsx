@@ -2,6 +2,7 @@ import React from "react";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
+import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
 import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
@@ -127,13 +128,7 @@ export default function MaterialCartografico() {
         {error && <div className="flash error" role="alert">{error}</div>}
         <Campo nombre="titulo" etiqueta="Título (245$a) *" form={form} onCambiar={onCambiarCampo} required />
         <Campo nombre="subtitulo" etiqueta="Subtítulo (245$b)" form={form} onCambiar={onCambiarCampo} />
-        <Campo
-          nombre="portadaUrl"
-          etiqueta="URL de portada/imagen (opcional)"
-          type="url"
-          form={form}
-          onCambiar={onCambiarCampo}
-        />
+        <GestorPortada itemTipo="MaterialCartografico" itemId={editandoId} titulo={form.titulo} />
         <Campo
           nombre="autoresTexto"
           etiqueta="Autores (separados por punto y coma) (100$a / 700$a)"

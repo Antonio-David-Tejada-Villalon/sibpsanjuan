@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../api.js";
+import api, { urlPortada } from "../../api.js";
+import Portada from "../../Portada.jsx";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useAvisoCargaLenta } from "../../useAvisoCargaLenta.js";
 import Pager from "../../Pager.jsx";
@@ -195,8 +196,16 @@ function AccionItem({ entrada, sesion, procesandoId, onSolicitar }) {
   );
 }
 
+// Créditos de la fuente de la portada en la ficha: Open Library agradece un
+// enlace de cortesía y los términos de Google piden atribución.
+const CREDITO_PORTADA = {
+  openlibrary: { nombre: "Open Library", url: "https://openlibrary.org" },
+  googlebooks: { nombre: "Google Books", url: "https://books.google.com" },
+};
+
 function TarjetaResultado({ entrada, sesion, procesandoId, onSolicitar, onAbrir }) {
   const { item, etiquetaTipo, extraTexto, soloLectura } = entrada;
+  const { codigo } = useSocioAuth();
 
   function onTecla(e) {
     if (e.key === "Enter" || e.key === " ") {
@@ -214,11 +223,7 @@ function TarjetaResultado({ entrada, sesion, procesandoId, onSolicitar, onAbrir 
       onKeyDown={onTecla}
     >
       <div className="tarjeta-catalogo__portada">
-        {item.portadaUrl ? (
-          <img src={item.portadaUrl} alt="" loading="lazy" />
-        ) : (
-          <span>Sin imagen de cubierta disponible</span>
-        )}
+        <Portada src={urlPortada(codigo, item._id, item.portada)} titulo={item.titulo} autor={item.autores?.[0]} />
       </div>
       <div className="tarjeta-catalogo__info">
         <span className="tarjeta-catalogo__tipo">{etiquetaTipo}</span>
@@ -239,6 +244,8 @@ function TarjetaResultado({ entrada, sesion, procesandoId, onSolicitar, onAbrir 
 
 function DetalleModal({ entrada, sesion, procesandoId, onSolicitar, onCerrar }) {
   const { item, etiquetaTipo, soloLectura, detalle } = entrada;
+  const { codigo } = useSocioAuth();
+  const credito = item.portada && CREDITO_PORTADA[item.portadaFuente];
   const camposConValor = detalle.filter(([, valor]) => valor);
 
   useEffect(() => {
@@ -262,7 +269,21 @@ function DetalleModal({ entrada, sesion, procesandoId, onSolicitar, onCerrar }) 
           ✕
         </button>
         <div className="modal-detalle__portada">
-          {item.portadaUrl ? <img src={item.portadaUrl} alt="" /> : <span>Sin imagen de cubierta disponible</span>}
+          <Portada
+            src={urlPortada(codigo, item._id, item.portada, "grande")}
+            titulo={item.titulo}
+            autor={item.autores?.[0]}
+            tamano="grande"
+            decorativa={false}
+          />
+          {credito && (
+            <small className="modal-detalle__credito">
+              Portada:{" "}
+              <a href={credito.url} target="_blank" rel="noopener noreferrer">
+                {credito.nombre}
+              </a>
+            </small>
+          )}
         </div>
         <div className="modal-detalle__info">
           <span className="tarjeta-catalogo__tipo">{etiquetaTipo}</span>

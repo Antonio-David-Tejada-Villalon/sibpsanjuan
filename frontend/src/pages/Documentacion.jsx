@@ -191,8 +191,11 @@ export default function Documentacion() {
         <ol>
           <li>
             <strong>Antes de las solapas</strong>, un recuadro aparte ("Datos internos de SIBPSANJUAN") pide el{" "}
-            <strong>Subtipo</strong> (impreso, digital, ebook, etc. — define el ícono en el catálogo) y, opcional,
-            una <strong>URL de portada</strong>. Estos dos campos no son MARC, son de uso interno del sistema.
+            <strong>Subtipo</strong> (impreso, digital, ebook, etc. — define el ícono en el catálogo) y la{" "}
+            <strong>Portada</strong>: un libro con ISBN la busca solo al guardarse (Open Library y después Google
+            Books); si no aparece, se puede pegar la URL de una imagen, que el sistema descarga y guarda. Sin
+            portada, el catálogo muestra una tapa con el título. Estos dos datos no son MARC, son de uso interno del
+            sistema.
           </li>
           <li>
             <strong>Solapa 0 — Clasificación:</strong> ISBN (validado con dígito verificador), Clasificación

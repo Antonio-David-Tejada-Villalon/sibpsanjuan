@@ -6,6 +6,7 @@ import { requiereIdValido } from "../utils/objectId.js";
 import { crearEjemplaresPara, adjuntarEjemplaresPara } from "../utils/ejemplares.js";
 import { plantillaLibrosCsv, parseLibrosCsv } from "../utils/importarLibrosCsv.js";
 import { textoDeConsulta } from "../utils/consulta.js";
+import { encolarBusquedaAutomatica } from "../portadas/servicio.js";
 
 const router = Router();
 
@@ -57,6 +58,9 @@ router.post("/", requierePermiso("catalogar"), async (req, res) => {
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
+  // Con ISBN, la portada se busca sola en segundo plano (Open Library y
+  // después Google Books — ver portadas/servicio.js).
+  encolarBusquedaAutomatica(libro);
   try {
     const creados = await crearEjemplares(req.usuario.bibliotecaId, libro._id, ejemplares);
     res.status(201).json({ ...libro.toObject(), ejemplares: creados });
@@ -101,6 +105,7 @@ router.post("/importar-csv", requierePermiso("catalogar"), async (req, res) => {
       errores.push({ fila: _fila, mensaje: err.message });
       continue;
     }
+    encolarBusquedaAutomatica(libro);
     try {
       await crearEjemplares(req.usuario.bibliotecaId, libro._id, ejemplares);
       creados += 1;
@@ -212,6 +217,8 @@ router.put("/:id", requierePermiso("catalogar"), requiereIdValido(), async (req,
     if (!libro) {
       return res.status(404).json({ error: "No encontrado." });
     }
+    // Si no tenía portada y ahora tiene ISBN (o lo cambió), se busca sola.
+    encolarBusquedaAutomatica(libro);
     res.json(libro);
   } catch (err) {
     // Ver ARQ-12 en AUDITORIA.md — sin este try/catch, un error de

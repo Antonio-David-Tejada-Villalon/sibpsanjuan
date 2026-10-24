@@ -32,6 +32,7 @@ import sociosRoutes from "./routes/socios.js";
 import exportRoutes from "./routes/export.js";
 import opacRoutes from "./routes/opac.js";
 import circulacionRoutes from "./routes/circulacion.js";
+import portadasRoutes from "./routes/portadas.js";
 
 dotenv.config();
 
@@ -43,21 +44,12 @@ export function crearApp() {
   // dependa de la IP real del cliente (ej. rate-limiting por IP) vería
   // siempre la IP del proxy, no la del usuario.
   app.set("trust proxy", 1);
-  // El default de Helmet restringe img-src a 'self'+data: — pero portadaUrl
-  // (Libro y el resto de los tipos catalogables) es una URL externa que el
-  // propio catalogador pega a mano; no hay subida de archivos en este
-  // proyecto. Sin este permiso, ninguna portada externa carga nunca (ver
-  // ARQ-7/CYBER-3 en AUDITORIA.md — confirmado en vivo, no es hipotético).
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-          "img-src": ["'self'", "data:", "https:"],
-        },
-      },
-    })
-  );
+  // img-src vuelve al default de Helmet ('self' + data:): antes permitía
+  // cualquier https: porque el OPAC mostraba directo la URL de portada que
+  // pegaba el staff (ver ARQ-7/CYBER-3 en AUDITORIA.md). Ahora el servidor
+  // descarga y procesa esas imágenes (ver portadas/) y las sirve él mismo:
+  // el navegador de un alumno nunca le pide nada a un sitio de terceros.
+  app.use(helmet());
   // Sin FRONTEND_URL (el despliegue de hoy: un solo servicio Express
   // sirviendo API + build), no se monta ningún middleware de CORS — mismo
   // comportamiento same-origin de siempre. Se activa solo si el frontend se
@@ -124,6 +116,7 @@ export function crearApp() {
     ["/export", exportRoutes],
     ["/opac/:codigo", opacRoutes],
     ["/circulacion", circulacionRoutes],
+    ["/portadas", portadasRoutes],
   ];
   for (const [ruta, router] of rutasApi) {
     app.use(`/api${ruta}`, router);

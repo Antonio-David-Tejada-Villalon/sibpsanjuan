@@ -17,6 +17,8 @@ import Materia from "../models/Materia.js";
 import Socio from "../models/Socio.js";
 import Solicitud from "../models/Solicitud.js";
 import Prestamo from "../models/Prestamo.js";
+import Portada from "../models/Portada.js";
+import { filtroVigente } from "../portadas/servicio.js";
 import {
   firmarTokenSocio,
   setCookieSesionSocio,
@@ -46,6 +48,23 @@ router.use(async (req, res, next) => {
 });
 
 // --- Catálogo público: sin login, solo lectura ---
+// Cada ítem del catálogo lleva "portada": la versión de su portada
+// procesada (para pedir /portadas/<id>/<tamaño>.webp?v=<versión>) o null, y
+// entonces el OPAC dibuja una tapa tipográfica. Nunca sale la URL externa
+// que haya cargado el staff (portadaUrl): el navegador no le pide imágenes
+// a terceros.
+async function conPortadas(lista) {
+  const portadas = await Portada.find({ itemId: { $in: lista.map((i) => i._id) }, ...filtroVigente() }).select(
+    "itemId version fuente"
+  );
+  const porItem = new Map(portadas.map((p) => [String(p.itemId), p]));
+  return lista.map(({ portadaUrl, ...item }) => {
+    const portada = porItem.get(String(item._id));
+    // portadaFuente: para el crédito en la ficha (Open Library, Google Books).
+    return { ...item, portada: portada?.version ?? null, portadaFuente: portada?.fuente ?? null };
+  });
+}
+
 router.get("/libros", async (req, res) => {
   const libros = await Libro.find({ bibliotecaId: req.biblioteca._id, eliminadoEn: null }).sort({ titulo: 1 });
   const ejemplares = await Ejemplar.find({ bibliotecaId: req.biblioteca._id, itemTipo: "Libro" });
@@ -55,7 +74,7 @@ router.get("/libros", async (req, res) => {
     const actual = disponiblesPorLibro.get(key) || 0;
     disponiblesPorLibro.set(key, actual + (e.estado === "disponible" ? 1 : 0));
   }
-  res.json(
+  res.json(await conPortadas(
     libros.map((l) => ({
       _id: l._id,
       isbn: l.isbn,
@@ -70,7 +89,7 @@ router.get("/libros", async (req, res) => {
       portadaUrl: l.portadaUrl,
       ejemplaresDisponibles: disponiblesPorLibro.get(String(l._id)) || 0,
     }))
-  );
+  ));
 });
 
 router.get("/seriadas", async (req, res) => {
@@ -82,7 +101,7 @@ router.get("/seriadas", async (req, res) => {
     const actual = disponiblesPorSeriada.get(key) || 0;
     disponiblesPorSeriada.set(key, actual + (e.estado === "disponible" ? 1 : 0));
   }
-  res.json(
+  res.json(await conPortadas(
     seriadas.map((s) => ({
       _id: s._id,
       issn: s.issn,
@@ -95,7 +114,7 @@ router.get("/seriadas", async (req, res) => {
       portadaUrl: s.portadaUrl,
       ejemplaresDisponibles: disponiblesPorSeriada.get(String(s._id)) || 0,
     }))
-  );
+  ));
 });
 
 // Sin ejemplaresDisponibles ni "pedir préstamo": el acceso es directo por
@@ -104,7 +123,7 @@ router.get("/recursosElectronicos", async (req, res) => {
   const recursos = await RecursoElectronico.find({ bibliotecaId: req.biblioteca._id, eliminadoEn: null }).sort({
     titulo: 1,
   });
-  res.json(
+  res.json(await conPortadas(
     recursos.map((r) => ({
       _id: r._id,
       titulo: r.titulo,
@@ -117,7 +136,7 @@ router.get("/recursosElectronicos", async (req, res) => {
       urlAcceso: r.urlAcceso,
       portadaUrl: r.portadaUrl,
     }))
-  );
+  ));
 });
 
 // Catálogo público genérico para un tipo circulante: mismo cómputo de
@@ -134,7 +153,7 @@ function catalogoPublico({ Modelo, itemTipo, mapItem }) {
       const actual = disponiblesPorItem.get(key) || 0;
       disponiblesPorItem.set(key, actual + (e.estado === "disponible" ? 1 : 0));
     }
-    res.json(items.map((it) => mapItem(it, disponiblesPorItem.get(String(it._id)) || 0)));
+    res.json(await conPortadas(items.map((it) => mapItem(it, disponiblesPorItem.get(String(it._id)) || 0))));
   };
 }
 
@@ -241,7 +260,7 @@ router.get(
 function catalogoSoloLectura({ Modelo, mapItem }) {
   return async (req, res) => {
     const items = await Modelo.find({ bibliotecaId: req.biblioteca._id, eliminadoEn: null }).sort({ titulo: 1 });
-    res.json(items.map(mapItem));
+    res.json(await conPortadas(items.map((it) => mapItem(it))));
   };
 }
 
@@ -302,6 +321,32 @@ router.get("/materias", async (req, res) => {
     formaAutorizada: 1,
   });
   res.json(materias.map((m) => ({ formaAutorizada: m.formaAutorizada, variantes: m.variantes })));
+});
+
+// Portadas procesadas (ver models/Portada.js), públicas como el resto del
+// catálogo. Con ?v=<versión> la URL cambia cuando cambia la imagen, así que
+// se puede guardar en caché un año — salvo las de Google Books, que no
+// pueden quedar guardadas más allá de lo que permite su caché (expiraEn).
+const TAMANOS_PORTADA = { "grande.webp": "grande", "miniatura.webp": "miniatura" };
+
+router.get("/portadas/:itemId/:archivo", async (req, res) => {
+  const tamano = TAMANOS_PORTADA[req.params.archivo];
+  if (!tamano || !esIdValido(req.params.itemId)) {
+    return res.status(404).json({ error: "Portada no encontrada." });
+  }
+  const ahora = new Date();
+  const portada = await Portada.findOne({
+    itemId: req.params.itemId,
+    bibliotecaId: req.biblioteca._id,
+    ...filtroVigente(ahora),
+  }).select(`${tamano} version expiraEn`);
+  if (!portada) return res.status(404).json({ error: "Portada no encontrada." });
+  const UN_ANIO = 365 * 24 * 60 * 60;
+  const hastaQueVence = portada.expiraEn ? Math.floor((portada.expiraEn - ahora) / 1000) : UN_ANIO;
+  const segundos = req.query.v === portada.version ? Math.min(UN_ANIO, hastaQueVence) : Math.min(300, hastaQueVence);
+  res.set("Content-Type", "image/webp");
+  res.set("Cache-Control", `public, max-age=${segundos}${segundos === UN_ANIO ? ", immutable" : ""}`);
+  res.send(portada[tamano]);
 });
 
 // --- Login del socio ---
