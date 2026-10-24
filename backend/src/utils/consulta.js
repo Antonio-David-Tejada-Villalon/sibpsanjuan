@@ -31,3 +31,23 @@ export function opcionDeConsulta(valor, permitidos, nombre) {
   }
   return valor;
 }
+
+// Varios valores del mismo parámetro (?autor=a&autor=b, o uno solo): lista
+// de textos no vacíos. Cualquier otra forma, o demasiados, cortan con 400.
+export function listaDeConsulta(valor, nombre, { maximo = 20, largo = 200 } = {}) {
+  if (valor === undefined || valor === "") return [];
+  const lista = Array.isArray(valor) ? valor : [valor];
+  if (lista.length > maximo || lista.some((v) => typeof v !== "string" || v.length > largo)) {
+    throw new ErrorHttp(400, `El parámetro "${nombre}" no tiene un formato válido.`);
+  }
+  return lista.map((v) => v.trim()).filter(Boolean);
+}
+
+// Número entero dentro de un rango; si no vino o no es un número, el valor
+// por defecto (no es un error: ?pagina=abc muestra la primera página).
+export function enteroDeConsulta(valor, { minimo, maximo, defecto }) {
+  if (typeof valor !== "string") return defecto;
+  const n = Number(valor);
+  if (!Number.isInteger(n)) return defecto;
+  return Math.min(Math.max(n, minimo), maximo);
+}

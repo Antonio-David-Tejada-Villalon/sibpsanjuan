@@ -22,6 +22,8 @@ import ContenidoOpac from "../models/ContenidoOpac.js";
 import ImagenCms from "../models/ImagenCms.js";
 import { contenidoInicial } from "../contenido/validar.js";
 import { contenidoPublico } from "../contenido/publico.js";
+import { TIPOS, ORDENES, buscarEnCatalogo, fichaDeMaterial, titulosDe } from "../opac/catalogo.js";
+import { textoDeConsulta, opcionDeConsulta, listaDeConsulta, enteroDeConsulta, ErrorHttp } from "../utils/consulta.js";
 import { filtroVigente } from "../portadas/servicio.js";
 import {
   firmarTokenSocio,
@@ -353,6 +355,35 @@ router.get("/portadas/:itemId/:archivo", async (req, res) => {
   res.send(portada[tamano]);
 });
 
+// --- Búsqueda y fichas (ver opac/catalogo.js) ---
+
+// Una página de resultados con sus facetas. Todo opcional:
+// ?q=texto&tipo=Libro&tipo=Seriada&autor=...&materia=...&disponible=1
+// &orden=relevancia|titulo|anio|disponibilidad&pagina=2&porPagina=24
+router.get("/buscar", async (req, res) => {
+  const tipos = listaDeConsulta(req.query.tipo, "tipo", { maximo: 10 });
+  if (tipos.some((t) => !TIPOS[t])) {
+    throw new ErrorHttp(400, `El parámetro "tipo" tiene que ser uno de: ${Object.keys(TIPOS).join(", ")}.`);
+  }
+  const resultado = await buscarEnCatalogo(req.biblioteca, {
+    q: textoDeConsulta(req.query.q).slice(0, 200),
+    tipos,
+    autores: listaDeConsulta(req.query.autor, "autor"),
+    materias: listaDeConsulta(req.query.materia, "materia"),
+    soloDisponibles: req.query.disponible === "1",
+    orden: opcionDeConsulta(req.query.orden, ORDENES, "orden") || "relevancia",
+    pagina: enteroDeConsulta(req.query.pagina, { minimo: 1, maximo: 10_000, defecto: 1 }),
+    porPagina: enteroDeConsulta(req.query.porPagina, { minimo: 1, maximo: 48, defecto: 24 }),
+  });
+  res.json(resultado);
+});
+
+router.get("/items/:tipo/:id", async (req, res) => {
+  const ficha = esIdValido(req.params.id) ? await fichaDeMaterial(req.biblioteca, req.params.tipo, req.params.id) : null;
+  if (!ficha) return res.status(404).json({ error: "Material no encontrado." });
+  res.json(ficha);
+});
+
 // --- Contenido publicado desde el CMS (ver routes/contenido.js) ---
 
 async function datosPublicados(biblioteca) {
@@ -485,12 +516,25 @@ router.get("/mis-prestamos", async (req, res) => {
   );
 });
 
+// Cada pedido con el título del material (y su ficha), para que el socio
+// vea qué pidió y en qué quedó sin tener que adivinarlo por un id.
 router.get("/mis-solicitudes", async (req, res) => {
   const solicitudes = await Solicitud.find({
     bibliotecaId: req.biblioteca._id,
     socioId: req.usuario.id,
   }).sort({ fechaSolicitud: -1 });
-  res.json(solicitudes);
+  const prestamos = await Prestamo.find({ _id: { $in: solicitudes.map((s) => s.prestamoId).filter(Boolean) } }).select(
+    "itemTipo itemId"
+  );
+  const prestamoPorId = new Map(prestamos.map((p) => [String(p._id), p]));
+  const materialDe = (s) => (s.tipo === "prestamo" ? s : prestamoPorId.get(String(s.prestamoId)) || {});
+  const titulos = await titulosDe(solicitudes.map((s) => materialDe(s)));
+  res.json(
+    solicitudes.map((s) => {
+      const { itemTipo, itemId } = materialDe(s);
+      return { ...s.toObject(), material: itemId ? { itemTipo, id: String(itemId), ...titulos.get(String(itemId)) } : null };
+    })
+  );
 });
 
 router.post("/solicitudes", idempotente, async (req, res) => {

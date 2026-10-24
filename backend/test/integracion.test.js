@@ -41,6 +41,8 @@ process.env.LOGIN_RATE_LIMIT = "1000";
 // Sin búsqueda de portadas en segundo plano al cargar libros con ISBN: iría
 // a Open Library de verdad. Los tests de portadas usan fuentes falsas.
 process.env.PORTADAS_AUTOMATICAS = "0";
+// Sin caché del índice del OPAC: cada test carga material y busca enseguida.
+process.env.OPAC_INDICE_TTL_MS = "0";
 
 let mongod;
 let app;
@@ -3791,4 +3793,114 @@ test("CMS del OPAC: borrador → publicar → historial → restaurar, con logos
   assert.equal(res.status, 403);
   res = await como(sinPermiso, "GET", "/contenido/borrador");
   assert.equal(res.status, 403);
+});
+
+// --- OPAC: búsqueda en el servidor, facetas, fichas y "Mis pedidos" ---
+
+test("OPAC: búsqueda paginada sin tildes, facetas con autoridades, ficha pública y pedidos con título", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpbusca");
+  await b.enviar("POST", "/autores", { formaAutorizada: "Borges, Jorge Luis", variantes: ["Borges, J. L."] });
+  const libro = async (titulo, autores, materias, anio, codigos = []) =>
+    (
+      await b.enviar("POST", "/libros", {
+        titulo,
+        autores,
+        materias,
+        anio,
+        ejemplares: codigos.map((codigoBarras, i) => ({ codigoBarras, signatura: `863 ${i}` })),
+      })
+    ).json();
+  const ficciones = await libro("Ficciones", ["Borges, Jorge Luis"], ["Cuentos"], "1944", ["BUS-SECRETO-1"]);
+  await libro("El Aleph", ["Borges, J. L."], ["Cuentos"], "1949");
+  const fierro = await libro("Martín Fierro", ["Hernández, José"], ["Poesía gauchesca"], "1872", ["BUS-3", "BUS-4"]);
+  await b.enviar("POST", "/seriadas", { titulo: "Revista Billiken", periodicidad: "semanal" });
+  await b.enviar("POST", "/objetos", { titulo: "Brújula antigua" });
+  await b.enviar("POST", "/recursosElectronicos", { titulo: "Biblioteca digital escolar", tipoRecurso: "sitio_web", urlAcceso: "https://biblioteca.example" });
+
+  const buscar = async (consulta) => {
+    const res = await fetch(`${base}/api/opac/bpbusca/buscar?${consulta}`);
+    return { status: res.status, cuerpo: await res.json() };
+  };
+
+  // --- sin tildes ni mayúsculas ---
+  let { cuerpo } = await buscar("q=MARTIN");
+  assert.deepEqual(cuerpo.resultados.map((r) => r.titulo), ["Martín Fierro"]);
+  assert.equal(cuerpo.resultados[0].disponibles, 2);
+  assert.equal(cuerpo.resultados[0].segmento, "libro");
+  assert.equal(cuerpo.resultados[0].slug, "martin-fierro");
+
+  // --- la variante "Borges, J. L." se agrupa bajo la forma autorizada ---
+  ({ cuerpo } = await buscar("q=borges"));
+  assert.equal(cuerpo.total, 2);
+  assert.deepEqual(cuerpo.facetas.autores, [{ valor: "Borges, Jorge Luis", cantidad: 2 }]);
+  ({ cuerpo } = await buscar(`autor=${encodeURIComponent("Borges, Jorge Luis")}`));
+  assert.deepEqual(cuerpo.resultados.map((r) => r.titulo).sort(), ["El Aleph", "Ficciones"]);
+
+  // --- facetas disyuntivas: elegir un tipo no borra los conteos de los otros tipos ---
+  ({ cuerpo } = await buscar("tipo=Seriada"));
+  assert.deepEqual(cuerpo.resultados.map((r) => r.titulo), ["Revista Billiken"]);
+  const conteo = Object.fromEntries(cuerpo.facetas.tipos.map((f) => [f.valor, f.cantidad]));
+  assert.equal(conteo.Libro, 3);
+  assert.equal(conteo.Seriada, 1);
+  ({ cuerpo } = await buscar("tipo=Libro&tipo=Objeto&materia=Cuentos"));
+  assert.equal(cuerpo.total, 2);
+
+  // --- solo disponibles: afuera "El Aleph" (sin ejemplares) y la revista; adentro lo digital y lo de consulta ---
+  ({ cuerpo } = await buscar("disponible=1&orden=titulo"));
+  assert.deepEqual(cuerpo.resultados.map((r) => r.titulo), ["Biblioteca digital escolar", "Brújula antigua", "Ficciones", "Martín Fierro"]);
+
+  // --- orden por año, paginación y relevancia ---
+  ({ cuerpo } = await buscar("tipo=Libro&orden=anio"));
+  assert.deepEqual(cuerpo.resultados.map((r) => r.anio), ["1949", "1944", "1872"]);
+  ({ cuerpo } = await buscar("orden=titulo&porPagina=2&pagina=2"));
+  assert.equal(cuerpo.total, 6);
+  assert.equal(cuerpo.totalPaginas, 3);
+  assert.deepEqual(cuerpo.resultados.map((r) => r.titulo), ["El Aleph", "Ficciones"]);
+  ({ cuerpo } = await buscar("orden=titulo&porPagina=2&pagina=99"));
+  assert.equal(cuerpo.pagina, 3, "una página que no existe muestra la última");
+  ({ cuerpo } = await buscar("q=fierro hernandez"));
+  assert.equal(cuerpo.resultados[0].titulo, "Martín Fierro");
+
+  // --- parámetros malformados: 400 controlado ---
+  assert.equal((await buscar("tipo=Inventado")).status, 400);
+  assert.equal((await buscar("q=a&q=b")).status, 400);
+  assert.equal((await buscar("orden=raro")).status, 400);
+  // Con el parser simple de Express 5, "autor[$ne]" es un nombre de parámetro
+  // más, no un objeto: se ignora y no llega ningún operador al filtro.
+  ({ cuerpo } = await buscar("autor[$ne]=x"));
+  assert.equal(cuerpo.total, 6);
+
+  // --- ficha: solo campos públicos, sin códigos de barras ---
+  let res = await fetch(`${base}/api/opac/bpbusca/items/Libro/${ficciones._id}`);
+  assert.equal(res.status, 200);
+  const texto = await res.text();
+  const ficha = JSON.parse(texto);
+  assert.equal(ficha.slug, "ficciones");
+  assert.deepEqual(ficha.autores, ["Borges, Jorge Luis"]);
+  assert.ok(ficha.detalle.some((d) => d.etiqueta === "Año" && d.valor === "1944"));
+  assert.deepEqual(ficha.ejemplares, [{ signatura: "863 0", estado: "disponible" }]);
+  assert.equal(ficha.disponibles, 1);
+  assert.ok(!texto.includes("BUS-SECRETO-1"), "el código de barras no sale en la ficha pública");
+  assert.ok(!texto.includes("bibliotecaId"));
+  const ajena = await bibliotecaDePrueba(base, "bpbuscaajena");
+  assert.equal((await fetch(`${base}/api/opac/bpbuscaajena/items/Libro/${ficciones._id}`)).status, 404);
+  assert.equal((await fetch(`${base}/api/opac/bpbusca/items/Inventado/${ficciones._id}`)).status, 404);
+  assert.equal((await fetch(`${base}/api/opac/bpbusca/items/Libro/no-es-un-id`)).status, 404);
+  await b.enviar("DELETE", `/libros/${ficciones._id}`);
+  assert.equal((await fetch(`${base}/api/opac/bpbusca/items/Libro/${ficciones._id}`)).status, 404);
+  assert.equal(ajena.biblioteca.codigo, "bpbuscaajena");
+
+  // --- "Mis pedidos" trae el título y la ficha de cada material ---
+  const socio = await b.crearSocio("B1", "DOCENTE");
+  const opac = await b.loginOpac(socio, "clavedocente1");
+  res = await opac("POST", "/solicitudes", { tipo: "prestamo", itemTipo: "Libro", itemId: fierro._id });
+  assert.equal(res.status, 201);
+  res = await opac("GET", "/mis-solicitudes");
+  const [pedido] = await res.json();
+  assert.equal(pedido.estado, "pendiente");
+  assert.deepEqual(pedido.material, { itemTipo: "Libro", id: fierro._id, titulo: "Martín Fierro", segmento: "libro", slug: "martin-fierro" });
 });
