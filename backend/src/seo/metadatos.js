@@ -10,18 +10,21 @@
 
 const LARGO_DESCRIPCION = 160;
 
-// Dirección pública del sitio, para canonical, sitemap y og:url. Con el
-// frontend en otro origen (Vercel + Render) es FRONTEND_URL; SITIO_URL la
-// fija a mano (por ejemplo, un dominio propio).
+// Dirección pública del sitio, para canonical, sitemap y og:url: SITIO_URL
+// (con Vercel adelante, la de Vercel; o un dominio propio), si no
+// FRONTEND_URL, si no la de este mismo servidor.
 export function origenPublico(req) {
   const fijo = process.env.SITIO_URL || process.env.FRONTEND_URL;
-  return (fijo || origenDeLaApi(req)).replace(/\/+$/, "");
+  return (fijo || propioOrigen(req)).replace(/\/+$/, "");
 }
 
-// Dónde se sirven las imágenes de la API (logos del CMS), que en el
-// despliegue separado no es el sitio público.
+const propioOrigen = (req) => `${req.protocol}://${req.get("host")}`;
+
+// Dónde se sirven las imágenes de la API (logos del CMS). Con Vercel
+// reenviando /api es el mismo sitio público; solo con un frontend que le
+// pega directo a esta API desde otro origen (FRONTEND_URL) es este servidor.
 export function origenDeLaApi(req) {
-  return `${req.protocol}://${req.get("host")}`;
+  return process.env.FRONTEND_URL ? propioOrigen(req) : origenPublico(req);
 }
 
 export function rutaDeFicha(codigo, ficha) {

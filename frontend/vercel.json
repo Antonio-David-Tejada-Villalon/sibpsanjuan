@@ -1,10 +1,60 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    { "source": "/sitemap.xml", "destination": "https://sibpsanjuan.onrender.com/sitemap.xml" },
-    { "source": "/opac/:codigo/sitemap.xml", "destination": "https://sibpsanjuan.onrender.com/opac/:codigo/sitemap.xml" },
+  "routes": [
     {
-      "source": "/opac/:ruta*",
+      "src": "/(.*)",
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; base-uri 'self'; font-src 'self' data:; form-action 'self'; frame-ancestors 'self'; img-src 'self' data:; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        "Strict-Transport-Security": "max-age=31536000"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(?!opac/|api/|sitemap|robots)(.*)",
+      "headers": { "X-Robots-Tag": "noindex" },
+      "continue": true
+    },
+    {
+      "src": "/opac/[^/]+/(login|cuenta|mis-prestamos|privacidad)/?",
+      "headers": { "X-Robots-Tag": "noindex" },
+      "continue": true
+    },
+    {
+      "src": "/assets/(.*)",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" },
+      "continue": true
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "${API_URL}/api/$1",
+      "env": ["API_URL"],
+      "transforms": [
+        { "type": "request.headers", "op": "set", "target": { "key": "x-sibp-proxy" }, "args": "${PROXY_SECRETO}", "env": ["PROXY_SECRETO"] }
+      ]
+    },
+    {
+      "src": "/sitemap\\.xml",
+      "dest": "${API_URL}/sitemap.xml",
+      "env": ["API_URL"],
+      "transforms": [
+        { "type": "request.headers", "op": "set", "target": { "key": "x-sibp-proxy" }, "args": "${PROXY_SECRETO}", "env": ["PROXY_SECRETO"] }
+      ]
+    },
+    {
+      "src": "/opac/([^/]+)/sitemap\\.xml",
+      "dest": "${API_URL}/opac/$1/sitemap.xml",
+      "env": ["API_URL"],
+      "transforms": [
+        { "type": "request.headers", "op": "set", "target": { "key": "x-sibp-proxy" }, "args": "${PROXY_SECRETO}", "env": ["PROXY_SECRETO"] }
+      ]
+    },
+    {
+      "src": "/opac/(.*)",
       "has": [
         {
           "type": "header",
@@ -12,18 +62,14 @@
           "value": ".*(facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Pinterestbot|redditbot|SkypeUriPreview|Iframely|Embedly|vkShare|Mastodon).*"
         }
       ],
-      "destination": "https://sibpsanjuan.onrender.com/opac/:ruta*"
+      "dest": "${API_URL}/opac/$1",
+      "env": ["API_URL"],
+      "transforms": [
+        { "type": "request.headers", "op": "set", "target": { "key": "x-sibp-proxy" }, "args": "${PROXY_SECRETO}", "env": ["PROXY_SECRETO"] }
+      ]
     },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/((?!opac/|sitemap|robots).*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
-    },
-    {
-      "source": "/opac/:codigo/(login|cuenta|mis-prestamos|privacidad)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
-    }
+    { "handle": "filesystem" },
+    { "src": "/assets/.*", "status": 404 },
+    { "src": "/.*", "dest": "/index.html" }
   ]
 }

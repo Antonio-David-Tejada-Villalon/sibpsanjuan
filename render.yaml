@@ -1,25 +1,36 @@
-# Blueprint de Render — permite desplegar con un solo comando de terminal
-# (render blueprints launch) en vez de clickear el dashboard.
+# Blueprint de Render: la API de SIBPSANJUAN. El sitio lo sirve Vercel, que
+# le reenvía /api y los sitemaps (ver frontend/vercel.json y DEPLOY.md).
+# Se crea desde el dashboard: New → Blueprint → este repositorio.
 #
-# Asume que esta carpeta (sibpsanjuan/) es la raíz del repo que
-# conectás a Render. Si en tu repo está anidada más adentro, agregá
-# "rootDir: sibpsanjuan" debajo de "name:".
-#
-# Los valores con "sync: false" NO se guardan acá (no hay secretos en este
-# archivo) — Render los pide una sola vez, en el momento de crear el
-# Blueprint desde la terminal o el dashboard.
+# Los valores con "sync: false" no se guardan acá (no hay secretos en este
+# archivo): Render los pide al crear el Blueprint. JWT_SECRET y
+# PROXY_SECRETO los genera Render solo; PROXY_SECRETO se copia después en
+# Vercel.
 
 services:
-  - name: sibpsanjuan
+  - name: sibpsanjuan-api
     type: web
     runtime: node
+    # Frankfurt: la Unión Europea tiene protección "adecuada" para la AAIP
+    # (Ley 25.326, art. 12) y Estados Unidos no. La base de Atlas va en la
+    # misma región (AWS eu-central-1). Una vez creado no se puede cambiar.
+    region: frankfurt
+    # "free" se duerme a los 15 minutos sin uso (la primera visita tarda
+    # cerca de un minuto); "starter" no.
     plan: free
-    buildCommand: npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend
+    buildCommand: npm ci --omit=dev --prefix backend
     startCommand: npm start --prefix backend
+    healthCheckPath: /api/health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: MONGODB_URI
         sync: false
-      - key: JWT_SECRET
+      - key: SITIO_URL
         sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PROXY_SECRETO
+        generateValue: true
       - key: COOKIE_SECURE
         value: "1"

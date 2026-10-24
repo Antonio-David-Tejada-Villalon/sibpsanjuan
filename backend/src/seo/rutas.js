@@ -161,6 +161,15 @@ export function rutasSeo({ distDir }) {
     })
   );
 
+  // Sin build (este servicio es solo la API y el sitio está en Vercel):
+  // quien entra directo a la dirección de Render va al sitio; los bots que
+  // reenvía Vercel (viaProxy, ver middleware/proxy.js) reciben el HTML
+  // mínimo con los metadatos.
+  router.use("/opac", async (req, res, next) => {
+    if (req.viaProxy || !process.env.SITIO_URL || (await leerPlantilla())) return next();
+    res.redirect(302, process.env.SITIO_URL.replace(/\/+$/, "") + req.originalUrl);
+  });
+
   // Inicio y búsqueda. Con parámetros es una página de resultados: no se
   // indexa (sería una copia por cada búsqueda posible), pero sus enlaces sí
   // se siguen.

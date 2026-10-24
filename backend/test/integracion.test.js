@@ -3983,12 +3983,12 @@ test("SEO: fichas con <head> propio, redirección al título nuevo, sitemaps, ro
   res = await fetch(`${base}/api/v1/opac/bpseo/items/Libro/${fierro._id}`);
   const ficha = await res.json();
   assert.equal(ficha.seo.canonical, `${base}${canonica}`);
-  process.env.FRONTEND_URL = "https://sibpsanjuan.vercel.app";
+  process.env.FRONTEND_URL = "https://miapp.vercel.app";
   try {
     res = await fetch(`${base}/api/v1/opac/bpseo/items/Libro/${fierro._id}`);
-    assert.equal((await res.json()).seo.canonical, `https://sibpsanjuan.vercel.app${canonica}`);
+    assert.equal((await res.json()).seo.canonical, `https://miapp.vercel.app${canonica}`);
     res = await pedir("/robots.txt");
-    assert.match(await res.text(), /^Sitemap: https:\/\/sibpsanjuan\.vercel\.app\/sitemap\.xml$/m);
+    assert.match(await res.text(), /^Sitemap: https:\/\/miapp\.vercel\.app\/sitemap\.xml$/m);
   } finally {
     delete process.env.FRONTEND_URL;
   }

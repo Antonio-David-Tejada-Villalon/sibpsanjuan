@@ -26,6 +26,9 @@ export function crearLimitadorLogin() {
     // logins legítimos. El valor por defecto en producción sigue siendo
     // 20, sin cambios.
     limit: () => Number(process.env.LOGIN_RATE_LIMIT) || 20,
+    // Solo cuentan los intentos fallidos: un aula entera ingresando bien
+    // desde la misma red del colegio no se bloquea a sí misma.
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Demasiados intentos de inicio de sesión. Probá de nuevo en unos minutos." },

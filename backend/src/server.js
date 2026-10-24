@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import express from "express";
@@ -35,29 +36,34 @@ import circulacionRoutes from "./routes/circulacion.js";
 import portadasRoutes from "./routes/portadas.js";
 import contenidoRoutes from "./routes/contenido.js";
 import { rutasSeo } from "./seo/rutas.js";
+import { ipDelVisitante } from "./middleware/proxy.js";
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export function crearApp() {
+// distDir: el build del frontend (los tests lo cambian para simular un
+// servicio que es solo la API).
+export function crearApp({ distDir = path.join(__dirname, "..", "..", "frontend", "dist") } = {}) {
   const app = express();
   // Render pone la app detrás de un proxy — sin esto, cualquier lógica que
   // dependa de la IP real del cliente (ej. rate-limiting por IP) vería
   // siempre la IP del proxy, no la del usuario.
   app.set("trust proxy", 1);
+  // Y detrás de Vercel, el IP del visitante que informa Vercel (ver
+  // middleware/proxy.js).
+  app.use(ipDelVisitante);
   // img-src vuelve al default de Helmet ('self' + data:): antes permitía
   // cualquier https: porque el OPAC mostraba directo la URL de portada que
   // pegaba el staff (ver ARQ-7/CYBER-3 en AUDITORIA.md). Ahora el servidor
   // descarga y procesa esas imágenes (ver portadas/) y las sirve él mismo:
   // el navegador de un alumno nunca le pide nada a un sitio de terceros.
   app.use(helmet());
-  // Sin FRONTEND_URL (el despliegue de hoy: un solo servicio Express
-  // sirviendo API + build), no se monta ningún middleware de CORS — mismo
-  // comportamiento same-origin de siempre. Se activa solo si el frontend se
-  // despliega aparte (ej. Vercel) apuntando acá vía VITE_API_URL — ver
-  // "Vercel + Render" en DEPLOY.md. `credentials: true` es necesario porque
-  // la sesión viaja en cookie httpOnly, no en un header Authorization.
+  // CORS solo para un frontend en otro origen que le pegue directo a esta
+  // API (VITE_API_URL + FRONTEND_URL). Con Vercel reenviando /api (el
+  // despliegue de DEPLOY.md) no hace falta: para el navegador es el mismo
+  // origen, y así la cookie de sesión no es "de terceros" (Safari y iPhone
+  // las bloquean). `credentials: true` porque la sesión viaja en cookie.
   if (process.env.FRONTEND_URL) {
     const origenPermitido = process.env.FRONTEND_URL;
     app.use(
@@ -84,9 +90,17 @@ export function crearApp() {
 
   // Sin autenticación a propósito: lo consultan balanceadores/monitoreo
   // (Render, uptime checks) que no tienen ni deberían tener credenciales.
+  // viaProxy/ipSegun sirven para comprobar el despliegue con Vercel: de qué
+  // cabecera salió el IP del visitante (nunca el IP en sí).
   app.get("/api/health", (req, res) => {
     const dbConectada = mongoose.connection.readyState === 1;
-    res.status(dbConectada ? 200 : 503).json({ ok: dbConectada, db: mongoose.connection.readyState });
+    res.set("Cache-Control", "no-store");
+    res.status(dbConectada ? 200 : 503).json({
+      ok: dbConectada,
+      db: mongoose.connection.readyState,
+      viaProxy: req.viaProxy,
+      ipSegun: req.ipSegun,
+    });
   });
 
   // Versionado de API (ver ARQ-5 en la auditoría): /api/v1/... es la base
@@ -123,8 +137,12 @@ export function crearApp() {
   ];
   // La API no es una página: que ningún buscador la muestre como resultado
   // (sí la puede pedir, para ver el catálogo como lo ve una persona).
+  // Y ninguna respuesta queda guardada en un caché compartido (la CDN de
+  // Vercel) salvo las que lo dicen (catálogo público, portadas): el resto
+  // puede tener datos de una sesión.
   app.use("/api", (req, res, next) => {
     res.set("X-Robots-Tag", "noindex");
+    res.set("Cache-Control", "private, no-cache");
     next();
   });
   for (const [ruta, router] of rutasApi) {
@@ -133,15 +151,19 @@ export function crearApp() {
   }
   app.use("/api", rutaApiInexistente);
 
-  // En producción, Express sirve el build de React ya compilado — un solo
-  // servicio, una sola URL, sin CORS entre front y back.
-  const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
+  // Con un solo servicio, Express sirve también el build de React. Con el
+  // frontend en Vercel, este servicio es solo la API (no hay build).
   // Antes que los archivos: robots.txt y sitemaps dinámicos, y las páginas
   // públicas del OPAC con su <head> ya escrito (ver seo/rutas.js).
   app.use(rutasSeo({ distDir }));
   app.use(express.static(distDir, { index: false }));
-  // El resto (panel, ingreso del staff) es la app sin indexar.
+  // El resto (panel, ingreso del staff) es la app sin indexar. Sin build, a
+  // quien entre directo a la dirección de Render se lo manda al sitio.
+  const hayBuild = fs.existsSync(path.join(distDir, "index.html"));
   app.get(/^\/(?!api\/).*/, (req, res) => {
+    if (!hayBuild && process.env.SITIO_URL) {
+      return res.redirect(302, process.env.SITIO_URL.replace(/\/+$/, "") + req.originalUrl);
+    }
     res.set("X-Robots-Tag", "noindex");
     res.sendFile(path.join(distDir, "index.html"));
   });

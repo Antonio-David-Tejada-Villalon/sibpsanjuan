@@ -1,400 +1,173 @@
-# Despliegue gratuito — SIBPSANJUAN
+# Despliegue — SIBPSANJUAN
 
-Sin VPS, sin dominio pagado. Dos cuentas gratuitas: MongoDB Atlas (base
-de datos) y Render (donde corre la app). Los pasos de las interfaces de
-estos servicios pueden cambiar con el tiempo — esta guía describe el
-flujo general, no capturas de pantalla exactas.
+Tres servicios, cada uno con su cuenta:
 
-Hay dos caminos: **Opción A** (dashboard web) u **Opción B** (terminal,
-con el `render.yaml` que ya está en esta carpeta y el CLI de Atlas). Los
-dos terminan en el mismo lugar — elegí el que te resulte más cómodo. Los
-pasos de "Primer admin" y "Antes de importar..." al final aplican para
-cualquiera de las dos.
+| Servicio | Qué hace | Dónde |
+|---|---|---|
+| **Vercel** | Sirve la app (panel y catálogo público) y reenvía a Render todo lo que es `/api`, los sitemaps y los bots de vista previa. Para el navegador es **una sola dirección**. | `frontend/` (`frontend/vercel.json`) |
+| **Render** | Corre el servidor (la API). | `backend/` (`render.yaml`) |
+| **MongoDB Atlas** | La base de datos. | — |
 
-## Opción B — Todo por terminal
+Que todo se vea bajo la dirección de Vercel no es un detalle: si la app
+estuviera en `*.vercel.app` y la API en `*.onrender.com`, la cookie de
+sesión sería "de terceros" y Safari (y todos los navegadores del iPhone) la
+bloquean: no se podría ingresar.
 
-Requiere crear cuenta en Atlas y en Render primero (eso sí es por
-navegador, una sola vez — ningún servicio en la nube lo evita). De ahí
-en más, todo es CLI.
+Los pasos de las interfaces de estos servicios pueden cambiar con el
+tiempo: esta guía describe el flujo y los valores, no capturas exactas.
 
-### Instalar los CLI
+## Planes y costos
 
-```bash
-# Atlas CLI (ver alternativas de instalación en la doc oficial si no
-# usás Homebrew/apt/choco)
-brew install mongodb-atlas-cli   # macOS
-# o: sudo apt-get install -y mongodb-atlas-cli   # Debian/Ubuntu
+- **Vercel**: el plan gratuito (Hobby) es para uso personal y no comercial,
+  según las condiciones de Vercel. Para el sitio de un colegio corresponde
+  el plan Pro.
+- **Render**: el plan gratuito se duerme a los 15 minutos sin uso y la
+  primera visita tarda cerca de un minuto en despertarlo (la app avisa que
+  está cargando). El plan Starter no se duerme. Se cambia en el servicio
+  ("Instance Type") o en `plan:` de `render.yaml`.
+- **Atlas**: el cluster gratuito (512 MB) alcanza para empezar, pero **no
+  tiene backups** (ver "Backups" más abajo).
 
-# Render CLI
-brew install render-oss/render/render   # macOS/Linux
+## Región: Unión Europea
+
+`render.yaml` crea el servidor en **Frankfurt**, y la base de Atlas va en la
+misma región (**AWS Frankfurt, eu-central-1**). La Ley 25.326 (art. 12)
+restringe enviar datos personales a países sin protección "adecuada"; la
+AAIP considera adecuada a la Unión Europea y no a Estados Unidos. Con
+servidor y base en la UE ese punto queda resuelto. La decisión final es del
+colegio; la región no se puede cambiar después de crear cada servicio.
+
+## 0. Antes de empezar: borrar lo anterior
+
+Si había un despliegue anterior, borralo antes de conectar el repositorio a
+los servicios nuevos (si no, se vuelve a desplegar solo con la configuración
+vieja cada vez que cambia `master`):
+
+1. **Atlas**: si la base vieja tiene datos que quieras conservar, hacé
+   primero un `mongodump` (ver "Backups"). Después, en el proyecto viejo:
+   el cluster → "…" → **Terminate**.
+2. **Render**: el servicio viejo → Settings → al final, **Delete Web
+   Service**.
+3. **Vercel**: el proyecto viejo → Settings → General → al final, **Delete
+   Project**.
+
+## 1. Base de datos: MongoDB Atlas
+
+1. Creá un proyecto y un cluster **Free** en **AWS / Frankfurt
+   (eu-central-1)**. Atlas solo muestra en el formulario las regiones donde
+   hay plan gratuito.
+2. **Database Access**: creá un usuario de base de datos con contraseña
+   larga (botón "Autogenerate"). Es la credencial de la app, no tu login de
+   Atlas. Guardá la contraseña: Atlas la muestra una sola vez.
+3. **Network Access**: agregá `0.0.0.0/0` ("Allow Access from Anywhere").
+   Render no tiene IP fija en el plan gratuito. Si usaste "Automate security
+   setup", ese asistente solo agrega tu IP actual: sumá `0.0.0.0/0` a mano o
+   Render no va a poder conectarse (el error que se ve no habla de IPs, sino
+   de una falla de TLS). Con un plan pago de Render podés usar sus IPs de
+   salida (servicio → Connect → Outbound) en lugar de `0.0.0.0/0`.
+4. **Connect → Drivers**: copiá la cadena de conexión, reemplazá
+   `<db_username>` y `<db_password>`, y agregá el nombre de la base después
+   del host: `mongodb+srv://usuario:clave@cluster.xxxxx.mongodb.net/sibpsanjuan?retryWrites=true&w=majority`.
+   Esa es la `MONGODB_URI`.
+
+## 2. Servidor: Render
+
+1. **New → Blueprint** y elegí este repositorio (rama `master`). Render lee
+   `render.yaml` y crea el servicio `sibpsanjuan-api` en Frankfurt.
+2. Te pide dos valores:
+   - `MONGODB_URI`: la del paso 1.
+   - `SITIO_URL`: la dirección que va a tener el sitio en Vercel, con
+     `https://` y sin barra final (ej. `https://biblioteca-colegio.vercel.app`).
+     Si todavía no la sabés, dejala vacía y completala en el paso 4.
+
+   `JWT_SECRET` y `PROXY_SECRETO` los genera Render solo.
+3. Esperá a que el despliegue termine. Copiá la dirección del servicio (ej.
+   `https://sibpsanjuan-api.onrender.com`) y, en **Environment**, el valor
+   de `PROXY_SECRETO` (botón para verlo): los dos van a Vercel.
+4. Opcional, en **Environment**: `GOOGLE_BOOKS_API_KEY` para que encuentre
+   más portadas (ver `backend/.env.example`).
+
+## 3. Sitio: Vercel
+
+1. **Add New → Project** y elegí este repositorio. Si no aparece, es un
+   tema de permisos de la app de Vercel en GitHub ("Configure account" /
+   "Missing a repository?").
+2. **Root Directory: `frontend`**. Si Vercel detecta el repo como
+   "monorepo" y ofrece desplegar `backend/` y `frontend/` como "Services",
+   no: tocá **Edit** junto a "Root Directory" y escribí `frontend`. El
+   framework se completa solo (Vite, `npm run build`, `dist`).
+3. **Environment Variables**, solo para **Production** (así las vistas
+   previas de otras ramas no tocan los datos reales):
+   - `API_URL`: la dirección de Render del paso 2, sin barra final.
+   - `PROXY_SECRETO`: el mismo valor que en Render.
+
+   **No** definas `VITE_API_URL`: la app llama a `/api` en su misma
+   dirección y Vercel lo reenvía.
+4. **Deploy**. Anotá la dirección de producción (ej.
+   `https://biblioteca-colegio.vercel.app`, o el dominio propio si lo
+   conectás en Settings → Domains).
+
+## 4. Completar Render
+
+Si en el paso 2 dejaste `SITIO_URL` vacía o la dirección de Vercel resultó
+otra, cargala ahora en Render → Environment (Render vuelve a desplegar
+solo). Con dominio propio, `SITIO_URL` es el dominio.
+
+## 5. Primer admin
+
+Desde tu máquina, en la carpeta `backend` del repo (con `npm install` hecho
+una vez), apuntando a la misma base. En PowerShell:
+
+```powershell
+$env:MONGODB_URI = "<la MONGODB_URI del paso 1>"
+node scripts/crear-admin.js admin "una-clave-larga-de-verdad"
+Remove-Item Env:MONGODB_URI
 ```
 
-### Base de datos (Atlas)
+(En bash: `MONGODB_URI="..." node scripts/crear-admin.js admin "..."`.)
+Si te olvidás la clave, el mismo comando la cambia.
 
-```bash
-atlas auth login   # abre el navegador una vez, para el login
+Después, en `https://<tu-sitio>/login` con ese usuario: creá la biblioteca
+(su **código** es la dirección del catálogo: `/opac/<código>`) y su cuenta
+de jefe/a de biblioteca (superbibliotecario), que a su vez crea las cuentas
+del resto del personal con sus permisos. Las categorías Alumno y Docente se
+crean solas con cada biblioteca.
 
-# Crea org/proyecto + cluster M0 gratis + usuario + acceso de red, todo
-# en un solo comando no interactivo:
-atlas setup \
-  --clusterName sibpsanjuan \
-  --provider AWS --region US_EAST_1 \
-  --username appuser --password "unaClaveLargaYAlAzar" \
-  --accessListIp 0.0.0.0/0 \
-  --skipSampleData --force
-```
+## 6. Comprobar que quedó bien
 
-`--accessListIp 0.0.0.0/0` abre el acceso a cualquier IP — hace falta
-porque Render no tiene una IP fija en el free tier. Al terminar, el
-comando muestra el connection string; guardalo, es tu `MONGODB_URI`.
-
-Si algún flag cambió de nombre en tu versión del CLI, `atlas setup --help`
-te muestra las opciones vigentes.
-
-### App (Render)
-
-```bash
-render login   # abre el navegador una vez, para el login
-
-# Con el render.yaml de esta carpeta ya en tu repo (commiteado y pusheado):
-render blueprints launch
-```
-
-Te va a pedir, una sola vez, los valores de `MONGODB_URI` y `JWT_SECRET`
-(son los que quedaron como `sync: false` en `render.yaml`, justamente
-para no commitear secretos). Generá el `JWT_SECRET` con:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-### Ver el estado, logs y volver a desplegar
-
-```bash
-render services            # lista tus servicios (y sus IDs)
-render deploys create <SERVICE_ID> --wait    # dispara un deploy y espera a que termine
-render services logs <SERVICE_ID>            # logs en vivo
-```
-
-## Opción A — Dashboard web
-
-### 1. Base de datos: MongoDB Atlas (gratis)
-
-1. Creá una cuenta en MongoDB Atlas y un cluster del tier gratuito (Atlas
-   lo llama **"Free"** en el selector actual — es el mismo tier que antes
-   se conocía como M0, 512 MB, alcanza de sobra para el catálogo de varias
-   bibliotecas chicas). Al momento de escribir esto no pedía tarjeta para
-   el tier gratuito, pero confirmalo en el signup porque las políticas
-   cambian. La región no es crítica — cualquiera cercana a donde esté la
-   mayoría de tus usuarios anda bien (ej. `sa-east-1`/São Paulo para
-   Argentina).
-2. Creá un usuario de base de datos (usuario + contraseña) — es la
-   credencial que va a usar la app para conectarse, no tu login de Atlas.
-   Si usás el asistente **"Automate security setup"** al crear el cluster,
-   Atlas te lo crea solo (con acceso de administrador) y te muestra la
-   contraseña **una sola vez** — copiala en ese momento, no la vas a poder
-   ver de nuevo (si la perdés, "Database Access" → tu usuario → "Edit
-   Password" → "Autogenerate" te genera una nueva).
-3. En "Network Access", permití conexiones desde cualquier IP
-   (`0.0.0.0/0`, botón "Allow Access from Anywhere") — Render no tiene una
-   IP fija en el tier gratuito, así que restringir por IP no es viable
-   acá. **Ojo si usaste "Automate security setup" en el paso 1**: ese
-   asistente solo agrega tu propia IP actual a la lista ("for local
-   connectivity"), no `0.0.0.0/0` — hay que sumarlo aparte, a mano, en
-   "Network Access", o el backend en Render no va a poder conectarse
-   nunca (el error que da Node en ese caso no menciona IPs para nada —
-   sale como un fallo de negociación TLS genérico, confuso de diagnosticar
-   si no se sabe que es esto).
-4. Copiá el "connection string" (botón "Connect" → elegí un método de
-   conexión → "Drivers") — es la `MONGODB_URI` que vas a necesitar en el
-   paso 3. Ahí mismo tenés que completar dos cosas a mano sobre el string
-   que te da Atlas: reemplazar `<db_username>`/`<password>` por los datos
-   reales del paso 2, y agregar el nombre de la base después del host
-   (ej. `.../sibpsanjuan?...`) — sin eso, Mongo usa una base llamada
-   `test` por default, que funciona pero no es lo que uno espera.
-
-### 2. Repositorio
-
-Render despliega desde un repositorio Git (GitHub/GitLab/Bitbucket).
-Subí esta carpeta (`sibpsanjuan/`) a un repo propio si todavía no
-lo está.
-
-### 3. Backend + frontend: un solo servicio en Render (gratis)
-
-1. Creá una cuenta en Render y un "Web Service" nuevo apuntando a tu
-   repositorio.
-2. Root directory: `sibpsanjuan/backend` (o la ruta que corresponda
-   en tu repo).
-3. **Build command** (compila el frontend y lo deja donde Express lo
-   sirve):
+1. `https://<tu-sitio>/api/health` tiene que responder
+   `"ok":true` y `"viaProxy":true`. `ipSegun` dice de qué cabecera de
+   Vercel salió el IP del visitante; tiene que ser `x-vercel-forwarded-for`,
+   `x-real-ip` o `x-forwarded-for`.
+   - `"viaProxy":false`: `PROXY_SECRETO` no es igual en Render y en Vercel.
+   - `"ipSegun":"conexion"` con `viaProxy` en `true`: Vercel no mandó el IP;
+     el límite de intentos de ingreso quedaría compartido por todos.
+2. Entrar a la dirección de Render (`https://sibpsanjuan-api.onrender.com/`)
+   tiene que llevarte al sitio.
+3. Ingresá desde un iPhone o con Safari: con la sesión bajo la misma
+   dirección, tiene que andar.
+4. `https://<tu-sitio>/robots.txt` termina en
+   `Sitemap: https://<tu-sitio>/sitemap.xml`, y ese sitemap lista
+   `/opac/<código>/sitemap.xml`.
+5. Vista previa al compartir (los bots no ejecutan JavaScript):
+   ```bash
+   curl -A "WhatsApp/2.23" https://<tu-sitio>/opac/<código>
    ```
-   npm install && npm --prefix ../frontend install && npm --prefix ../frontend run build
-   ```
-4. **Start command**:
-   ```
-   npm start
-   ```
-5. Variables de entorno (mismas que `.env.example`):
-   - `MONGODB_URI`: el connection string del paso 1.
-   - `JWT_SECRET`: un valor largo al azar (generalo con
-     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
-   - `COOKIE_SECURE`: `1`.
-6. Plan: el free tier de Render. Render te da una URL propia gratis
-   (`tuapp.onrender.com`) — **no hace falta comprar ningún dominio**.
+   Tiene que traer `<meta property="og:title"`. Si trae la app vacía
+   (`<div id="root">`), el reenvío de bots de `vercel.json` no se aplicó.
+   Con Render dormido, el bot puede rendirse antes de que despierte.
 
-### La letra chica del free tier de Render
+## Alternativa: todo en Render, sin Vercel
 
-El servicio "duerme" después de ~15 minutos sin tráfico, y la primera
-visita después de eso tarda unos segundos en responder mientras
-despierta. Para carga de datos esporádica (no es un sitio público de
-alto tráfico) esto es una molestia menor, no un problema — pero avisale
-a quien vaya a usarlo para que no piense que "se rompió".
+Un solo servicio sirve la app y la API (y el servidor escribe el `<head>`
+de cada página para todos, no solo para los bots). En `render.yaml`:
 
-Los formularios ya muestran "Guardando…" y deshabilitan el botón
-mientras esperan la respuesta, así que un doble clic durante ese
-arranque no debería duplicar datos. La demora de la primera carga en sí
-también tiene aviso propio, tanto en el panel de staff como en el
-catálogo público del OPAC (pasados ~2.5s sin respuesta, ver GOB-4 en
-`AUDITORIA.md`) — igual conviene avisarle a quien vaya a usarlo, porque
-la primera vez que lo ve nadie sabe todavía que es normal.
-
-## Opción C — Frontend en Vercel + backend en Render
-
-Variante de la Opción A/B: en vez de que Render sirva también el build del
-frontend, el frontend se despliega aparte en Vercel (CDN propio, preview
-deployments por PR, dominio fácil) y solo la API queda en Render. La base de
-datos sigue siendo Atlas en los tres casos — Vercel no incluye base de datos.
-
-Esto **no** es el modo por defecto de esta app (que asume same-origin, un
-solo servicio) — requiere las dos variables nuevas de abajo, pensadas
-para no romper nada de la Opción A/B si no se definen.
-
-### 1. Frontend en Vercel
-
-Conviene hacer este paso primero (ver "Orden al desplegar" más abajo, para
-no necesitar un redeploy extra del backend al final):
-
-1. Creá una cuenta en Vercel, "Add New… → Project", apuntando al mismo
-   repositorio de GitHub. Si el repo no aparece en la lista, es un tema de
-   permisos: buscá un link "Configure account" / "Missing a repository?"
-   cerca del buscador — te manda a la página de GitHub donde se le da
-   acceso a la app de Vercel a repos nuevos ("All repositories" o
-   agregando el puntual a la lista).
-2. **Ojo con el Root Directory**: como este repo tiene `backend/` y
-   `frontend/` como carpetas separadas, Vercel puede detectar
-   automáticamente un "monorepo" y ofrecerte desplegar los DOS como
-   "Services" dentro de un solo proyecto (una función nueva de Vercel,
-   con su propio `vercel.json` generado de "services"). **No** es lo que
-   queremos acá — ese modo asume que el backend corre como servicio de
-   Vercel, y este backend está pensado para Render (Express tradicional,
-   conexión a Mongo abierta una sola vez al arrancar, no probado en el
-   modelo de Vercel). Si te aparece ese bloque de "Services", click en
-   **Edit** al lado de "Root Directory" y escribí `frontend` a mano — eso
-   hace que Vercel lo trate como un proyecto normal de un solo servicio,
-   apuntando solo a esa carpeta (Framework se auto-completa como Vite,
-   build command `npm run build`, output `dist` — no hace falta tocarlos).
-3. Por ahora, no hace falta ninguna variable de entorno — `VITE_API_URL`
-   se agrega en el paso 2, una vez que exista el backend.
-4. `frontend/vercel.json` ya está en el repo con el rewrite necesario para
-   que las rutas de React Router (`/libros`, `/opac/:codigo`, etc.) no den
-   404 al entrar directo o refrescar — Vercel lo toma solo, no hace falta
-   configurar nada a mano para eso (esto es un `vercel.json` distinto y
-   más simple que el de "services" del punto 2 — este es el que sí
-   queremos). También reenvía a Render los sitemaps y los bots de vista
-   previa (WhatsApp, Facebook…), y marca `noindex` lo que no es catálogo
-   público: si tu API no es `https://sibpsanjuan.onrender.com`, cambiá esa
-   dirección ahí (ver "Buscadores" más abajo).
-5. Deploy. Vercel te da una URL propia (`tuapp.vercel.app`) — de vuelta, no
-   hace falta comprar dominio. Guardala, la necesitás en el paso 2.
-
-### 2. Backend en Render
-
-Igual que la Opción A/B (pasos 1-3), pero con dos variables de entorno más:
-
-- `FRONTEND_URL`: la URL exacta de Vercel del paso 1, ej.
-  `https://tuapp.vercel.app` (sin barra final). Habilita CORS con
-  credenciales solo para ese origen — sin esto, el navegador bloquea los
-  pedidos del frontend por CORS.
-- `COOKIE_SAMESITE`: `none`. Necesario para que el navegador mande la
-  cookie de sesión en pedidos cross-origin (Vercel → Render). Requiere
-  `COOKIE_SECURE=1` (ya es el default) — una cookie `SameSite=None` sin
-  `Secure` es rechazada por el navegador.
-
-El **build command** en este caso es más simple, porque el frontend ya no
-se compila acá:
-```
-npm install
-```
-Y no hace falta la variable `PORT` (Render la define solo).
-
-**Fijá la versión de Node explícitamente.** Render usa por default la
-versión de Node más nueva disponible (ej. 24.x) — en la práctica, esa
-combinación puntual puede fallar la conexión a Atlas con un error de TLS
-genérico y confuso (`SSL routines...tlsv1 alert internal error`,
-`ReplicaSetNoPrimary`, no llega a ningún shard) que no menciona la
-versión de Node para nada. Se soluciona agregando una variable de entorno
-más:
-- `NODE_VERSION`: `20`
-
-Si en algún redeploy futuro volvés a ver ese mismo error de TLS después
-de confirmar que `0.0.0.0/0` está en Network Access de Atlas (ver arriba),
-es la primera variable para revisar.
-
-### Orden al desplegar por primera vez
-
-Primero el frontend en Vercel (para tener su URL y ponerla en
-`FRONTEND_URL` de Render desde el arranque), después el backend en Render
-con esa URL ya cargada — así no hace falta un redeploy extra de ninguno de
-los dos al final. Recién al final, con el backend ya con su propia URL,
-volvé a Vercel y agregá `VITE_API_URL` (Settings → Environment Variables)
-apuntando a esa URL de Render — esta sí necesita un redeploy del frontend
-después de agregarla (Deployments → menú "⋯" del último deploy →
-Redeploy), porque `VITE_API_URL` se hornea en el build del frontend, no
-se lee en runtime.
-
-## Primer admin (con cualquiera de las tres opciones)
-
-Una vez desplegado, corré el script de bootstrap **desde tu máquina**,
-apuntando a la base de Atlas (mismo `MONGODB_URI` que configuraste en
-Render):
-
-```bash
-cd backend
-MONGODB_URI="<el mismo connection string de Atlas>" node scripts/crear-admin.js miusuario miclaveseguraDE8+
+```yaml
+    buildCommand: npm ci --omit=dev --prefix backend && npm ci --prefix frontend && npm run build --prefix frontend
 ```
 
-Con ese usuario entrás como `admin` a `https://tuapp.onrender.com` (Opción
-A/B) o a tu URL de Vercel (Opción C, ej. `https://tuapp.vercel.app` — ahí
-es donde vive el frontend; la URL de Render en ese caso es solo la API,
-nadie entra a esa directamente salvo para pegarle a `/api/v1/...`). Desde
-ahí podés crear directamente una biblioteca y su superbibliotecario (el
-camino más corto para una sola biblioteca), o si vas a delegar la gestión
-de varias bibliotecas, dar de alta primero un `supervisor` y que sea
-quien cree las suyas. El superbibliotecario de cada biblioteca es quien
-después, ya logueado, crea las cuentas `bibliotecario` de su propio staff
-con los permisos que corresponda (catalogar/préstamos/devoluciones/
-socios/exportar) — ver la sección "Jerarquía de roles" en `README.md`.
-
-Un supervisor también puede pedir supervisar una biblioteca que el admin
-todavía no le asignó (pantalla "Bibliotecas" → "Supervisar otra
-biblioteca") — la solicitud queda pendiente hasta que vos, como admin, la
-apruebes o la rechaces desde la misma pantalla. No hace falta ninguna
-migración ni variable de entorno nueva para esto: es un modelo/rutas
-aditivos (`SolicitudSupervision`), no cambia el schema de `Usuario`.
-
-Las reglas de circulación de cada biblioteca (días de préstamo,
-renovaciones máximas, multa, si sábados/domingos cuentan) se configuran
-desde "Configurar préstamos" en esa misma pantalla (o desde
-Bibliotecarios, si sos el superbibliotecario de esa biblioteca). Tampoco
-necesita migración: son campos nuevos con default (`contarSabados`/
-`contarDomingos` en `true`, o sea el mismo comportamiento de siempre —
-cuenta calendario) que Mongoose completa solo en cualquier documento
-`Biblioteca` ya existente.
-
-Admin y supervisor ahora pueden entrar al catálogo/socios/circulación de
-cualquier biblioteca en su alcance (selector "Biblioteca" en el
-encabezado) — tampoco requiere migración: es un chequeo nuevo en
-`requiereBiblioteca` (`middleware/auth.js`) sobre el mismo esquema de
-`Usuario`/`Biblioteca` de siempre. La reserva de ejemplar al pedir un
-préstamo desde el OPAC (antes se reservaba recién al aprobarlo) agrega un
-valor nuevo al enum de `Ejemplar.estado` (`"reservado"`) y un campo
-opcional `Solicitud.ejemplarId` — ambos aditivos, sin migración: los
-documentos existentes ya tienen un `estado` válido dentro del enum
-anterior, y el campo nuevo queda `null` donde no aplica. La carga masiva
-de Libros por CSV suma la dependencia de backend `csv-parse` (correr
-`npm install` en `backend/` al actualizar) pero no toca ningún schema.
-
-La eliminación masiva en Catalogar (checkbox por fila + "eliminar
-seleccionados"), la multi-selección de materias/autores en el catálogo
-del OPAC y el encabezado responsive (menú hamburguesa por debajo de
-860px) son 100% frontend — ni tocan el schema ni suman variables de
-entorno ni dependencias nuevas. Un `npm --prefix frontend run build` (ya
-parte del build command de Render) alcanza para tenerlos en producción.
-
-El campo `eliminadoPor` (quién hizo cada borrado lógico, sumado a los 10
-modelos catalogables + Socio) es aditivo y sin `required`: los documentos
-ya eliminados antes de este campo simplemente quedan con `eliminadoPor:
-null`, no hace falta ninguna migración ni backfill. La ruta nueva
-`PUT /auth/password` (cambiar la propia contraseña estando logueado)
-tampoco toca ningún schema ni suma dependencias — es una ruta más sobre
-el mismo modelo `Usuario` de siempre.
-
-La página nueva del aviso de privacidad (`/opac/:codigo/privacidad`) es
-100% frontend — no toca el schema, no suma variables de entorno ni
-dependencias. Es contenido estático (no lee nada de la base), así que no
-hay nada que backfillear ni verificar en el deploy más allá del build
-normal del frontend.
-
-El catálogo de autoridades de autor (colección nueva `Autor`, rutas
-`/api/v1/autores`, endpoint público `/api/v1/opac/:codigo/autores`) es
-aditivo puro: una colección nueva, no un cambio a ninguna existente. No
-hace falta ninguna migración — una biblioteca que nunca carga un autor
-de autoridad no nota ninguna diferencia (el OPAC sigue facetando cada
-string de autor tal cual, como siempre).
-
-El campo `padreId` de `Archivo` (jerarquía opcional de un nivel, ver
-ARCHIV-2) es aditivo y `default: null` — los archivos ya cargados
-simplemente quedan sin padre, no hace falta backfillear nada. El campo
-`nivelAcceso` (ver ARCHIV-3) es igual de aditivo, mismo `default: null`.
-El lazy-loading de rutas (`React.lazy`/`Suspense`, ver FE-6) y el aviso de
-carga lenta también en el OPAC (ver GOB-4) son 100% frontend, sin cambio
-de schema. El workflow de CI (`.github/workflows/ci.yml`, ver ARQ-8) no
-afecta el deploy en absoluto — corre en GitHub Actions, no en Render;
-solo empieza a ejecutarse una vez que el repo esté conectado a un remoto
-de GitHub.
-
-El catálogo de autoridades de materia (colección nueva `Materia`, rutas
-`/api/v1/materias`, endpoint público `/api/v1/opac/:codigo/materias`, ver
-BIBL-3) es aditivo puro, mismo criterio que el catálogo de autoridades de
-autor. La validación de dígito verificador de ISBN/ISSN (ver BIBL-4) es
-un `validate` de Mongoose sobre campos ya existentes — **no** revalida ni
-toca ningún libro/seriada ya guardado con un ISBN/ISSN inválido; solo
-aplica a partir de la próxima vez que ese registro se cree o edite. El
-límite explícito de `express.json` (ver CYBER-6, 2mb) y los try/catch
-agregados en 9 rutas `PUT` (ver ARQ-12) son cambios de comportamiento del
-backend sin ningún impacto de schema ni de deploy.
-
-El CRUD ampliado de cuentas de staff (admin/supervisor gestionando
-bibliotecarios directamente, y el reseteo de contraseña sin la actual vía
-`PUT /usuarios/:id/password`) tampoco toca el schema — son rutas nuevas o
-con el gate de rol ampliado sobre el mismo modelo `Usuario` de siempre, sin
-campos nuevos ni backfill.
-
-El botón "Ver OPAC" en cada tarjeta de biblioteca (panel de Bibliotecas),
-la corrección de legibilidad del favicon/`og:image`, el `manifest.json`
-nuevo para poder instalar el sitio como app en Android, y la página
-nueva de Documentación (`/documentacion`, contenido estático, con su
-sidebar y las capturas de pantalla de ejemplo en `frontend/public/docs/`)
-son 100% frontend — sin cambio de schema, variables de entorno ni
-dependencias nuevas. El `recargar()` agregado en `Socios.jsx` (ver UX-6
-en `AUDITORIA.md`, el badge "OPAC: sí/no" que no se actualizaba solo)
-tampoco tiene impacto de deploy — mismo criterio.
-
-El editor MARC por solapas de Libros (ver BIBL-6 en `AUDITORIA.md`) suma
-15 campos opcionales a `models/Libro.js` (edición, CDU, Dewey, autor
-corporativo, título variante, mención de responsabilidad, descripción
-física extendida, serie/ISSN, notas de audiencia/idioma, instrucción de
-acceso) — todos `String` opcionales sin `default` obligatorio, así que
-Mongoose los agrega solos a cualquier documento existente la primera vez
-que se lee/guarda: **no hace falta ninguna migración ni backfill.** Los
-libros ya cargados en producción siguen funcionando exactamente igual,
-simplemente con esos campos nuevos vacíos hasta que alguien los edite.
-
-"Buscar en el catálogo" (`/catalogo`, ver UX-7 en `AUDITORIA.md`), la
-ficha ISBD, y el colapso "Ver más"/"Ver menos" en los sidebars de
-filtros (OPAC y panel) son 100% frontend — sin ruta backend nueva (la
-página combina los `GET` que cada tipo de material ya tenía), sin cambio
-de schema ni variables de entorno. La plantilla CSV de Libros ampliada
-con las columnas nuevas (`importarLibrosCsv.js`) tampoco toca el schema
-— usa los mismos 15 campos que ya sumó BIBL-6, solo cambia qué columnas
-lee el parser.
-
-El soporte de CORS (dependencia nueva `cors` en `backend/`) y el
-`sameSite` configurable de la cookie de sesión son aditivos y quedan
-apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el
-comportamiento same-origin de siempre no cambia. Solo hace falta correr
-`npm install` en `backend/` y, si vas a usar el split de la Opción C,
-definir esas dos variables — ver esa sección para el detalle.
+Sin `PROXY_SECRETO`, y `SITIO_URL` vacía (o el dominio propio). La
+dirección del sitio es la de Render.
 
 ## Buscadores (Google, Bing) y vista previa al compartir
 
@@ -406,14 +179,11 @@ búsquedas.
 
 - **Qué ve un buscador.** Cada página pública tiene título, descripción,
   `canonical`, Open Graph y, en las fichas, datos estructurados `Book` y
-  `BreadcrumbList` (ver `backend/src/seo/`). Con un solo servicio (Opción
-  A/B) el servidor los escribe en el HTML. En la Opción C, Vercel sirve la
-  app y Google los ve al ejecutar el JavaScript, que es lo que hace siempre.
-  WhatsApp, Facebook, Telegram y compañía no ejecutan JavaScript:
-  `frontend/vercel.json` les manda a Render solo a esos bots, que reciben
-  un HTML mínimo con los mismos metadatos. Si la URL de tu API no es
-  `https://sibpsanjuan.onrender.com`, cambiala en ese archivo (aparece tres
-  veces: dos sitemaps y los bots).
+  `BreadcrumbList` (ver `backend/src/seo/`). Vercel sirve la app y Google
+  los ve al ejecutar el JavaScript, que es lo que hace siempre. WhatsApp,
+  Facebook, Telegram y compañía no ejecutan JavaScript: `vercel.json` les
+  manda a Render solo a esos bots, que reciben un HTML con los mismos
+  metadatos.
 - **Lo que no se indexa** responde `X-Robots-Tag: noindex`: el panel,
   `/login`, el ingreso, la cuenta y los préstamos del socio, las búsquedas
   con filtros (`?q=…`, que igual dejan seguir sus enlaces), la API y las
@@ -432,11 +202,9 @@ búsquedas.
   la licencia de las demás no siempre está clara. Sin logo cargado, la
   vista previa sale sin imagen. La sinopsis tampoco se publica (el campo
   "Notas" es texto libre del staff y no va a la descripción).
-- **Dominio.** Las direcciones absolutas (canonical, sitemap) usan
-  `SITIO_URL` si está definida, si no `FRONTEND_URL` (Opción C), si no la
-  dirección del propio servidor. Con un dominio propio, definí `SITIO_URL`
-  en Render y conectá el dominio en Vercel: `robots.txt` toma solo el
-  dominio de producción que le da Vercel al compilar.
+- **Dominio.** Las direcciones absolutas (canonical, sitemap) salen de
+  `SITIO_URL`. `robots.txt` lo arma Vercel al compilar con su dirección de
+  producción: si conectás un dominio propio, actualizá también `SITIO_URL`.
 
 ### Registrar el sitio en Google y Bing
 
@@ -447,9 +215,9 @@ a semanas, y con pocas fichas o pocos enlaces externos, más.
    cuenta institucional del colegio:
    - Con dominio propio: propiedad de tipo **Dominio**, verificada con un
      registro TXT en el DNS (lo carga quien administre el dominio).
-   - Con `*.vercel.app`: propiedad de tipo **Prefijo de URL**
-     (`https://sibpsanjuan.vercel.app/`), verificada con el **archivo
-     HTML** que da Google: copialo a `frontend/public/` y desplegá.
+   - Con `*.vercel.app`: propiedad de tipo **Prefijo de URL**, verificada
+     con el **archivo HTML** que da Google: copialo a `frontend/public/` y
+     desplegá.
    - En "Sitemaps", enviá `sitemap.xml`.
    - "Inspección de URLs" con una ficha muestra cómo la ve Google, y la
      "Prueba de resultados enriquecidos" (search.google.com/test/rich-results)
@@ -457,108 +225,13 @@ a semanas, y con pocas fichas o pocos enlaces externos, más.
 2. **Bing Webmaster Tools** (bing.com/webmasters): se puede importar la
    propiedad desde Search Console, sin verificar de nuevo. Bing también
    alimenta a DuckDuckGo y a otros buscadores.
-3. **Vista previa al compartir:** la prueba más directa es pegar el enlace
-   de una ficha en un chat de WhatsApp o Telegram. Para ver qué recibe un
-   bot sin compartir nada:
-   ```bash
-   curl -A "WhatsApp/2.23" https://sibpsanjuan.vercel.app/opac/<código>
-   ```
-   Tiene que devolver un HTML con `<meta property="og:title"`. Si devuelve
-   la app vacía (`<div id="root">`), el reenvío de bots de `vercel.json` no
-   se aplicó. Ojo: si Render está dormido (plan gratuito), el bot puede
-   rendirse antes de que despierte y la vista previa sale sin datos.
 
-## Actualizar un despliegue existente (versión del rediseño para la escuela)
+## Capacidad de Atlas gratuito (512 MB)
 
-Rama `rediseno`: categorías Alumno/Docente, privacidad de socios,
-portadas, CMS del OPAC, OPAC nuevo y SEO. Si tu despliegue es nuevo, no
-hace falta nada de esto: alcanza con los pasos de arriba.
-
-1. **Variables nuevas en Render**, todas opcionales:
-   - `GOOGLE_BOOKS_API_KEY`: sin ella, Google Books casi nunca responde (la
-     cuota anónima es compartida). Ver `backend/.env.example`.
-   - `PORTADAS_AUTOMATICAS=0` si no querés que se busque la portada sola al
-     cargar un libro con ISBN.
-   - `SITIO_URL` solo con dominio propio (ver "Buscadores" arriba).
-2. **Desplegá backend y frontend juntos** (los dos salen de `master`): el
-   OPAC nuevo usa rutas de la API que el backend viejo no tiene. Render
-   tarda más que Vercel en terminar; en ese par de minutos la búsqueda del
-   OPAC puede fallar.
-3. **Migraciones** (desde tu máquina, con el código nuevo y el mismo
-   `MONGODB_URI` de Render). Las dos son idempotentes y tienen
-   `--verificar`, que solo cuenta lo pendiente:
-   ```bash
-   cd backend
-   MONGODB_URI="..." node scripts/migrar-categorias.js --verificar
-   MONGODB_URI="..." node scripts/migrar-categorias.js
-   MONGODB_URI="..." node scripts/migrar-portadas.js --verificar
-   MONGODB_URI="..." node scripts/migrar-portadas.js            # agregá --buscar-isbn para buscar las que faltan
-   ```
-   `migrar-categorias` da de alta Alumno y Docente y cada categoría que tus
-   socios ya usan (sin cambiar reglas). `migrar-portadas` descarga y guarda
-   las portadas que antes eran un enlace externo; sin ella, esos ítems
-   muestran la tapa tipográfica.
-4. **Capacidad de Atlas M0 (512 MB).** Cada portada ocupa en la base unos
-   15 a 30 KB (dos tamaños en WebP): 5.000 libros con portada son entre 75
-   y 150 MB del espacio gratuito. Mirá "Data Size" en Atlas antes de correr
-   `--buscar-isbn` sobre un catálogo grande.
-
-## Actualizar un despliegue existente (versión con Seriadas/Recursos electrónicos)
-
-Si ya tenías esta herramienta desplegada **antes** de que existieran los
-tipos de material "Publicaciones seriadas" y "Recursos electrónicos", el
-modelo de circulación cambió por dentro: los préstamos y ejemplares
-pasaron de referenciar un libro fijo (`libroId`) a un par genérico
-(`itemTipo`/`itemId`), para poder circular más de un tipo de material sin
-volver a tocar ese código. Esto necesita un paso manual **antes** de
-actualizar el código en Render, para no perder acceso a los préstamos y
-ejemplares ya cargados:
-
-```bash
-cd backend
-MONGODB_URI="<el mismo connection string de Atlas>" node scripts/migrar-item-polimorfico.js
-```
-
-Es seguro correrlo con la versión **vieja** de la app todavía desplegada
-y sirviendo tráfico: Mongo no tiene esquema fijo, así que los campos
-nuevos que este script agrega no le importan al código viejo, que sigue
-leyendo/escribiendo solo `libroId`. También es repetible sin riesgo (si
-se corta a mitad de camino, corrélo de nuevo) — solo toca los documentos
-que todavía no tienen el campo nuevo. Podés verificar antes, sin escribir
-nada, con:
-
-```bash
-MONGODB_URI="..." node scripts/migrar-item-polimorfico.js --verificar
-```
-
-Recién después de que el script termine sin errores, desplegá el código
-nuevo (`render deploys create` o el redeploy automático del dashboard).
-Si tu despliegue es nuevo (nunca tuvo la versión anterior), no hace falta
-correr este script — no hay datos viejos que migrar.
-
-## Actualizar un despliegue existente (versión con jerarquía de roles)
-
-Si ya tenías esta herramienta desplegada **antes** de que existieran los
-roles `supervisor`/`superbibliotecario`/`bibliotecario`, todas las
-cuentas de staff que cargaste eran del viejo rol `biblioteca` — el schema
-nuevo ya no acepta ese valor. Mismo procedimiento que la migración de
-arriba: correrlo con el código viejo todavía desplegado, antes de
-actualizar.
-
-```bash
-cd backend
-MONGODB_URI="<el mismo connection string de Atlas>" node scripts/migrar-roles-jerarquia.js
-# o, para solo contar sin escribir nada:
-MONGODB_URI="..." node scripts/migrar-roles-jerarquia.js --verificar
-```
-
-Renombra cada cuenta `rol:"biblioteca"` a `rol:"superbibliotecario"` —
-mismo `bibliotecaId`, ningún dato se pierde. Es literalmente lo que esa
-cuenta ya hacía (acceso completo a su biblioteca); el nombre nuevo solo
-refleja que ahora, además, puede crear cuentas `bibliotecario` propias
-con permisos más acotados si querés delegar. Recién después de que
-termine sin errores, desplegá el código nuevo. Si tu despliegue es nuevo,
-no hace falta correrlo.
+Cada portada ocupa en la base unos 15 a 30 KB (dos tamaños en WebP): 5.000
+libros con portada son entre 75 y 150 MB. Mirá "Data Size" en Atlas antes
+de buscar portadas en masa (`node scripts/migrar-portadas.js --buscar-isbn`)
+sobre un catálogo grande.
 
 ## Backups — el tier gratuito de Atlas no incluye ninguno
 

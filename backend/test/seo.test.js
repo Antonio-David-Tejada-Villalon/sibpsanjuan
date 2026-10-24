@@ -130,14 +130,14 @@ test("inicio, páginas del CMS y páginas privadas", () => {
 });
 
 test("origen público: SITIO_URL, si no FRONTEND_URL, si no el propio servidor", () => {
-  const req = { protocol: "https", get: () => "sibpsanjuan.onrender.com" };
+  const req = { protocol: "https", get: () => "mi-api.onrender.com" };
   const antes = { SITIO_URL: process.env.SITIO_URL, FRONTEND_URL: process.env.FRONTEND_URL };
   try {
     delete process.env.SITIO_URL;
     delete process.env.FRONTEND_URL;
-    assert.equal(origenPublico(req), "https://sibpsanjuan.onrender.com");
-    process.env.FRONTEND_URL = "https://sibpsanjuan.vercel.app/";
-    assert.equal(origenPublico(req), "https://sibpsanjuan.vercel.app");
+    assert.equal(origenPublico(req), "https://mi-api.onrender.com");
+    process.env.FRONTEND_URL = "https://miapp.vercel.app/";
+    assert.equal(origenPublico(req), "https://miapp.vercel.app");
     process.env.SITIO_URL = "https://biblioteca.colegio.edu.ar";
     assert.equal(origenPublico(req), "https://biblioteca.colegio.edu.ar");
   } finally {

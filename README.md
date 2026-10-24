@@ -135,13 +135,14 @@ staff los carga y el OPAC los muestra como catálogo de solo consulta.
 
 ## Arquitectura
 
-Por defecto, un único servicio Node/Express sirve la API **y** el build de
-React ya compilado — una sola URL, sin CORS, sin una segunda cuenta de
-hosting. MongoDB Atlas (free tier M0) como base de datos. También se puede
-desplegar el frontend aparte (ej. Vercel) con el backend en Render —
-ver "Opción C" en `DEPLOY.md` — activando CORS y `sameSite=none` en la
-cookie de sesión solo para ese caso (`FRONTEND_URL`/`COOKIE_SAMESITE`,
-apagado por default).
+Un servidor Node/Express (la API) y una app React (Vite). En producción
+(`DEPLOY.md`): Vercel sirve la app y reenvía `/api` a la API en Render,
+así que para el navegador es **una sola dirección** (sin CORS, y la cookie
+de sesión no es "de terceros", que Safari y el iPhone bloquean); MongoDB
+Atlas es la base. Vercel agrega a cada pedido reenviado un secreto
+compartido (`PROXY_SECRETO`) y solo así el servidor cree el IP del
+visitante (`backend/src/middleware/proxy.js`). El mismo Express también
+puede servir el build de React y ser el único servicio.
 
 Cada página del panel y del OPAC se carga en su propio chunk
 (`React.lazy`/`Suspense` en `App.jsx`, ver FE-6 en `AUDITORIA.md`) — el
