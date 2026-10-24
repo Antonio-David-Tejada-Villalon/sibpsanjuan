@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { BookOpen, CircleUser, House, LogIn, Menu, Search, X } from "lucide-react";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useContenidoOpac } from "../../ContenidoOpacContext.jsx";
 import { useFocoEnRuta } from "../../useFocoEnRuta.js";
@@ -43,6 +43,40 @@ function PieOpac({ codigo, contenido }) {
         Catálogo con SIBPSANJUAN
       </p>
     </footer>
+  );
+}
+
+// En el celular, las secciones van abajo, al alcance del pulgar (en
+// escritorio quedan en la barra superior). Sin "Asistente": en el OPAC
+// está apagado hasta tener un proveedor que permita usarlo con menores.
+function NavegacionInferior({ codigo, sesion }) {
+  const icono = { size: 22, strokeWidth: 1.5, "aria-hidden": true };
+  return (
+    <nav className="navegacion-inferior" aria-label="Navegación principal">
+      <NavLink to={`/opac/${codigo}`} end>
+        <House {...icono} />
+        Inicio
+      </NavLink>
+      <Link to={`/opac/${codigo}?buscar=1`}>
+        <Search {...icono} />
+        Buscar
+      </Link>
+      <NavLink to={`/opac/${codigo}/mis-prestamos`}>
+        <BookOpen {...icono} />
+        Préstamos
+      </NavLink>
+      {sesion ? (
+        <NavLink to={`/opac/${codigo}/cuenta`}>
+          <CircleUser {...icono} />
+          Cuenta
+        </NavLink>
+      ) : (
+        <NavLink to={`/opac/${codigo}/login`}>
+          <LogIn {...icono} />
+          Ingresar
+        </NavLink>
+      )}
+    </nav>
   );
 }
 
@@ -94,9 +128,10 @@ export default function OpacLayout({ children }) {
             <span className="brand__nombre">{contenido ? nombre : ""}</span>
             <span className="badge-opac">Catálogo</span>
           </Link>
-          <nav>
+          <nav aria-label="Secciones del catálogo">
             <NavLink to={`/opac/${codigo}`} end>Catálogo</NavLink>
             {sesion && <NavLink to={`/opac/${codigo}/mis-prestamos`}>Mis préstamos</NavLink>}
+            {sesion && <NavLink to={`/opac/${codigo}/cuenta`}>Mi cuenta</NavLink>}
           </nav>
         </div>
         <button
@@ -128,6 +163,7 @@ export default function OpacLayout({ children }) {
         {children}
       </main>
       {contenido && <PieOpac codigo={codigo} contenido={contenido} />}
+      <NavegacionInferior codigo={codigo} sesion={sesion} />
     </div>
   );
 }

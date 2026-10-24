@@ -1,95 +1,76 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import CatalogoPublico from "./CatalogoPublico.jsx";
 import { SocioAuthProvider } from "../../SocioAuthContext.jsx";
 import api from "../../api.js";
 
-// CatalogoPublico.jsx es la pantalla más compleja del OPAC (filtros
-// multi-select de tipo/materia/autor, paginación propia, y dos fetches en
-// cascada — el catálogo combinado de 10 buckets + el catálogo de
-// autoridades de autor de BIBL-1) y no tenía ningún test (ver FE-7 en
-// AUDITORIA.md).
+// El catálogo ya no filtra en el navegador: le pide al servidor una página
+// de resultados con los parámetros de la URL (ver backend/src/opac/
+// catalogo.js). Estos tests controlan que la URL, la llamada y lo que se ve
+// coincidan.
 vi.mock("../../api.js", () => ({
   urlPortada: (codigo, id, version) => (version ? `/portadas/${id}.webp?v=${version}` : null),
   default: {
-    opacCatalogo: vi.fn(),
-    opacCatalogoSeriadas: vi.fn(),
-    opacCatalogoRecursos: vi.fn(),
-    opacCatalogoMaterialSonoro: vi.fn(),
-    opacCatalogoMaterialAudiovisual: vi.fn(),
-    opacCatalogoMaterialCartografico: vi.fn(),
-    opacCatalogoMaterialGrafico: vi.fn(),
-    opacCatalogoMaterialDidactico: vi.fn(),
-    opacCatalogoArchivos: vi.fn(),
-    opacCatalogoObjetos: vi.fn(),
-    opacAutores: vi.fn(),
-    opacMaterias: vi.fn(),
+    opacBuscar: vi.fn(),
     opacYo: vi.fn(),
-    opacLoginSocio: vi.fn(),
-    opacLogoutSocio: vi.fn(),
-    opacSolicitarPrestamo: vi.fn(),
   },
 }));
 
 const FICCIONES = {
-  _id: "libro1",
+  id: "aaaaaaaaaaaaaaaaaaaaaaaa",
+  itemTipo: "Libro",
+  etiquetaTipo: "Libros",
+  segmento: "libro",
+  slug: "ficciones",
   titulo: "Ficciones",
+  subtitulo: "",
   autores: ["Borges, Jorge Luis"],
-  editorial: "Sudamericana",
+  extra: "Borges, Jorge Luis",
   anio: "1944",
-  isbn: "111",
-  materias: ["Cuentos"],
-  ejemplaresDisponibles: 1,
+  urlAcceso: "",
+  soloLectura: false,
+  circula: true,
+  disponibles: 1,
+  total: 1,
+  portada: null,
 };
 
-const ALEPH = {
-  _id: "libro2",
-  titulo: "El Aleph",
-  autores: ["Borges, J.L."],
-  editorial: "Losada",
-  anio: "1949",
-  isbn: "222",
-  materias: ["Cuentos"],
-  ejemplaresDisponibles: 0,
-};
-
-const REVISTA = {
-  _id: "seriada1",
-  titulo: "Revista de Pruebas",
-  autores: [],
-  editorial: "Editorial X",
-  periodicidad: "mensual",
-  issn: "1234-5678",
-  materias: ["Historia"],
-  ejemplaresDisponibles: 2,
-};
-
-function mockCatalogoVacioSalvo(overrides) {
-  api.opacCatalogo.mockResolvedValue(overrides.libros || []);
-  api.opacCatalogoSeriadas.mockResolvedValue(overrides.seriadas || []);
-  api.opacCatalogoRecursos.mockResolvedValue([]);
-  api.opacCatalogoMaterialSonoro.mockResolvedValue([]);
-  api.opacCatalogoMaterialAudiovisual.mockResolvedValue([]);
-  api.opacCatalogoMaterialCartografico.mockResolvedValue([]);
-  api.opacCatalogoMaterialGrafico.mockResolvedValue([]);
-  api.opacCatalogoMaterialDidactico.mockResolvedValue([]);
-  api.opacCatalogoArchivos.mockResolvedValue([]);
-  api.opacCatalogoObjetos.mockResolvedValue([]);
-  api.opacAutores.mockResolvedValue(overrides.autores || []);
-  api.opacMaterias.mockResolvedValue(overrides.materias || []);
+function respuesta({ resultados = [FICCIONES], total = resultados.length, pagina = 1, totalPaginas = 1 } = {}) {
+  return {
+    total,
+    pagina,
+    porPagina: 24,
+    totalPaginas,
+    resultados,
+    facetas: {
+      tipos: [
+        { valor: "Libro", etiqueta: "Libros", cantidad: 3 },
+        { valor: "Seriada", etiqueta: "Publicaciones seriadas", cantidad: 1 },
+        { valor: "Objeto", etiqueta: "Objetos", cantidad: 0 },
+      ],
+      autores: [{ valor: "Borges, Jorge Luis", cantidad: 2 }],
+      materias: [{ valor: "Cuentos", cantidad: 2 }],
+    },
+  };
 }
 
-function renderCatalogo() {
+function UbicacionActual() {
+  const location = useLocation();
+  return <output data-testid="ubicacion">{location.pathname + location.search}</output>;
+}
+
+function renderCatalogo(entrada = "/opac/escolar") {
   return render(
-    <MemoryRouter initialEntries={["/opac/bpsanjuan"]}>
+    <MemoryRouter initialEntries={[entrada]}>
       <Routes>
         <Route
           path="/opac/:codigo"
           element={
             <SocioAuthProvider>
               <CatalogoPublico />
+              <UbicacionActual />
             </SocioAuthProvider>
           }
         />
@@ -98,109 +79,72 @@ function renderCatalogo() {
   );
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  window.scrollTo = vi.fn();
-  api.opacYo.mockResolvedValue(null);
-});
+const ultimaConsulta = () => api.opacBuscar.mock.calls.at(-1)[1];
 
 describe("CatalogoPublico", () => {
-  it("combina los resultados de los dos fetches en cascada (catálogo + autoridades de autor) y muestra el total", async () => {
-    mockCatalogoVacioSalvo({ libros: [FICCIONES], seriadas: [REVISTA] });
-    renderCatalogo();
-
-    expect(await screen.findByText("Ficciones")).toBeInTheDocument();
-    expect(screen.getByText("Revista de Pruebas")).toBeInTheDocument();
-    expect(screen.getByText("2 resultado(s)")).toBeInTheDocument();
-    expect(api.opacAutores).toHaveBeenCalledWith("bpsanjuan");
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.opacYo.mockRejectedValue(new Error("401"));
+    api.opacBuscar.mockResolvedValue(respuesta());
   });
 
-  it("el filtro de tipo de ítem (multi-select) excluye los resultados de ese tipo", async () => {
-    mockCatalogoVacioSalvo({ libros: [FICCIONES], seriadas: [REVISTA] });
-    const user = userEvent.setup();
-    renderCatalogo();
-    await screen.findByText("Ficciones");
-
-    await user.click(screen.getByLabelText(/^Libros \(1\)/));
-
-    expect(screen.queryByText("Ficciones")).not.toBeInTheDocument();
-    expect(screen.getByText("Revista de Pruebas")).toBeInTheDocument();
-    expect(screen.getByText("1 resultado(s)")).toBeInTheDocument();
+  it("pide la búsqueda al servidor con los parámetros de la URL y muestra total y tarjetas con enlace a la ficha", async () => {
+    renderCatalogo("/opac/escolar?q=borges&tipo=Libro&orden=titulo");
+    expect(await screen.findByRole("link", { name: "Ficciones" })).toHaveAttribute(
+      "href",
+      "/opac/escolar/libro/ficciones-aaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    expect(api.opacBuscar).toHaveBeenCalledWith("escolar", "q=borges&tipo=Libro&orden=titulo");
+    expect(screen.getByText("1 resultado para «borges»")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Buscar por título/)).toHaveValue("borges");
+    expect(screen.getByLabelText("Ordenar por")).toHaveValue("titulo");
+    expect(screen.getByText("1 ejemplar disponible")).toBeInTheDocument();
   });
 
-  it("la paginación (24 por página) avanza a la página siguiente al hacer clic en Siguiente", async () => {
-    const muchosLibros = Array.from({ length: 25 }, (_, i) => ({
-      ...FICCIONES,
-      _id: `libro-${i}`,
-      titulo: `Libro ${String(i).padStart(2, "0")}`,
-    }));
-    mockCatalogoVacioSalvo({ libros: muchosLibros });
+  it("buscar actualiza la URL (sin la página) y vuelve a pedir", async () => {
     const user = userEvent.setup();
-    renderCatalogo();
-
-    await screen.findByText("25 resultado(s)");
-    expect(screen.getByText("Libro 00")).toBeInTheDocument();
-    expect(screen.queryByText("Libro 24")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /siguiente/i }));
-
-    expect(screen.getByText("Libro 24")).toBeInTheDocument();
-    expect(screen.queryByText("Libro 00")).not.toBeInTheDocument();
+    renderCatalogo("/opac/escolar?pagina=3");
+    await screen.findByRole("link", { name: "Ficciones" });
+    await user.type(screen.getByLabelText(/Buscar por título/), "aleph");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(screen.getByTestId("ubicacion")).toHaveTextContent("/opac/escolar?q=aleph");
+    expect(ultimaConsulta()).toBe("q=aleph");
   });
 
-  it("agrupa variantes de autor bajo la forma autorizada del catálogo de autoridades (ver BIBL-1)", async () => {
-    mockCatalogoVacioSalvo({
-      libros: [FICCIONES, ALEPH],
-      autores: [{ formaAutorizada: "Borges, Jorge Luis", variantes: ["Borges, J.L."] }],
-    });
+  it("las facetas suman y quitan filtros, con chips para sacarlos y 'Limpiar filtros'", async () => {
     const user = userEvent.setup();
     renderCatalogo();
-    await screen.findByText("Ficciones");
+    await screen.findByRole("link", { name: "Ficciones" });
+    expect(screen.queryByLabelText(/Objetos/)).not.toBeInTheDocument();
 
-    const facetaAutor = screen.getByRole("button", { name: "Borges, Jorge Luis (2)" });
-    expect(facetaAutor).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Borges, Jorge Luis (2)" }));
+    expect(ultimaConsulta()).toBe("autor=Borges%2C+Jorge+Luis");
+    await user.click(screen.getByLabelText("Publicaciones seriadas (1)"));
+    expect(ultimaConsulta()).toBe("autor=Borges%2C+Jorge+Luis&tipo=Seriada");
 
-    await user.click(facetaAutor);
-
-    expect(screen.getByText("Ficciones")).toBeInTheDocument();
-    expect(screen.getByText("El Aleph")).toBeInTheDocument();
-    expect(screen.getByText("2 resultado(s)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Autor: Borges, Jorge Luis/ }));
+    expect(ultimaConsulta()).toBe("tipo=Seriada");
+    await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+    expect(ultimaConsulta()).toBe("");
   });
 
-  it("agrupa variantes de materia bajo la forma autorizada del catálogo de autoridades (ver BIBL-3)", async () => {
-    const libroA = { ...FICCIONES, materias: ["Historia argentina"] };
-    const libroB = { ...ALEPH, materias: ["Historia de la Argentina"] };
-    mockCatalogoVacioSalvo({
-      libros: [libroA, libroB],
-      materias: [{ formaAutorizada: "Historia argentina", variantes: ["Historia de la Argentina"] }],
-    });
-    const user = userEvent.setup();
-    renderCatalogo();
-    await screen.findByText("Ficciones");
-
-    const facetaMateria = screen.getByRole("button", { name: "Historia argentina (2)" });
-    expect(facetaMateria).toBeInTheDocument();
-
-    await user.click(facetaMateria);
-
-    expect(screen.getByText("Ficciones")).toBeInTheDocument();
-    expect(screen.getByText("El Aleph")).toBeInTheDocument();
-    expect(screen.getByText("2 resultado(s)")).toBeInTheDocument();
+  it("paginación numerada con enlaces que conservan la búsqueda", async () => {
+    api.opacBuscar.mockResolvedValue(respuesta({ total: 120, pagina: 2, totalPaginas: 5 }));
+    renderCatalogo("/opac/escolar?q=libro&pagina=2");
+    const paginas = await screen.findByRole("navigation", { name: "Páginas de resultados" });
+    expect(within(paginas).getByText("2")).toHaveAttribute("aria-current", "page");
+    expect(within(paginas).getByRole("link", { name: "Página 5" })).toHaveAttribute("href", "/opac/escolar?q=libro&pagina=5");
+    expect(within(paginas).getByRole("link", { name: "Página 1" })).toHaveAttribute("href", "/opac/escolar?q=libro");
+    expect(within(paginas).getByRole("link", { name: "Siguiente" })).toHaveAttribute("href", "/opac/escolar?q=libro&pagina=3");
   });
 
-  it("abrir una tarjeta muestra el modal de detalle, y Escape lo cierra", async () => {
-    mockCatalogoVacioSalvo({ libros: [FICCIONES] });
+  it("sin resultados lo explica, y si falla deja reintentar", async () => {
+    api.opacBuscar.mockRejectedValueOnce(new Error("Error 503"));
     const user = userEvent.setup();
-    renderCatalogo();
-    await screen.findByText("Ficciones");
-
-    await user.click(screen.getByText("Ficciones"));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Sudamericana")).toBeInTheDocument();
-
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    renderCatalogo("/opac/escolar?q=zzz");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo buscar: Error 503");
+    api.opacBuscar.mockResolvedValue(respuesta({ resultados: [] }));
+    await user.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("No encontramos nada para «zzz».")).toBeInTheDocument();
   });
 });

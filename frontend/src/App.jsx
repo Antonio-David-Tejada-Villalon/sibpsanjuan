@@ -1,8 +1,9 @@
 import React, { Suspense, lazy } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
 import { SocioAuthProvider, useSocioAuth } from "./SocioAuthContext.jsx";
 import { ContenidoOpacProvider } from "./ContenidoOpacContext.jsx";
+import { SEGMENTOS } from "./opac.js";
 import { rutaPorRol } from "./rutaPorRol.js";
 import { obtenerBibliotecaActivaId } from "./bibliotecaActiva.js";
 import { useAvisoCargaLenta } from "./useAvisoCargaLenta.js";
@@ -42,6 +43,8 @@ const LoginSocio = lazy(() => import("./pages/opac/LoginSocio.jsx"));
 const MisPrestamos = lazy(() => import("./pages/opac/MisPrestamos.jsx"));
 const AvisoPrivacidad = lazy(() => import("./pages/opac/AvisoPrivacidad.jsx"));
 const PaginaOpac = lazy(() => import("./pages/opac/PaginaOpac.jsx"));
+const FichaMaterial = lazy(() => import("./pages/opac/FichaMaterial.jsx"));
+const CuentaSocio = lazy(() => import("./pages/opac/CuentaSocio.jsx"));
 const ContenidoOpac = lazy(() => import("./pages/ContenidoOpac.jsx"));
 
 // Sin este aviso, la demora inicial del free tier (ver useAvisoCargaLenta)
@@ -104,8 +107,10 @@ function RutaProtegida({ rolesPermitidos, requiereBibliotecaActiva, children }) 
 
 function RutaProtegidaSocio({ children }) {
   const { codigo, sesion } = useSocioAuth();
+  const location = useLocation();
   if (sesion === undefined) return <CargandoInicial />;
-  if (sesion === null) return <Navigate to={`/opac/${codigo}/login`} replace />;
+  // Después de ingresar vuelve a donde quería ir (ver LoginSocio).
+  if (sesion === null) return <Navigate to={`/opac/${codigo}/login?volver=${encodeURIComponent(location.pathname)}`} replace />;
   return children;
 }
 
@@ -127,6 +132,18 @@ function OpacApp() {
               <Route path="login" element={<LoginSocio />} />
               <Route path="privacidad" element={<AvisoPrivacidad />} />
               <Route path="pagina/:slug" element={<PaginaOpac />} />
+              {/* Ficha de cada material: /opac/<código>/<segmento>/<título>-<id> */}
+              {Object.entries(SEGMENTOS).map(([segmento, itemTipo]) => (
+                <Route key={segmento} path={`${segmento}/:slugId`} element={<FichaMaterial itemTipo={itemTipo} />} />
+              ))}
+              <Route
+                path="cuenta"
+                element={
+                  <RutaProtegidaSocio>
+                    <CuentaSocio />
+                  </RutaProtegidaSocio>
+                }
+              />
               <Route
                 path="mis-prestamos"
                 element={

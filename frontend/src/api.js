@@ -437,6 +437,9 @@ const api = {
   opacMisPrestamos: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-prestamos`),
   opacMisReglas: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-reglas`),
   opacContenido: (codigo) => apiFetch(`${BASE}/opac/${codigo}/contenido`),
+  // consulta: los parámetros de búsqueda tal como están en la URL del OPAC.
+  opacBuscar: (codigo, consulta) => apiFetch(`${BASE}/opac/${codigo}/buscar${consulta ? `?${consulta}` : ""}`),
+  opacFicha: (codigo, itemTipo, id) => apiFetch(`${BASE}/opac/${codigo}/items/${itemTipo}/${id}`),
   opacPagina: (codigo, slug) => apiFetch(`${BASE}/opac/${codigo}/paginas/${encodeURIComponent(slug)}`),
   opacMisSolicitudes: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-solicitudes`),
   opacSolicitarPrestamo: (codigo, itemTipo, itemId) =>

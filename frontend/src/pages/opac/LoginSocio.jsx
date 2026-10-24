@@ -1,11 +1,17 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import CampoPassword from "../../CampoPassword.jsx";
 
 export default function LoginSocio() {
   const { codigo, login } = useSocioAuth();
   const navigate = useNavigate();
+  // ?volver=: a dónde ir después de ingresar (ej. la ficha desde la que se
+  // quería pedir un libro). Solo rutas de este mismo OPAC: nunca un sitio
+  // externo ni otra biblioteca.
+  const [params] = useSearchParams();
+  const volver = params.get("volver") || "";
+  const destino = volver.startsWith(`/opac/${codigo}/`) && !volver.startsWith("//") ? volver : `/opac/${codigo}/mis-prestamos`;
   const [numeroSocio, setNumeroSocio] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,7 +23,7 @@ export default function LoginSocio() {
     setEnviando(true);
     try {
       await login(numeroSocio, password);
-      navigate(`/opac/${codigo}/mis-prestamos`);
+      navigate(destino);
     } catch (err) {
       setError(err.message);
       setEnviando(false);

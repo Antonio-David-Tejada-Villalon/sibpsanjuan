@@ -557,10 +557,9 @@ main:has(.catalogo-layout) { max-width: 1280px; }
   border-radius: var(--radius-md);
   padding: var(--space-3);
   background: var(--bg-elevado);
-  cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
-.tarjeta-catalogo:hover, .tarjeta-catalogo:focus-visible {
+.tarjeta-catalogo:hover, .tarjeta-catalogo:focus-within {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px var(--sombra);
   border-color: var(--brand);
@@ -1299,4 +1298,137 @@ html:has(.barra-contenido) { scroll-padding-bottom: 7rem; }
   margin: 0 auto;
   border: 1px solid var(--borde);
   background: var(--papel);
+}
+
+/* --- OPAC: búsqueda, tarjetas con enlace, paginación, ficha y cuenta --- */
+.buscador-opac label { display: block; margin-bottom: var(--space-1); }
+.buscador-opac__fila { display: flex; gap: var(--space-2); }
+.buscador-opac__fila input { flex: 1; min-width: 0; margin-top: 0; }
+.tarjeta-catalogo__titulo { margin: 0 0 var(--space-1); font-size: var(--text-base); }
+.tarjeta-catalogo__enlace { color: inherit; text-decoration: none; }
+/* El enlace del título cubre toda la tarjeta: un solo destino por tarjeta
+   para teclado y lector de pantalla, y toda el área clicable con el mouse. */
+.tarjeta-catalogo__enlace::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.tarjeta-catalogo__enlace:focus-visible { outline: none; }
+.tarjeta-catalogo:has(.tarjeta-catalogo__enlace:focus-visible) { outline: 2px solid var(--foco); outline-offset: 2px; }
+.tarjeta-catalogo__disponibilidad, .ficha-material__disponibilidad {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.es-disponible { color: var(--disponible); }
+.filtros-activos { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.chip-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 2px var(--space-3);
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  background: var(--brand-tenue);
+  color: var(--texto);
+  font-size: var(--text-sm);
+}
+.enlace-boton { background: none; border: none; padding: var(--space-1); color: var(--brand-texto); text-decoration: underline; font-size: var(--text-sm); }
+.paginacion { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-4) 0; }
+.paginacion a, .paginacion__actual {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  font-variant-numeric: tabular-nums;
+}
+.paginacion__actual { background: var(--marca); border-color: var(--marca); color: var(--sobre-marca); font-weight: 600; }
+.sin-resultados { padding: var(--space-4) 0; }
+.boton-filtros { display: none; align-items: center; gap: var(--space-1); }
+@media (max-width: 700px) {
+  .boton-filtros { display: inline-flex; justify-self: start; }
+  .catalogo-filtros { display: none; }
+  .catalogo-filtros.esta-abierto { display: block; }
+}
+
+.migas ol { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-3); padding: 0; list-style: none; font-size: var(--text-sm); }
+.migas li + li::before { content: "›"; margin-right: var(--space-1); color: var(--texto-tenue); }
+.migas [aria-current] { color: var(--texto-tenue); }
+.ficha-material__cuerpo { display: grid; grid-template-columns: minmax(140px, 240px) 1fr; gap: var(--space-5); }
+.ficha-material__portada { display: flex; flex-direction: column; gap: var(--space-1); }
+.ficha-material__info h1 { margin: var(--space-1) 0; }
+.ficha-material__subtitulo { margin: 0 0 var(--space-2); font-size: var(--text-lg); color: var(--texto-tenue); }
+.ficha-material__autores { margin: 0 0 var(--space-3); }
+.ficha-material__disponibilidad { font-weight: 600; }
+.ficha-material__acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
+.ficha-material__acciones button { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; }
+.boton-enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radio-control);
+  background: var(--marca);
+  color: var(--sobre-marca);
+  font-weight: 600;
+  text-decoration: none;
+}
+.boton-enlace.secundario { background: var(--superficie); color: var(--texto); border: 1px solid var(--borde-control); }
+.confirmar-pedido {
+  margin: var(--space-3) 0;
+  padding: var(--space-4);
+  background: var(--superficie);
+  border: 1px solid var(--brand);
+  border-radius: var(--radio-tarjeta);
+}
+.confirmar-pedido h2 { margin-top: 0; font-size: var(--text-lg); }
+.ficha-material__ejemplares ul { margin: 0; padding: 0; list-style: none; }
+.ficha-material__ejemplares li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--borde-tenue);
+  font-variant-numeric: tabular-nums;
+}
+.estado-ejemplar--disponible { color: var(--disponible); }
+.estado-ejemplar--reservado { color: var(--reservado); }
+.estado-ejemplar--prestado { color: var(--texto-tenue); }
+@media (max-width: 640px) {
+  .ficha-material__cuerpo { grid-template-columns: 1fr; }
+  .ficha-material__portada { width: 160px; }
+}
+.lista-pedidos { margin: 0; padding: 0; list-style: none; }
+.lista-pedidos li { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-bottom: 1px solid var(--borde-tenue); }
+
+/* Navegación inferior del OPAC en el celular (en escritorio va arriba). */
+.navegacion-inferior { display: none; }
+@media (max-width: 700px) {
+  .navegacion-inferior {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--ink);
+    border-top: 2px solid var(--brand);
+  }
+  .navegacion-inferior a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    color: #ffffff;
+    font-size: var(--text-xs);
+    text-decoration: none;
+  }
+  .navegacion-inferior a.active { color: var(--brand); font-weight: 600; }
+  .navegacion-inferior a:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; }
+  .marca-institucion { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
 }

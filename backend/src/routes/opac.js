@@ -447,8 +447,15 @@ router.post("/logout", (req, res) => {
 // --- A partir de acá, requiere sesión de socio de ESTA biblioteca ---
 router.use(requiereLoginSocio, requiereSocio);
 
-router.get("/yo", (req, res) => {
-  res.json({ numeroSocio: req.usuario.numeroSocio });
+// Los datos del propio socio para la sesión del OPAC: sin esto, después de
+// recargar la página el encabezado se quedaba sin nombre (el login sí los
+// devolvía, /yo no).
+router.get("/yo", async (req, res) => {
+  const socio = await Socio.findOne({ _id: req.usuario.id, bibliotecaId: req.biblioteca._id, eliminadoEn: null }).select(
+    "numeroSocio nombre apellido"
+  );
+  if (!socio) return res.status(401).json({ error: "La sesión ya no es válida." });
+  res.json({ numeroSocio: socio.numeroSocio, nombre: socio.nombre, apellido: socio.apellido });
 });
 
 // Reglas de la categoría del socio logueado (ver circulacion/categorias.js).

@@ -243,10 +243,35 @@ describe.
 - El OPAC vive en `/opac/<código-de-biblioteca>` (el código reemplaza al
   subdominio que tendría una instancia Koha real). El catálogo es **uno
   solo, unificado** (los 10 tipos de material combinados, como el
-  buscador de Koha) con filtros laterales por tipo de ítem, materia y
-  disponibilidad, "ordenar por" (relevancia/título/año), y portada por
-  ítem (ver "Portadas" abajo; sin portada se dibuja una tapa con título y
-  autor, nunca un recuadro gris).
+  buscador de Koha) y **la búsqueda la hace el servidor**
+  (`GET /opac/:codigo/buscar`, `backend/src/opac/catalogo.js`): el
+  navegador recibe una página de 24 resultados con sus facetas, no el
+  catálogo entero. Busca sin tildes ni mayúsculas en título, autores,
+  materias, ISBN/ISSN y editorial; filtra por tipo, autor, materia y
+  disponibilidad (facetas que agrupan las variantes bajo la forma
+  autorizada); ordena por relevancia, título, año o disponibilidad. El
+  índice vive 30 s en memoria (`OPAC_INDICE_TTL_MS`): un material recién
+  cargado tarda eso en aparecer. Texto, filtros, orden y página quedan
+  en la URL, así una búsqueda se comparte o se vuelve atrás con el
+  navegador, y la paginación es numerada con enlaces reales.
+- Cada material tiene **su propia ficha**:
+  `/opac/<código>/<tipo>/<título>-<id>` (ej. `/opac/escolar/libro/
+  martin-fierro-…`), con migas de pan, datos públicos (lista blanca por
+  tipo; nunca códigos de barras), portada, materias y autores enlazados
+  a la búsqueda, signatura y estado de cada ejemplar, y botón Compartir.
+  Si el título cambia, la dirección vieja redirige a la nueva.
+- **Pedir un préstamo** se hace desde la ficha y pide confirmación
+  mostrando antes las reglas de la categoría del socio (días,
+  renovaciones, cuántos tiene en curso sobre su máximo); en el tope no
+  deja confirmar. Sin conexión, el botón se deshabilita y lo explica. Sin
+  sesión, "Ingresá para pedirlo" vuelve a la ficha después del login.
+- En el celular, la navegación va **abajo** (Inicio, Buscar, Préstamos y
+  Cuenta/Ingresar) y los filtros se abren con un botón; en escritorio,
+  arriba. "Mi cuenta" reúne los datos del socio, sus reglas y sus
+  **pedidos** con estado en palabras (pendiente, aprobado, rechazado y la
+  nota de la biblioteca).
+- Portada por ítem (ver "Portadas" abajo; sin portada se dibuja una tapa
+  con título y autor, nunca un recuadro gris).
 - **Contenido del OPAC (CMS)** — pantalla "Contenido del OPAC" del panel,
   `routes/contenido.js`, `models/ContenidoOpac.js`:
   - El OPAC lleva la identidad de la institución: nombre, nombre legal,
