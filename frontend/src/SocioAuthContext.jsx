@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "./api.js";
+import { limpiarDatosGuardados } from "./pwa.js";
 
 const SocioAuthContext = createContext(null);
 
@@ -24,6 +25,7 @@ export function SocioAuthProvider({ children }) {
 
   async function logout() {
     await api.opacLogoutSocio(codigo);
+    limpiarDatosGuardados();
     setSesion(null);
   }
 

@@ -10,6 +10,8 @@ import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useAvisoCargaLenta } from "../../useAvisoCargaLenta.js";
 import { textoDisponibilidad, urlFicha } from "../../opac.js";
 import { useMetadatos } from "../../metadatos.js";
+import { usePreferencias } from "../../preferencias.js";
+import InstalarApp from "../../InstalarApp.jsx";
 
 // Catálogo público. La búsqueda la hace el servidor (ver
 // backend/src/opac/catalogo.js): el navegador pide una página de resultados
@@ -106,6 +108,7 @@ function Paginacion({ pagina, totalPaginas, hrefDe }) {
 export default function CatalogoPublico() {
   const { codigo } = useSocioAuth();
   const { contenido } = useContenidoOpac();
+  const { ahorro } = usePreferencias();
   const tardando = useAvisoCargaLenta();
   const [params, setParams] = useSearchParams();
   const [datos, setDatos] = useState(null); // la última respuesta (se conserva mientras carga la siguiente)
@@ -147,15 +150,16 @@ export default function CatalogoPublico() {
     let vigente = true;
     setCargando(true);
     setError("");
+    // Con ahorro de datos, la mitad de resultados por página.
     api
-      .opacBuscar(codigo, consulta)
+      .opacBuscar(codigo, ahorro ? [consulta, "porPagina=12"].filter(Boolean).join("&") : consulta)
       .then((r) => vigente && setDatos(r))
       .catch((err) => vigente && setError(err.message))
       .finally(() => vigente && setCargando(false));
     return () => {
       vigente = false;
     };
-  }, [codigo, consulta, intento]);
+  }, [codigo, consulta, intento, ahorro]);
 
   // Cambiar un filtro vuelve a la página 1 (la 4 de antes puede no existir).
   function cambiar(cambio) {
@@ -199,6 +203,7 @@ export default function CatalogoPublico() {
     <>
       <h1>Catálogo</h1>
       <AvisosOpac />
+      {!consulta && <InstalarApp />}
 
       <form className="card buscador-opac" role="search" onSubmit={onBuscar}>
         <label htmlFor="busqueda-opac">Buscar por título, autor, materia o ISBN</label>

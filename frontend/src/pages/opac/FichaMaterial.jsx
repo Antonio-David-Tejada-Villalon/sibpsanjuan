@@ -6,6 +6,7 @@ import Portada from "../../Portada.jsx";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { idDeDireccion, textoDisponibilidad, urlFicha, useEnLinea, SIN_CONEXION } from "../../opac.js";
 import { useMetadatos } from "../../metadatos.js";
+import { usePreferencias } from "../../preferencias.js";
 
 // Ficha pública de un material, con dirección propia
 // (/opac/<código>/<segmento>/<título>-<id>): se puede compartir, guardar y
@@ -124,6 +125,9 @@ export default function FichaMaterial({ itemTipo }) {
   }, [codigo, itemTipo, id]);
 
   useMetadatos(ficha?.seo);
+  // Con ahorro de datos, la portada de 120 px también en la ficha.
+  const { ahorro } = usePreferencias();
+  const tamanoPortada = ahorro ? "miniatura" : "grande";
 
   async function abrirConfirmacion() {
     setConfirmando(true);
@@ -207,10 +211,10 @@ export default function FichaMaterial({ itemTipo }) {
       <div className="ficha-material__cuerpo">
         <div className="ficha-material__portada">
           <Portada
-            src={urlPortada(codigo, ficha.id, ficha.portada, "grande")}
+            src={urlPortada(codigo, ficha.id, ficha.portada, tamanoPortada)}
             titulo={ficha.titulo}
             autor={ficha.autores[0]}
-            tamano="grande"
+            tamano={tamanoPortada}
             decorativa={false}
           />
           {credito && (

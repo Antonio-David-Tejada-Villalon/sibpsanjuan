@@ -1432,3 +1432,98 @@ html:has(.barra-contenido) { scroll-padding-bottom: 7rem; }
   .navegacion-inferior a:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; }
   .marca-institucion { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
 }
+
+/* --- App instalable y preferencias (ver pwa.js, preferencias.js) --- */
+
+/* Avisos de toda la app: sin conexión (y de cuándo es lo guardado) y
+   versión nueva. Arriba de todo, en el flujo de la página. */
+.estado-app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+.estado-app span { flex: 1 1 16rem; }
+.estado-app button { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 2.25rem; }
+.estado-app--sin-conexion { background: var(--reservado-fondo); color: var(--reservado); }
+.estado-app--version { background: var(--ink); color: #ffffff; }
+
+/* Preferencias: botón junto al selector de tema y un panel desplegable. */
+.preferencias { position: relative; }
+.preferencias__boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  background: var(--superficie-sutil);
+  color: var(--texto-secundario);
+}
+.preferencias__boton--sobre-tinta { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.85); }
+.preferencias__boton--sobre-tinta:hover { filter: none; background: rgba(255, 255, 255, 0.15); color: #ffffff; }
+.preferencias__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: var(--space-3);
+  width: min(20rem, calc(100vw - 2rem));
+  padding: var(--space-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: var(--sombra-flotante);
+  text-align: left;
+}
+.preferencias__opcion { display: flex; gap: var(--space-3); align-items: flex-start; cursor: pointer; }
+.preferencias__opcion input { width: 1.25rem; height: 1.25rem; margin: 0.15rem 0 0; flex: none; accent-color: var(--marca); }
+.preferencias__opcion span { display: grid; gap: 2px; }
+.preferencias__opcion small { color: var(--texto-secundario); font-size: var(--text-xs); }
+.preferencias__automatico { justify-self: start; margin-top: calc(-1 * var(--space-2)); }
+
+/* Aviso para instalar el catálogo como app. */
+.instalar-app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radio-control);
+  background: var(--superficie);
+}
+.instalar-app h2 { margin: 0 0 var(--space-1); font-size: var(--text-lg); }
+.instalar-app p { margin: 0; color: var(--texto-secundario); }
+.instalar-app__texto { flex: 1 1 18rem; }
+.instalar-app__pasos { margin: var(--space-2) 0 0; padding-left: 1.25rem; }
+.instalar-app__pasos svg { vertical-align: -3px; }
+.instalar-app__acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.instalar-app__acciones button { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 2.75rem; }
+
+/* Ahorro de datos: fuentes del sistema (las tipografías ni se descargan,
+   porque nada las usa) y sin animaciones. Las portadas chicas y la página
+   de 12 resultados los deciden FichaMaterial y CatalogoPublico. */
+:root[data-ahorro="1"] {
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --dur-rapida: 0ms;
+  --dur-regular: 0ms;
+  --dur-modal: 0ms;
+}
+/* "Reducir movimiento" o ahorro de datos: además de las duraciones en 0,
+   fuera las animaciones con fotogramas (aparecer, desvanecer), igual que
+   con prefers-reduced-motion. */
+:root[data-movimiento="reducido"] *,
+:root[data-ahorro="1"] * {
+  animation: none !important;
+}

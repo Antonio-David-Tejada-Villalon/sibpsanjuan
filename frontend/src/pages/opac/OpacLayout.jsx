@@ -6,6 +6,7 @@ import { useContenidoOpac } from "../../ContenidoOpacContext.jsx";
 import { useFocoEnRuta } from "../../useFocoEnRuta.js";
 import { cssDeMarca } from "../../marca.js";
 import SelectorTema from "../../SelectorTema.jsx";
+import Preferencias from "../../Preferencias.jsx";
 
 // Mismo origen que usa api.js: vacío salvo que el frontend se sirva aparte.
 const ORIGEN_API = import.meta.env.VITE_API_URL || "";
@@ -92,6 +93,17 @@ export default function OpacLayout({ children }) {
     setMenuAbierto(false);
   }, [location.pathname]);
 
+  // Instalado desde el catálogo, abre el catálogo de ESTA biblioteca, con su
+  // nombre (manifest dinámico, ver backend/src/routes/opac.js). Al salir
+  // del OPAC vuelve el del panel.
+  useEffect(() => {
+    const enlace = document.head.querySelector('link[rel="manifest"]');
+    if (!enlace) return undefined;
+    const anterior = enlace.getAttribute("href");
+    enlace.setAttribute("href", `${ORIGEN_API}/api/v1/opac/${codigo}/manifest.webmanifest`);
+    return () => enlace.setAttribute("href", anterior);
+  }, [codigo]);
+
   const identidad = contenido?.identidad;
   const nombre = identidad?.nombre || "Catálogo de la biblioteca";
   // La barra superior siempre es oscura: primero el logo para fondo oscuro.
@@ -119,7 +131,7 @@ export default function OpacLayout({ children }) {
             {logo ? (
               <img src={`${ORIGEN_API}${logo}`} alt="" className="brand__logo" height="32" />
             ) : (
-              <img src="/logo.png" alt="" width="28" height="28" />
+              <img src="/logo-64.png" alt="" width="28" height="28" />
             )}
             <span className="brand__nombre">{contenido ? nombre : ""}</span>
             <span className="badge-opac">Catálogo</span>
@@ -141,6 +153,7 @@ export default function OpacLayout({ children }) {
         </button>
         <div className="header-derecha">
           <SelectorTema sobreTinta compacto />
+          <Preferencias sobreTinta />
           {sesion === undefined ? null : sesion ? (
             <span className="sesion-usuario">
               {sesion.nombre} {sesion.apellido}

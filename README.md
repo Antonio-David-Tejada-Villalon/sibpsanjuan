@@ -271,6 +271,22 @@ describe.
   ingreso, la cuenta, los préstamos, las búsquedas con filtros y la API
   responden `X-Robots-Tag: noindex`. Detalles y cómo registrar el sitio
   en Google/Bing: "Buscadores" en `DEPLOY.md`.
+- **App instalable y sin conexión** (`frontend/src/service-worker/sw.js`,
+  `pwa.js`): cada catálogo tiene su manifest (nombre y logo cuadrado del
+  CMS, abre en su `/opac/<código>/`), con un aviso propio para instalarlo
+  y los pasos para iPhone. El service worker precarga el catálogo público
+  (unos 100 KB comprimidos) y guarda, al usarlos, portadas, la identidad,
+  las páginas, las fichas miradas y el listado sin búsqueda. Sin conexión
+  esa información se muestra con la fecha real en que se guardó y
+  "Reintentar"; pedir o renovar se deshabilita. **Nunca** se guardan
+  sesiones, datos de socios, préstamos, pedidos, búsquedas con texto ni
+  nada del panel, y al cerrar sesión se borra lo guardado del catálogo.
+  Las versiones nuevas avisan "Hay una versión nueva. Actualizar".
+- **Preferencias del dispositivo** (botón junto al tema): "Ahorro de
+  datos", que se activa solo si el dispositivo lo pide (`Save-Data`):
+  fuentes del sistema (no se descargan las tipografías), portadas de
+  120 px, 12 resultados por página y sin animaciones. Y "Reducir
+  movimiento".
 - **Pedir un préstamo** se hace desde la ficha y pide confirmación
   mostrando antes las reglas de la categoría del socio (días,
   renovaciones, cuántos tiene en curso sobre su máximo); en el tope no
@@ -509,7 +525,9 @@ describe.
 ### Identidad visual y accesibilidad
 
 El ícono (`frontend/public/logo.png`, con el favicon derivado del mismo
-archivo — ver `frontend/public/favicon*.png/.ico` y `apple-touch-icon.png`)
+archivo — ver `frontend/public/favicon*.png/.ico` y `apple-touch-icon.png`;
+en pantalla se usan sus copias chicas `logo-64.png`, `logo-128.png` y
+`logo-light-128.png`, de 3 a 6 KB en vez de 140)
 y el color de marca (naranja `#ff8300`, tomado de ese mismo logo) se usan
 a propósito en pocos puntos — el logo, la acción principal de cada
 pantalla, enlaces y el foco de teclado — no como color de fondo general.

@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet, cacheInvalidate } from "./cache.js";
+import { registrarOrigenDeRespuesta } from "./pwa.js";
 import { obtenerBibliotecaActivaId } from "./bibliotecaActiva.js";
 
 // Base versionada (ver ARQ-5 en la auditoría) — /api/... sin versión sigue
@@ -52,6 +53,9 @@ async function apiFetch(url, opciones = {}) {
       await new Promise((r) => setTimeout(r, 1000 * (intento + 1)));
     }
   }
+  // Si vino de lo guardado en el dispositivo (sin conexión), la pantalla
+  // avisa de qué fecha es (ver pwa.js y el service worker).
+  registrarOrigenDeRespuesta(res);
   let cuerpo = null;
   const texto = await res.text();
   if (texto) {

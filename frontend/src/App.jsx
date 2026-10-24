@@ -8,6 +8,7 @@ import { rutaPorRol } from "./rutaPorRol.js";
 import { obtenerBibliotecaActivaId } from "./bibliotecaActiva.js";
 import { useAvisoCargaLenta } from "./useAvisoCargaLenta.js";
 import Layout from "./Layout.jsx";
+import EstadoConexion from "./EstadoConexion.jsx";
 import OpacLayout from "./pages/opac/OpacLayout.jsx";
 
 // Cada página del panel/OPAC en su propio chunk (ver FE-6 en AUDITORIA.md):
@@ -363,6 +364,7 @@ function Rutas() {
 export default function App() {
   return (
     <AuthProvider>
+      <EstadoConexion />
       <Rutas />
     </AuthProvider>
   );

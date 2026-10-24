@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -28,8 +31,48 @@ function robotsTxt() {
   };
 }
 
+// /sw.js (ver src/service-worker/sw.js) con la lista de lo que se precarga:
+// index.html y el JS/CSS del catálogo público (la entrada y las páginas de
+// src/pages/opac, con lo que importan). El panel y las tipografías se
+// guardan recién cuando se usan: a un alumno con datos móviles no se le
+// descarga lo que no va a abrir. La versión cambia cuando cambia algún
+// archivo, y eso es lo que hace aparecer "Hay una versión nueva".
+function serviceWorker() {
+  return {
+    name: "service-worker",
+    apply: "build",
+    enforce: "post",
+    generateBundle(_opciones, bundle) {
+      const chunks = Object.values(bundle).filter((c) => c.type === "chunk");
+      const porNombre = new Map(chunks.map((c) => [c.fileName, c]));
+      const archivos = new Set();
+      const agregar = (chunk) => {
+        if (!chunk || archivos.has(chunk.fileName)) return;
+        archivos.add(chunk.fileName);
+        for (const css of chunk.viteMetadata?.importedCss ?? []) archivos.add(css);
+        for (const importado of chunk.imports) agregar(porNombre.get(importado));
+      };
+      for (const chunk of chunks) {
+        if (chunk.isEntry || /[\\/]pages[\\/]opac[\\/]/.test(chunk.facadeModuleId ?? "")) agregar(chunk);
+      }
+      // logo-64.png: el del encabezado cuando la institución no cargó el suyo.
+      const precarga = ["/index.html", "/logo-64.png", ...[...archivos].sort().map((f) => `/${f}`)];
+      const version = createHash("sha256").update(precarga.join("\n")).digest("hex").slice(0, 12);
+      let fuente = readFileSync(fileURLToPath(new URL("./src/service-worker/sw.js", import.meta.url)), "utf8");
+      for (const [marca, valor] of [
+        ['const VERSION = "__VERSION__";', `const VERSION = ${JSON.stringify(version)};`],
+        ["const PRECARGA = __PRECARGA__;", `const PRECARGA = ${JSON.stringify(precarga)};`],
+      ]) {
+        if (!fuente.includes(marca)) this.error(`sw.js: falta "${marca}"`);
+        fuente = fuente.replace(marca, () => valor);
+      }
+      this.emitFile({ type: "asset", fileName: "sw.js", source: fuente });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), robotsTxt()],
+  plugins: [react(), robotsTxt(), serviceWorker()],
   server: {
     // host explícito en 127.0.0.1: en algunos entornos Windows, "localhost"
     // resuelve primero a ::1 (IPv6) y curl/navegadores apuntando a

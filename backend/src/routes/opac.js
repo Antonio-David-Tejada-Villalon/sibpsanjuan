@@ -19,7 +19,7 @@ import Solicitud from "../models/Solicitud.js";
 import Prestamo from "../models/Prestamo.js";
 import Portada from "../models/Portada.js";
 import ImagenCms from "../models/ImagenCms.js";
-import { contenidoPublico } from "../contenido/publico.js";
+import { contenidoPublico, urlImagenCms } from "../contenido/publico.js";
 import { datosPublicados } from "../contenido/publicado.js";
 import { metadatosDeFicha, metadatosDeInicio, metadatosDePagina, origenPublico, origenDeLaApi } from "../seo/metadatos.js";
 import { TIPOS, ORDENES, buscarEnCatalogo, fichaDeMaterial, titulosDe } from "../opac/catalogo.js";
@@ -430,6 +430,46 @@ router.get("/imagenes/:archivo", async (req, res) => {
   res.set("Cache-Control", "public, max-age=31536000, immutable");
   imagenParaElFrontend(res);
   res.send(imagen.datos);
+});
+
+// Manifest de la app instalable de ESTE catálogo (ver frontend/src/pwa.js):
+// con el nombre de la institución, y que abra directo en su OPAC. El logo
+// cuadrado del CMS es el ícono si es cuadrado de verdad y de al menos
+// 192 px; si no, los de SIBPSANJUAN.
+const ICONOS_PREDETERMINADOS = [
+  { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+  { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+  { src: "/icon-192-maskable.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+  { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+];
+
+router.get("/manifest.webmanifest", async (req, res) => {
+  const { datos } = await datosPublicados(req.biblioteca);
+  const { codigo } = req.biblioteca;
+  const nombre = datos.identidad.nombre || req.biblioteca.nombre;
+  const idLogo = datos.identidad.logos?.cuadrado;
+  const logo = idLogo && (await ImagenCms.findOne({ _id: idLogo, bibliotecaId: req.biblioteca._id }).select("ancho alto"));
+  const iconos = [...ICONOS_PREDETERMINADOS];
+  if (logo && logo.ancho === logo.alto && logo.ancho >= 192) {
+    iconos.unshift({ src: urlImagenCms(codigo, idLogo), sizes: `${logo.ancho}x${logo.alto}`, type: "image/webp", purpose: "any" });
+  }
+  res.type("application/manifest+json");
+  res.set("Cache-Control", "public, max-age=3600");
+  res.send(
+    JSON.stringify({
+      id: `/opac/${codigo}/`,
+      name: nombre,
+      short_name: "Biblioteca",
+      description: `Catálogo de la biblioteca de ${nombre}.`,
+      lang: "es-AR",
+      start_url: `/opac/${codigo}/`,
+      scope: `/opac/${codigo}/`,
+      display: "standalone",
+      background_color: "#faf8f5",
+      theme_color: "#1f2937",
+      icons: iconos,
+    })
+  );
 });
 
 // --- Login del socio ---

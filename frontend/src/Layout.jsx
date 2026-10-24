@@ -6,6 +6,7 @@ import { useFocoEnRuta } from "./useFocoEnRuta.js";
 import api from "./api.js";
 import { obtenerBibliotecaActivaId, fijarBibliotecaActivaId } from "./bibliotecaActiva.js";
 import SelectorTema from "./SelectorTema.jsx";
+import Preferencias from "./Preferencias.jsx";
 
 const MATERIALES = [
   { to: "/libros", etiqueta: "Libros" },
@@ -193,7 +194,7 @@ export default function Layout({ children }) {
       <header className={menuAbierto ? "app menu-abierto" : "app"}>
         <div className="brand-nav">
           <NavLink to="/dashboard" className="brand">
-            <img src="/logo.png" alt="" width="28" height="28" />
+            <img src="/logo-64.png" alt="" width="28" height="28" />
             SIBPSANJUAN
           </NavLink>
           <nav>
@@ -228,6 +229,7 @@ export default function Layout({ children }) {
           <div className="header-derecha">
             {(sesion.rol === "admin" || sesion.rol === "supervisor") && <SelectorBibliotecaActiva />}
             <SelectorTema sobreTinta compacto />
+            <Preferencias sobreTinta />
             <span className="sesion-usuario">
               {sesion.usuario}
               <Link to="/cambiar-password">Mi perfil</Link>

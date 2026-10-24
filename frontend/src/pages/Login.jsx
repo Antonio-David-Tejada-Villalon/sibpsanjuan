@@ -33,8 +33,8 @@ export default function Login() {
       </div>
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: 360, margin: "3rem auto" }}>
         <div className="login-marca">
-          <img src="/logo-light.png" alt="" width="64" height="64" className="logo-light" />
-          <img src="/logo.png" alt="" width="64" height="64" className="logo-dark" />
+          <img src="/logo-light-128.png" alt="" width="64" height="64" className="logo-light" />
+          <img src="/logo-128.png" alt="" width="64" height="64" className="logo-dark" />
           <h1>SIBPSANJUAN</h1>
         </div>
         {error && <div className="flash error" role="alert">{error}</div>}

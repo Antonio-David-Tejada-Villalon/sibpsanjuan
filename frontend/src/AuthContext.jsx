@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "./api.js";
 import { limpiarBibliotecaActiva } from "./bibliotecaActiva.js";
+import { cacheInvalidate } from "./cache.js";
+import { limpiarDatosGuardados } from "./pwa.js";
 
 const AuthContext = createContext(null);
 
@@ -23,6 +25,10 @@ export function AuthProvider({ children }) {
   async function logout() {
     await api.logout();
     limpiarBibliotecaActiva();
+    // Las listas leídas hace segundos (socios, préstamos) no pueden llegarle
+    // a quien ingrese después en esta misma pestaña.
+    cacheInvalidate("");
+    limpiarDatosGuardados();
     setSesion(null);
   }
 

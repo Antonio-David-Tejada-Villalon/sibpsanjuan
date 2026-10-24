@@ -4011,3 +4011,55 @@ test("SEO: fichas con <head> propio, redirección al título nuevo, sitemaps, ro
   res = await pedir("/opac/bpseo/sitemap.xml?pagina=2");
   assert.equal(res.status, 404);
 });
+
+test("app instalable: manifest de cada catálogo con el nombre y el logo cuadrado de la institución", async (t) => {
+  const server = app.listen(0);
+  const base = `${"http"}://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bppwa");
+  const manifest = async () => {
+    const res = await fetch(`${base}/api/v1/opac/bppwa/manifest.webmanifest`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type"), /application\/manifest\+json/);
+    return res.json();
+  };
+
+  // --- sin nada publicado: el nombre de la biblioteca y los íconos de SIBPSANJUAN ---
+  let m = await manifest();
+  assert.equal(m.name, "Biblioteca bppwa");
+  assert.equal(m.id, "/opac/bppwa/");
+  assert.equal(m.start_url, "/opac/bppwa/");
+  assert.equal(m.scope, "/opac/bppwa/");
+  assert.equal(m.display, "standalone");
+  assert.deepEqual(m.icons.map((i) => i.src), ["/icon-192.png", "/icon-512.png", "/icon-192-maskable.png", "/icon-512-maskable.png"]);
+
+  // --- con un logo cuadrado publicado, es el primer ícono; uno apaisado no sirve de ícono ---
+  const subir = async (ancho, alto) => {
+    const png = await sharp({ create: { width: ancho, height: alto, channels: 4, background: "#ff8300" } }).png().toBuffer();
+    const res = await fetch(`${base}/api/contenido/imagenes`, { method: "POST", headers: { Cookie: b.cookie, "Content-Type": "image/png" }, body: png });
+    assert.equal(res.status, 201);
+    return res.json();
+  };
+  const publicarConLogo = async (logo) => {
+    const { datos } = await (await b.enviar("GET", "/contenido/borrador")).json();
+    datos.identidad.nombre = "Colegio San Juan Bautista";
+    datos.identidad.logos.cuadrado = logo.id;
+    assert.equal((await b.enviar("PUT", "/contenido/borrador", { datos })).status, 200);
+    assert.equal((await b.enviar("POST", "/contenido/borrador/publicar")).status, 200);
+  };
+
+  const cuadrado = await subir(600, 600);
+  await publicarConLogo(cuadrado);
+  m = await manifest();
+  assert.equal(m.name, "Colegio San Juan Bautista");
+  assert.deepEqual(m.icons[0], { src: `/api/v1/opac/bppwa/imagenes/${cuadrado.id}.webp`, sizes: "512x512", type: "image/webp", purpose: "any" });
+
+  const apaisado = await subir(800, 300);
+  await publicarConLogo(apaisado);
+  m = await manifest();
+  assert.equal(m.icons[0].src, "/icon-192.png");
+
+  // --- una biblioteca que no existe no tiene manifest ---
+  assert.equal((await fetch(`${base}/api/v1/opac/noexiste/manifest.webmanifest`)).status, 404);
+});

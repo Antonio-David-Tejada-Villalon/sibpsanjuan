@@ -30,6 +30,11 @@
       "continue": true
     },
     {
+      "src": "/sw\\.js",
+      "headers": { "Cache-Control": "no-cache" },
+      "continue": true
+    },
+    {
       "src": "/api/(.*)",
       "dest": "${API_URL}/api/$1",
       "env": ["API_URL"],
