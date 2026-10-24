@@ -335,6 +335,14 @@ router.get("/materias", async (req, res) => {
 // pueden quedar guardadas más allá de lo que permite su caché (expiraEn).
 const TAMANOS_PORTADA = { "grande.webp": "grande", "miniatura.webp": "miniatura" };
 
+// Helmet manda Cross-Origin-Resource-Policy: same-origin, que con el
+// frontend en otro sitio (Vercel + Render, ver DEPLOY.md) hace que el
+// navegador no muestre portadas ni logos. Solo en ese caso se abre, y solo
+// para estas imágenes públicas.
+function imagenParaElFrontend(res) {
+  if (process.env.FRONTEND_URL) res.set("Cross-Origin-Resource-Policy", "cross-origin");
+}
+
 router.get("/portadas/:itemId/:archivo", async (req, res) => {
   const tamano = TAMANOS_PORTADA[req.params.archivo];
   if (!tamano || !esIdValido(req.params.itemId)) {
@@ -352,6 +360,7 @@ router.get("/portadas/:itemId/:archivo", async (req, res) => {
   const segundos = req.query.v === portada.version ? Math.min(UN_ANIO, hastaQueVence) : Math.min(300, hastaQueVence);
   res.set("Content-Type", "image/webp");
   res.set("Cache-Control", `public, max-age=${segundos}${segundos === UN_ANIO ? ", immutable" : ""}`);
+  imagenParaElFrontend(res);
   res.send(portada[tamano]);
 });
 
@@ -415,6 +424,7 @@ router.get("/imagenes/:archivo", async (req, res) => {
   if (!imagen) return res.status(404).json({ error: "Imagen no encontrada." });
   res.set("Content-Type", "image/webp");
   res.set("Cache-Control", "public, max-age=31536000, immutable");
+  imagenParaElFrontend(res);
   res.send(imagen.datos);
 });
 

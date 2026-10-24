@@ -76,8 +76,12 @@ export function setCookieSesion(res, token) {
   res.cookie(COOKIE_STAFF, token, opcionesCookie());
 }
 
+// Con los mismos atributos con que se creó: con el frontend en otro sitio
+// (SameSite=None), un borrado sin ellos llega como cookie "Lax" en una
+// respuesta cross-site y el navegador lo descarta — la sesión seguía viva
+// después de "Salir". Express 5 ignora maxAge acá.
 export function limpiarCookieSesion(res) {
-  res.clearCookie(COOKIE_STAFF);
+  res.clearCookie(COOKIE_STAFF, opcionesCookie());
 }
 
 export function setCookieSesionSocio(res, token) {
@@ -85,7 +89,7 @@ export function setCookieSesionSocio(res, token) {
 }
 
 export function limpiarCookieSesionSocio(res) {
-  res.clearCookie(COOKIE_SOCIO);
+  res.clearCookie(COOKIE_SOCIO, opcionesCookie());
 }
 
 function middlewareLogin(nombreCookie) {
