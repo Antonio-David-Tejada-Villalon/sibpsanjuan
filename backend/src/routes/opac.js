@@ -18,6 +18,10 @@ import Socio from "../models/Socio.js";
 import Solicitud from "../models/Solicitud.js";
 import Prestamo from "../models/Prestamo.js";
 import Portada from "../models/Portada.js";
+import ContenidoOpac from "../models/ContenidoOpac.js";
+import ImagenCms from "../models/ImagenCms.js";
+import { contenidoInicial } from "../contenido/validar.js";
+import { contenidoPublico } from "../contenido/publico.js";
 import { filtroVigente } from "../portadas/servicio.js";
 import {
   firmarTokenSocio,
@@ -347,6 +351,40 @@ router.get("/portadas/:itemId/:archivo", async (req, res) => {
   res.set("Content-Type", "image/webp");
   res.set("Cache-Control", `public, max-age=${segundos}${segundos === UN_ANIO ? ", immutable" : ""}`);
   res.send(portada[tamano]);
+});
+
+// --- Contenido publicado desde el CMS (ver routes/contenido.js) ---
+
+async function datosPublicados(biblioteca) {
+  const publicada = await ContenidoOpac.findOne({ bibliotecaId: biblioteca._id, estado: "publicada" }).select("datos version");
+  return { datos: publicada?.datos ?? contenidoInicial(biblioteca), version: publicada?.version ?? null };
+}
+
+// Identidad, contacto, avisos vigentes e índice de páginas. Mientras la
+// biblioteca no publique nada: su nombre y el acento del sistema de diseño.
+router.get("/contenido", async (req, res) => {
+  const { datos, version } = await datosPublicados(req.biblioteca);
+  res.set("Cache-Control", "public, max-age=60");
+  res.json({ ...contenidoPublico(datos, req.biblioteca.codigo), version });
+});
+
+router.get("/paginas/:slug", async (req, res) => {
+  const { datos } = await datosPublicados(req.biblioteca);
+  const pagina = datos.paginas.find((p) => p.slug && p.slug === req.params.slug);
+  if (!pagina) return res.status(404).json({ error: "Página no encontrada." });
+  res.set("Cache-Control", "public, max-age=60");
+  res.json(pagina);
+});
+
+// Logos del CMS: nunca cambian (una imagen nueva es otro id), así que se
+// pueden guardar en caché un año.
+router.get("/imagenes/:archivo", async (req, res) => {
+  const [, id] = /^([0-9a-f]{24})\.webp$/.exec(req.params.archivo) || [];
+  const imagen = id && (await ImagenCms.findOne({ _id: id, bibliotecaId: req.biblioteca._id }).select("datos"));
+  if (!imagen) return res.status(404).json({ error: "Imagen no encontrada." });
+  res.set("Content-Type", "image/webp");
+  res.set("Cache-Control", "public, max-age=31536000, immutable");
+  res.send(imagen.datos);
 });
 
 // --- Login del socio ---

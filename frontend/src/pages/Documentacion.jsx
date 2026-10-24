@@ -441,6 +441,13 @@ export default function Documentacion() {
           una instancia Koha real. Desde el panel de Bibliotecas, el botón <strong>"Ver OPAC"</strong> en cada
           tarjeta lo abre directo en una pestaña nueva.
         </p>
+        <p>
+          Lo que el catálogo muestra de la institución se carga en <strong>Contenido del OPAC</strong>: nombre,
+          logos, color de acento (el sistema avisa si el texto no se va a leer bien), contacto, avisos con fechas y
+          páginas como el reglamento. Se trabaja en un borrador, se revisa con la vista previa (celular, tablet y
+          escritorio) y lo publica el superbibliotecario, un supervisor o el admin. Cada publicación queda en el
+          historial y se puede volver a una anterior.
+        </p>
         <Captura
           src="/docs/opac.png"
           alt="Catálogo público del OPAC: filtros de disponibilidad, tipo de ítem, autores y materias a la izquierda, resultados a la derecha."

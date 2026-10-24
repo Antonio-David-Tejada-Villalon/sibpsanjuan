@@ -247,6 +247,32 @@ describe.
   disponibilidad, "ordenar por" (relevancia/título/año), y portada por
   ítem (ver "Portadas" abajo; sin portada se dibuja una tapa con título y
   autor, nunca un recuadro gris).
+- **Contenido del OPAC (CMS)** — pantalla "Contenido del OPAC" del panel,
+  `routes/contenido.js`, `models/ContenidoOpac.js`:
+  - El OPAC lleva la identidad de la institución: nombre, nombre legal,
+    logos (cuadrado, horizontal y para fondo oscuro) y **color de acento**;
+    el panel sigue siendo SIBPSANJUAN. Del acento se derivan los demás
+    tonos (`frontend/src/marca.js`) y no se puede publicar si el texto
+    oscuro de los botones queda por debajo de 4.5:1 de contraste.
+  - También contacto (correo, teléfono, dirección, horario, sitio),
+    **avisos** con fechas desde/hasta (se muestran arriba del catálogo
+    mientras están vigentes, en hora de San Juan) y **páginas** con
+    dirección propia (`/opac/<código>/pagina/<dirección>`); las legales
+    llevan responsable, versión y fecha de vigencia.
+  - Textos con formato básico seguro (negrita, cursiva, listas, enlaces
+    http/https/mailto): el frontend arma elementos de React
+    (`TextoSeguro.jsx`), nunca HTML.
+  - Flujo: se edita un **borrador** (permiso nuevo `contenido` para
+    bibliotecarios), se revisa con la **vista previa** en celular, tablet y
+    escritorio, y lo **publica** un admin, supervisor o superbibliotecario.
+    Cada publicación es una versión con autor y fecha; cualquiera del
+    **historial** se puede restaurar como borrador. Publicar y restaurar
+    quedan en `auditoria`.
+  - Logos: PNG, JPG o WebP de hasta 1 MB, subidos desde el equipo,
+    reprocesados con `sharp` (WebP de hasta 512 px, sin metadatos) y
+    guardados en MongoDB. SVG no se acepta.
+  - Mientras una biblioteca no publique nada, el OPAC muestra su nombre y
+    el acento del sistema, sin datos inventados.
 - **Portadas** (`backend/src/portadas/`, `models/Portada.js`):
   - Orden: por ISBN en **Open Library**, después **Google Books**, y como
     última opción una **URL** que pega el staff; si no hay ninguna, el OPAC

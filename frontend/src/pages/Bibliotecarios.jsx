@@ -13,6 +13,7 @@ const PERMISOS = [
   { clave: "socios", etiqueta: "Gestionar socios (alta, edición, login OPAC)" },
   { clave: "exportar", etiqueta: "Exportar (MARCXML / CSV)" },
   { clave: "datosSocios", etiqueta: "Ver datos de contacto completos de socios (queda registrado)" },
+  { clave: "contenido", etiqueta: "Editar el contenido del OPAC (borradores; publicar es del superbibliotecario)" },
 ];
 
 function permisosVacios() {

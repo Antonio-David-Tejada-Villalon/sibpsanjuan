@@ -1183,3 +1183,120 @@ input[readonly] { background: var(--bg-sutil); color: var(--texto-tenue); }
   .marc-grupo__fila { flex-wrap: wrap; }
   .marc-grupo__fila label { flex-basis: 100%; }
 }
+
+/* --- CMS del OPAC: identidad de la institución en el catálogo --- */
+/* Pisa el 28×28 fijo del ícono de SIBPSANJUAN (header.app .brand img): un
+   logo institucional suele ser apaisado. */
+header.app .brand img.brand__logo { width: auto; height: 32px; max-width: 160px; object-fit: contain; }
+.aviso-vista-previa {
+  background: var(--reservado-fondo);
+  color: var(--reservado);
+  padding: var(--space-2) var(--space-4);
+  text-align: center;
+  font-weight: 600;
+}
+.avisos-opac { display: grid; gap: var(--space-3); margin: var(--space-3) 0 var(--space-4); }
+.aviso-opac {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radio-tarjeta);
+  padding: var(--space-3) var(--space-4);
+}
+.aviso-opac h2 { margin: 0 0 var(--space-1); font-size: var(--text-lg); }
+.texto-cms p { margin: 0 0 var(--space-2); }
+.texto-cms ul, .texto-cms ol { margin: 0 0 var(--space-2); padding-left: var(--space-5); }
+.texto-cms > :last-child { margin-bottom: 0; }
+.pagina-opac { max-width: 70ch; }
+.pagina-opac__legal { color: var(--texto-tenue); font-size: var(--text-sm); }
+.footer-opac__contacto {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-4);
+  font-style: normal;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-3);
+}
+.footer-opac__paginas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2) var(--space-4); }
+.footer-opac__legal { margin: var(--space-3) 0 0; font-size: var(--text-xs); color: var(--texto-tenue); }
+
+/* --- Pantalla "Contenido del OPAC" del panel --- */
+.contenido-opac fieldset.card { margin-bottom: var(--space-4); }
+.contenido-opac legend { font-family: var(--font-serif); font-weight: 600; padding: 0 var(--space-1); }
+.campo-color { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
+.campo-color input[type="color"] { width: 56px; height: 40px; padding: 2px; cursor: pointer; }
+.muestra-acento { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+.muestra-acento__boton { padding: var(--space-2) var(--space-4); border-radius: var(--radio-control); font-weight: 600; }
+.contraste-ok, .contraste-mal { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); }
+.contraste-ok { color: var(--disponible); }
+.contraste-mal { color: var(--vencido); }
+.slots-logo { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); }
+.slot-logo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-tarjeta);
+}
+.slot-logo__etiqueta { font-size: var(--text-sm); font-weight: 600; }
+.slot-logo__vista {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  background: var(--superficie-sutil);
+  border-radius: var(--radio-control);
+}
+.slot-logo__vista img { max-width: 100%; max-height: 72px; object-fit: contain; }
+.slot-logo--oscuro .slot-logo__vista { background: var(--tinta); }
+.boton-archivo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--radio-control);
+  background: var(--superficie);
+  font-weight: 500;
+  cursor: pointer;
+}
+.boton-archivo:focus-within { outline: 2px solid var(--foco); outline-offset: 2px; }
+.item-contenido { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--borde-tenue); }
+.previa-texto { margin-bottom: var(--space-3); font-size: var(--text-sm); }
+.previa-texto summary { cursor: pointer; color: var(--brand-texto); }
+/* La barra de acciones queda fija abajo: sin este margen de desplazamiento,
+   un campo que recibe el foco cerca del borde inferior quedaría tapado por
+   ella (WCAG 2.4.11, foco no oculto). */
+html:has(.barra-contenido) { scroll-padding-bottom: 7rem; }
+.barra-contenido {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+.vista-previa__marco {
+  overflow-x: auto;
+  padding: var(--space-3);
+  background: var(--superficie-sutil);
+  border-radius: var(--radio-control);
+}
+.vista-previa__marco iframe {
+  display: block;
+  height: 720px;
+  max-width: none;
+  margin: 0 auto;
+  border: 1px solid var(--borde);
+  background: var(--papel);
+}

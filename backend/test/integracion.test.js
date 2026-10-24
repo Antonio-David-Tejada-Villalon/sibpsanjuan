@@ -3627,3 +3627,168 @@ test("portadas: búsqueda por ISBN, URL del staff segura, servido desde el OPAC 
   assert.ok(resumen.desdeUrl >= 1, JSON.stringify(resumen));
   assert.equal((await Portada.findOne({ itemId: viejo._id })).fuente, "url");
 });
+
+// --- CMS del OPAC: borrador, publicación, historial, logos y permisos ---
+
+test("CMS del OPAC: borrador → publicar → historial → restaurar, con logos, avisos vigentes y páginas legales", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpcms");
+  const publico = (ruta) => fetch(`${base}/api/opac/bpcms${ruta}`);
+
+  // --- sin nada publicado: el OPAC muestra el nombre de la biblioteca y el acento del sistema ---
+  let res = await publico("/contenido");
+  let contenido = await res.json();
+  assert.equal(contenido.identidad.nombre, "Biblioteca bpcms");
+  assert.equal(contenido.identidad.colorAcento, "#ff8300");
+  assert.equal(contenido.version, null);
+
+  res = await b.enviar("GET", "/contenido/borrador");
+  let estado = await res.json();
+  assert.equal(estado.borrador, null);
+  assert.equal(estado.puedePublicar, true);
+  assert.deepEqual(estado.faltaParaPublicar, []);
+
+  // --- un enlace peligroso no se guarda ni como borrador ---
+  const datos = structuredClone(estado.datos);
+  datos.avisos = [{ titulo: "Ojo", texto: "[clic](javascript:alert(1))" }];
+  res = await b.enviar("PUT", "/contenido/borrador", { datos });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /javascript:alert/);
+
+  // --- un color con poco contraste se puede guardar como borrador, pero no publicar ---
+  datos.identidad.nombre = "Colegio San Juan Bautista";
+  datos.identidad.colorAcento = "#1d4ed8";
+  datos.avisos = [];
+  res = await b.enviar("PUT", "/contenido/borrador", { datos });
+  assert.equal(res.status, 200);
+  estado = await res.json();
+  assert.equal(estado.borrador.version, 1);
+  assert.match(estado.faltaParaPublicar.join(" "), /contraste/);
+  res = await b.enviar("POST", "/contenido/borrador/publicar");
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /contraste/);
+
+  // --- logo: PNG del dispositivo, se procesa a WebP; SVG, enorme o roto, no ---
+  const png = await sharp({ create: { width: 800, height: 300, channels: 4, background: "#ff8300" } }).png().toBuffer();
+  const subir = (cuerpo, tipo) =>
+    fetch(`${base}/api/contenido/imagenes`, { method: "POST", headers: { Cookie: b.cookie, "Content-Type": tipo }, body: cuerpo });
+  res = await subir(png, "image/png");
+  assert.equal(res.status, 201);
+  const logo = await res.json();
+  assert.equal(logo.ancho, 512, "se achica a 512 px como máximo");
+  res = await subir(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), "image/svg+xml");
+  assert.equal(res.status, 415);
+  res = await subir(Buffer.alloc(1024 * 1024 + 10), "image/png");
+  assert.equal(res.status, 413);
+  res = await subir(Buffer.from("no es una imagen"), "image/png");
+  assert.equal(res.status, 400);
+
+  // --- contenido completo y publicable ---
+  datos.identidad.colorAcento = "#ffb703";
+  datos.identidad.logos.horizontal = logo.id;
+  datos.contacto = { email: "biblioteca@colegio.edu.ar", telefono: "264 400 0000", direccion: "", horario: "Lunes a viernes de 8 a 13", web: "https://colegio.edu.ar" };
+  datos.avisos = [
+    { titulo: "Inventario", texto: "La biblioteca cierra por **inventario**.", desde: "2026-01-01", hasta: "2099-12-31" },
+    { titulo: "Feria futura", texto: "Pronto", desde: "2099-01-01", hasta: null },
+    { titulo: "Vencido", texto: "Ya pasó", desde: null, hasta: "2020-01-01" },
+  ];
+  datos.paginas = [
+    { titulo: "Cómo pedir un libro", slug: "como-pedir", cuerpo: "1. Buscá el libro\n2. Pedilo", legal: null },
+    {
+      titulo: "Reglamento de la biblioteca",
+      slug: "reglamento",
+      cuerpo: "Texto aprobado por la dirección.",
+      legal: { responsable: "Dirección del colegio", version: "1.0", vigenteDesde: "2026-03-01" },
+    },
+  ];
+  res = await b.enviar("PUT", "/contenido/borrador", { datos });
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).faltaParaPublicar, []);
+
+  // --- antes de publicar, el público sigue viendo lo anterior; la vista previa ya muestra el borrador ---
+  assert.equal((await (await publico("/contenido")).json()).identidad.nombre, "Biblioteca bpcms");
+  res = await b.enviar("GET", "/contenido/vista-previa");
+  assert.equal((await res.json()).identidad.nombre, "Colegio San Juan Bautista");
+
+  res = await b.enviar("POST", "/contenido/borrador/publicar");
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).version, 1);
+
+  contenido = await (await publico("/contenido")).json();
+  assert.equal(contenido.version, 1);
+  assert.equal(contenido.identidad.nombre, "Colegio San Juan Bautista");
+  assert.equal(contenido.identidad.colorAcento, "#ffb703");
+  assert.equal(contenido.identidad.logos.horizontal, `/api/v1/opac/bpcms/imagenes/${logo.id}.webp`);
+  assert.deepEqual(contenido.avisos.map((a) => a.titulo), ["Inventario"], "solo los avisos vigentes");
+  assert.deepEqual(contenido.paginas, [
+    { slug: "como-pedir", titulo: "Cómo pedir un libro", legal: false },
+    { slug: "reglamento", titulo: "Reglamento de la biblioteca", legal: true },
+  ]);
+  res = await publico("/paginas/reglamento");
+  const reglamento = await res.json();
+  assert.equal(reglamento.legal.version, "1.0");
+  assert.equal(reglamento.legal.vigenteDesde, "2026-03-01");
+  assert.equal((await publico("/paginas/no-existe")).status, 404);
+  res = await fetch(`${base}${contenido.identidad.logos.horizontal}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/webp");
+  assert.match(res.headers.get("cache-control"), /immutable/);
+
+  // --- segunda versión, historial y restaurar la primera ---
+  datos.identidad.nombre = "Colegio San Juan Bautista — Nivel Secundario";
+  await b.enviar("PUT", "/contenido/borrador", { datos });
+  res = await b.enviar("POST", "/contenido/borrador/publicar");
+  assert.equal((await res.json()).version, 2);
+  res = await b.enviar("GET", "/contenido/versiones");
+  const versiones = await res.json();
+  assert.deepEqual(versiones.map((v) => [v.version, v.estado]), [[2, "publicada"], [1, "archivada"]]);
+  assert.equal(versiones[0].publicadoPor, "bpcms");
+  res = await b.enviar("POST", `/contenido/versiones/${versiones[1]._id}/restaurar`);
+  estado = await res.json();
+  assert.equal(estado.borrador.restauradaDe, 1);
+  assert.equal(estado.datos.identidad.nombre, "Colegio San Juan Bautista");
+  assert.equal((await (await publico("/contenido")).json()).version, 2, "restaurar no publica solo");
+  res = await b.enviar("POST", "/contenido/borrador/publicar");
+  assert.equal((await res.json()).version, 3);
+  assert.equal((await (await publico("/contenido")).json()).identidad.nombre, "Colegio San Juan Bautista");
+  assert.equal(await Auditoria.countDocuments({ bibliotecaId: b.biblioteca._id, accion: "contenido.publicar" }), 3);
+  assert.equal(await Auditoria.countDocuments({ bibliotecaId: b.biblioteca._id, accion: "contenido.restaurar" }), 1);
+
+  // --- un logo de otra biblioteca no se puede usar ---
+  const ajena = await bibliotecaDePrueba(base, "bpcmsajena");
+  res = await fetch(`${base}/api/contenido/imagenes`, {
+    method: "POST",
+    headers: { Cookie: ajena.cookie, "Content-Type": "image/png" },
+    body: png,
+  });
+  const logoAjeno = await res.json();
+  datos.identidad.logos.cuadrado = logoAjeno.id;
+  res = await b.enviar("PUT", "/contenido/borrador", { datos });
+  assert.equal(res.status, 400);
+  assert.equal((await fetch(`${base}/api/opac/bpcms/imagenes/${logoAjeno.id}.webp`)).status, 404);
+
+  // --- bibliotecario: con "contenido" edita el borrador pero no publica; sin el permiso, ni lo ve ---
+  await b.enviar("POST", "/bibliotecarios", { usuario: "bibcms", password: "clavesegura1", permisos: { contenido: true } });
+  await b.enviar("POST", "/bibliotecarios", { usuario: "bibsincms", password: "clavesegura1", permisos: { socios: true } });
+  const conPermiso = await login(base, "bibcms", "clavesegura1");
+  const sinPermiso = await login(base, "bibsincms", "clavesegura1");
+  const como = (cookie, metodo, ruta, cuerpo) =>
+    fetch(`${base}/api${ruta}`, {
+      method: metodo,
+      headers: cuerpo ? { ...JSON_CT, Cookie: cookie } : { Cookie: cookie },
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    });
+  datos.identidad.logos.cuadrado = null;
+  res = await como(conPermiso, "PUT", "/contenido/borrador", { datos });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).puedePublicar, false);
+  res = await como(conPermiso, "POST", "/contenido/borrador/publicar");
+  assert.equal(res.status, 403);
+  res = await como(conPermiso, "POST", `/contenido/versiones/${versiones[1]._id}/restaurar`);
+  assert.equal(res.status, 403);
+  res = await como(sinPermiso, "GET", "/contenido/borrador");
+  assert.equal(res.status, 403);
+});

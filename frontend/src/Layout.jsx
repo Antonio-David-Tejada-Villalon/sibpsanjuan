@@ -118,6 +118,7 @@ function NavPanelBiblioteca({ sesion }) {
         </MenuDesplegable>
       )}
       {tieneAcceso("exportar") && <NavLink to="/exportar">Exportar</NavLink>}
+      {tieneAcceso("contenido") && <NavLink to="/contenido">Contenido del OPAC</NavLink>}
       {accesoCompleto && <NavLink to="/bibliotecarios">Bibliotecarios</NavLink>}
     </>
   );

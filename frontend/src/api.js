@@ -63,8 +63,9 @@ async function apiFetch(url, opciones = {}) {
   }
   if (!res.ok) {
     const mensaje = (cuerpo && cuerpo.error) || `Error ${res.status}`;
-    // status: para distinguir "no hay" (404) de un error real donde importa.
-    throw Object.assign(new Error(mensaje), { status: res.status });
+    // status: para distinguir "no hay" (404) de un error real; datos: el
+    // cuerpo completo (ej. la lista "errores" de una validación).
+    throw Object.assign(new Error(mensaje), { status: res.status, datos: cuerpo });
   }
   return cuerpo;
 }
@@ -356,6 +357,19 @@ const api = {
   portadaDesdeUrl: (itemTipo, id, url) =>
     apiFetch(`${BASE}/portadas/${itemTipo}/${id}/desde-url`, { method: "POST", body: JSON.stringify({ url }) }),
   quitarPortada: (itemTipo, id) => apiFetch(`${BASE}/portadas/${itemTipo}/${id}`, { method: "DELETE" }),
+
+  // --- CMS del OPAC (ver backend/src/routes/contenido.js) ---
+  obtenerBorradorContenido: () => apiFetch(`${BASE}/contenido/borrador`),
+  guardarBorradorContenido: (datos) =>
+    apiFetch(`${BASE}/contenido/borrador`, { method: "PUT", body: JSON.stringify({ datos }) }),
+  descartarBorradorContenido: () => apiFetch(`${BASE}/contenido/borrador`, { method: "DELETE" }),
+  publicarContenido: () => apiFetch(`${BASE}/contenido/borrador/publicar`, { method: "POST", idempotente: true }),
+  vistaPreviaContenido: () => apiFetch(`${BASE}/contenido/vista-previa`),
+  listarVersionesContenido: () => apiFetch(`${BASE}/contenido/versiones`),
+  restaurarVersionContenido: (id) => apiFetch(`${BASE}/contenido/versiones/${id}/restaurar`, { method: "POST" }),
+  // El archivo va tal cual en el cuerpo, con su tipo (image/png, etc.).
+  subirImagenContenido: (archivo) =>
+    apiFetch(`${BASE}/contenido/imagenes`, { method: "POST", body: archivo, headers: { "Content-Type": archivo.type } }),
   crearCredencialesSocio: (id, password) =>
     apiFetch(`${BASE}/socios/${id}/credenciales`, { method: "POST", body: JSON.stringify({ password }) }).then(
       (r) => {
@@ -422,6 +436,8 @@ const api = {
   opacYo: (codigo) => apiFetch(`${BASE}/opac/${codigo}/yo`),
   opacMisPrestamos: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-prestamos`),
   opacMisReglas: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-reglas`),
+  opacContenido: (codigo) => apiFetch(`${BASE}/opac/${codigo}/contenido`),
+  opacPagina: (codigo, slug) => apiFetch(`${BASE}/opac/${codigo}/paginas/${encodeURIComponent(slug)}`),
   opacMisSolicitudes: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-solicitudes`),
   opacSolicitarPrestamo: (codigo, itemTipo, itemId) =>
     apiFetch(`${BASE}/opac/${codigo}/solicitudes`, {

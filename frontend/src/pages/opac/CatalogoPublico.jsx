@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import api, { urlPortada } from "../../api.js";
 import Portada from "../../Portada.jsx";
+import TextoSeguro from "../../TextoSeguro.jsx";
+import { useContenidoOpac } from "../../ContenidoOpacContext.jsx";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useAvisoCargaLenta } from "../../useAvisoCargaLenta.js";
 import Pager from "../../Pager.jsx";
@@ -202,6 +204,24 @@ const CREDITO_PORTADA = {
   openlibrary: { nombre: "Open Library", url: "https://openlibrary.org" },
   googlebooks: { nombre: "Google Books", url: "https://books.google.com" },
 };
+
+// Avisos vigentes que publicó la biblioteca desde el CMS (ya filtrados por
+// fecha en el backend).
+function AvisosOpac() {
+  const { contenido } = useContenidoOpac();
+  const avisos = contenido?.avisos || [];
+  if (!avisos.length) return null;
+  return (
+    <section className="avisos-opac" aria-label="Avisos de la biblioteca">
+      {avisos.map((a, i) => (
+        <article key={i} className="aviso-opac">
+          <h2>{a.titulo}</h2>
+          {a.texto && <TextoSeguro texto={a.texto} className="texto-cms" />}
+        </article>
+      ))}
+    </section>
+  );
+}
 
 function TarjetaResultado({ entrada, sesion, procesandoId, onSolicitar, onAbrir }) {
   const { item, etiquetaTipo, extraTexto, soloLectura } = entrada;
@@ -540,6 +560,7 @@ export default function CatalogoPublico() {
   return (
     <>
       <h1>Catálogo</h1>
+      <AvisosOpac />
       {mensaje && <div className="flash ok" role="status">{mensaje}</div>}
       {error && <div className="flash error" role="alert">{error}</div>}
 

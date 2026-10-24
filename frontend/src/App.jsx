@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext.jsx";
 import { SocioAuthProvider, useSocioAuth } from "./SocioAuthContext.jsx";
+import { ContenidoOpacProvider } from "./ContenidoOpacContext.jsx";
 import { rutaPorRol } from "./rutaPorRol.js";
 import { obtenerBibliotecaActivaId } from "./bibliotecaActiva.js";
 import { useAvisoCargaLenta } from "./useAvisoCargaLenta.js";
@@ -40,6 +41,8 @@ const CatalogoPublico = lazy(() => import("./pages/opac/CatalogoPublico.jsx"));
 const LoginSocio = lazy(() => import("./pages/opac/LoginSocio.jsx"));
 const MisPrestamos = lazy(() => import("./pages/opac/MisPrestamos.jsx"));
 const AvisoPrivacidad = lazy(() => import("./pages/opac/AvisoPrivacidad.jsx"));
+const PaginaOpac = lazy(() => import("./pages/opac/PaginaOpac.jsx"));
+const ContenidoOpac = lazy(() => import("./pages/ContenidoOpac.jsx"));
 
 // Sin este aviso, la demora inicial del free tier (ver useAvisoCargaLenta)
 // se lee como "está roto" en vez de "es normal, esperá".
@@ -106,26 +109,36 @@ function RutaProtegidaSocio({ children }) {
   return children;
 }
 
+// El contenido del CMS (identidad, avisos, páginas) depende del código de
+// biblioteca que resuelve SocioAuthProvider desde la URL.
+function ConContenidoOpac({ children }) {
+  const { codigo } = useSocioAuth();
+  return <ContenidoOpacProvider codigo={codigo}>{children}</ContenidoOpacProvider>;
+}
+
 function OpacApp() {
   return (
     <SocioAuthProvider>
-      <OpacLayout>
-        <Suspense fallback={<CargandoInicial />}>
-          <Routes>
-            <Route index element={<CatalogoPublico />} />
-            <Route path="login" element={<LoginSocio />} />
-            <Route path="privacidad" element={<AvisoPrivacidad />} />
-            <Route
-              path="mis-prestamos"
-              element={
-                <RutaProtegidaSocio>
-                  <MisPrestamos />
-                </RutaProtegidaSocio>
-              }
-            />
-          </Routes>
-        </Suspense>
-      </OpacLayout>
+      <ConContenidoOpac>
+        <OpacLayout>
+          <Suspense fallback={<CargandoInicial />}>
+            <Routes>
+              <Route index element={<CatalogoPublico />} />
+              <Route path="login" element={<LoginSocio />} />
+              <Route path="privacidad" element={<AvisoPrivacidad />} />
+              <Route path="pagina/:slug" element={<PaginaOpac />} />
+              <Route
+                path="mis-prestamos"
+                element={
+                  <RutaProtegidaSocio>
+                    <MisPrestamos />
+                  </RutaProtegidaSocio>
+                }
+              />
+            </Routes>
+          </Suspense>
+        </OpacLayout>
+      </ConContenidoOpac>
     </SocioAuthProvider>
   );
 }
@@ -309,6 +322,14 @@ function Rutas() {
         element={
           <RutaProtegida rolesPermitidos={ROLES_GESTIONAN_BIBLIOTECARIOS} requiereBibliotecaActiva>
             <Bibliotecarios />
+          </RutaProtegida>
+        }
+      />
+      <Route
+        path="/contenido"
+        element={
+          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
+            <ContenidoOpac />
           </RutaProtegida>
         }
       />

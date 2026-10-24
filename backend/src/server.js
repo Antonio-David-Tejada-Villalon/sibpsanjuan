@@ -33,6 +33,7 @@ import exportRoutes from "./routes/export.js";
 import opacRoutes from "./routes/opac.js";
 import circulacionRoutes from "./routes/circulacion.js";
 import portadasRoutes from "./routes/portadas.js";
+import contenidoRoutes from "./routes/contenido.js";
 
 dotenv.config();
 
@@ -117,6 +118,7 @@ export function crearApp() {
     ["/opac/:codigo", opacRoutes],
     ["/circulacion", circulacionRoutes],
     ["/portadas", portadasRoutes],
+    ["/contenido", contenidoRoutes],
   ];
   for (const [ruta, router] of rutasApi) {
     app.use(`/api${ruta}`, router);
