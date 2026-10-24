@@ -6,6 +6,8 @@ import {
   diasDeAtraso,
   calcularMulta,
   puedeRenovar,
+  resolverPolitica,
+  superaMaxPrestamos,
 } from "../src/circulacion/reglas.js";
 
 test("calcularVencimiento suma los días de préstamo a la fecha de entrega", () => {
@@ -108,4 +110,55 @@ test("calcularMulta: usa el mismo criterio de días hábiles que diasDeAtraso", 
   const prestamo = { fechaVencimiento: new Date("2026-01-02T00:00:00Z"), fechaDevolucion: null };
   const biblioteca = { multaPorDiaVencido: 100, contarSabados: false, contarDomingos: false };
   assert.equal(calcularMulta(prestamo, biblioteca, new Date("2026-01-05T00:00:00Z")), 100); // 1 día hábil * 100
+});
+
+const BIBLIOTECA = {
+  diasPrestamo: 14,
+  maxRenovaciones: 2,
+  multaPorDiaVencido: 10,
+  contarSabados: true,
+  contarDomingos: false,
+};
+
+test("resolverPolitica: sin categoría quedan las reglas de la biblioteca, sin tope de préstamos", () => {
+  assert.deepEqual(resolverPolitica(BIBLIOTECA), {
+    diasPrestamo: 14,
+    maxRenovaciones: 2,
+    multaPorDiaVencido: 10,
+    maxPrestamos: null,
+    contarSabados: true,
+    contarDomingos: false,
+    categoria: null,
+  });
+});
+
+test("resolverPolitica: la categoría pisa solo lo que define; null hereda de la biblioteca", () => {
+  const alumno = {
+    codigo: "ALUMNO",
+    nombre: "Alumno",
+    diasPrestamo: 7,
+    maxRenovaciones: null,
+    multaPorDiaVencido: 0,
+    maxPrestamos: 2,
+  };
+  const politica = resolverPolitica(BIBLIOTECA, alumno);
+  assert.equal(politica.diasPrestamo, 7);
+  assert.equal(politica.maxRenovaciones, 2, "null hereda");
+  assert.equal(politica.multaPorDiaVencido, 0, "0 es un valor propio (no cobra), no un hueco");
+  assert.equal(politica.maxPrestamos, 2);
+  assert.equal(politica.contarDomingos, false, "los días que cuentan son siempre de la biblioteca");
+  assert.deepEqual(politica.categoria, { codigo: "ALUMNO", nombre: "Alumno" });
+});
+
+test("resolverPolitica: el resultado se usa en lugar de la biblioteca en las demás reglas", () => {
+  const politica = resolverPolitica(BIBLIOTECA, { codigo: "DOCENTE", nombre: "Docente", maxRenovaciones: 0 });
+  assert.equal(puedeRenovar({ renovaciones: 0 }, politica), false);
+  const prestamo = { fechaVencimiento: new Date("2026-01-05T00:00:00Z"), fechaDevolucion: null };
+  assert.equal(calcularMulta(prestamo, politica, new Date("2026-01-08T00:00:00Z")), 30);
+});
+
+test("superaMaxPrestamos: sin tope nunca; con tope, desde que llega al máximo", () => {
+  assert.equal(superaMaxPrestamos({ maxPrestamos: null }, 50), false);
+  assert.equal(superaMaxPrestamos({ maxPrestamos: 2 }, 1), false);
+  assert.equal(superaMaxPrestamos({ maxPrestamos: 2 }, 2), true);
 });

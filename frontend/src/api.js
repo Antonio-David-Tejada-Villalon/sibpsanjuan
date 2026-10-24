@@ -141,6 +141,16 @@ const api = {
   // alcance, o el superbibliotecario de esta biblioteca en particular.
   actualizarConfiguracionCirculacion: (id, datos) =>
     apiFetch(`${BASE}/bibliotecas/${id}/circulacion`, { method: "PUT", body: JSON.stringify(datos) }),
+  // Categorías de socio (Alumno, Docente...) con sus reglas propias. Leer:
+  // también los bibliotecarios de esa biblioteca; cambiar: los mismos que
+  // la configuración de arriba.
+  listarCategorias: (bibliotecaId) => apiFetch(`${BASE}/bibliotecas/${bibliotecaId}/categorias`),
+  crearCategoria: (bibliotecaId, datos) =>
+    apiFetch(`${BASE}/bibliotecas/${bibliotecaId}/categorias`, { method: "POST", body: JSON.stringify(datos) }),
+  actualizarCategoria: (bibliotecaId, id, datos) =>
+    apiFetch(`${BASE}/bibliotecas/${bibliotecaId}/categorias/${id}`, { method: "PUT", body: JSON.stringify(datos) }),
+  eliminarCategoria: (bibliotecaId, id) =>
+    apiFetch(`${BASE}/bibliotecas/${bibliotecaId}/categorias/${id}`, { method: "DELETE" }),
 
   // --- Supervisores (solo admin) ---
   listarSupervisores: () => apiFetch(`${BASE}/supervisores`),
@@ -365,6 +375,7 @@ const api = {
   opacLogoutSocio: (codigo) => apiFetch(`${BASE}/opac/${codigo}/logout`, { method: "POST" }),
   opacYo: (codigo) => apiFetch(`${BASE}/opac/${codigo}/yo`),
   opacMisPrestamos: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-prestamos`),
+  opacMisReglas: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-reglas`),
   opacMisSolicitudes: (codigo) => apiFetch(`${BASE}/opac/${codigo}/mis-solicitudes`),
   opacSolicitarPrestamo: (codigo, itemTipo, itemId) =>
     apiFetch(`${BASE}/opac/${codigo}/solicitudes`, {

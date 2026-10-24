@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import CampoPassword from "../CampoPassword.jsx";
 import { useListaCrud } from "../useListaCrud.js";
+import { useAuth } from "../AuthContext.jsx";
+import { obtenerBibliotecaActivaId } from "../bibliotecaActiva.js";
 
 const POR_PAGINA = 50;
 
@@ -14,7 +16,7 @@ const VACIO = {
   dni: "",
   direccion: "",
   localidad: "",
-  categoria: "ADULTO",
+  categoria: "",
   fechaNacimiento: "",
   telefono: "",
   email: "",
@@ -28,7 +30,8 @@ function mapEntidadAForm(socio) {
     dni: socio.dni || "",
     direccion: socio.direccion || "",
     localidad: socio.localidad || "",
-    categoria: socio.categoria || "ADULTO",
+    // En mayúsculas como los códigos de categoría (el backend compara igual).
+    categoria: (socio.categoria || "").toUpperCase(),
     fechaNacimiento: socio.fechaNacimiento || "",
     telefono: socio.telefono || "",
     email: socio.email || "",
@@ -65,6 +68,34 @@ export default function Socios() {
     porPagina: POR_PAGINA,
     mapEntidadAForm,
   });
+
+  // La categoría decide las reglas de préstamo del socio (ver
+  // CategoriasSocios.jsx), así que se elige de las que tiene la biblioteca
+  // en vez de escribirse a mano.
+  const { sesion } = useAuth();
+  const bibliotecaId = sesion?.bibliotecaId || obtenerBibliotecaActivaId();
+  const [categorias, setCategorias] = useState([]);
+  const [errorCategorias, setErrorCategorias] = useState("");
+
+  useEffect(() => {
+    if (!bibliotecaId) return;
+    api
+      .listarCategorias(bibliotecaId)
+      .then(setCategorias)
+      .catch((err) => setErrorCategorias(`No se pudieron cargar las categorías: ${err.message}`));
+  }, [bibliotecaId]);
+
+  const nombrePorCodigo = new Map(categorias.map((c) => [c.codigo, c.nombre]));
+  const opcionesCategoria = [
+    { valor: "", etiqueta: "Elegí una categoría" },
+    ...categorias.map((c) => ({ valor: c.codigo, etiqueta: c.nombre })),
+  ];
+  // Un socio cargado antes de las categorías puede tener un código que no
+  // existe (ej. "ADULTO"): se muestra igual para poder editarle otros datos
+  // sin obligar a cambiarlo.
+  if (form.categoria && !nombrePorCodigo.has(form.categoria)) {
+    opcionesCategoria.push({ valor: form.categoria, etiqueta: `${form.categoria} (sin reglas propias)` });
+  }
 
   const [credencialesId, setCredencialesId] = useState(null);
   const [nuevaPasswordSocio, setNuevaPasswordSocio] = useState("");
@@ -107,7 +138,16 @@ export default function Socios() {
         <Campo nombre="dni" etiqueta="DNI" form={form} onCambiar={onCambiarCampo} />
         <Campo nombre="direccion" etiqueta="Dirección" form={form} onCambiar={onCambiarCampo} />
         <Campo nombre="localidad" etiqueta="Localidad" form={form} onCambiar={onCambiarCampo} />
-        <Campo nombre="categoria" etiqueta="Categoría" form={form} onCambiar={onCambiarCampo} />
+        {errorCategorias && <div className="flash error" role="alert">{errorCategorias}</div>}
+        <Campo
+          nombre="categoria"
+          etiqueta="Categoría *"
+          form={form}
+          onCambiar={onCambiarCampo}
+          tipo="select"
+          opciones={opcionesCategoria}
+          required
+        />
         <Campo
           nombre="fechaNacimiento"
           etiqueta="Fecha de nacimiento"
@@ -151,6 +191,7 @@ export default function Socios() {
             <tr>
               <th>N° socio</th>
               <th>Apellido y nombre</th>
+              <th>Categoría</th>
               <th>Localidad</th>
               <th><span className="sr-only">Acciones</span></th>
             </tr>
@@ -163,6 +204,7 @@ export default function Socios() {
                   <td>
                     {socio.apellido}, {socio.nombre}
                   </td>
+                  <td>{nombrePorCodigo.get((socio.categoria || "").toUpperCase()) || socio.categoria}</td>
                   <td>{socio.localidad}</td>
                   <td>
                     <button className="secundario" onClick={() => onEditar(socio)}>
@@ -188,7 +230,7 @@ export default function Socios() {
                 </tr>
                 {credencialesId === socio._id && (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       <form
                         className="card"
                         onSubmit={(e) => onGuardarCredenciales(e, socio._id)}
@@ -221,7 +263,7 @@ export default function Socios() {
             ))}
             {socios.length === 0 && (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={5}>
                   {busqueda ? "Ningún socio coincide con la búsqueda." : "Todavía no cargaste ningún socio."}
                 </td>
               </tr>

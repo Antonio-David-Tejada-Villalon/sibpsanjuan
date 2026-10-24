@@ -12,12 +12,24 @@ import MaterialGrafico from "../models/MaterialGrafico.js";
 import MaterialDidactico from "../models/MaterialDidactico.js";
 import Archivo from "../models/Archivo.js";
 import Objeto from "../models/Objeto.js";
-import { requiereLogin, requiereAdmin, requiereAdminOSupervisor, requiereSupervisor } from "../middleware/auth.js";
+import Categoria from "../models/Categoria.js";
+import {
+  requiereLogin,
+  requiereAdmin,
+  requiereAdminOSupervisor,
+  requiereSupervisor,
+  puedeConfigurarCirculacion,
+} from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
+import { asegurarCategorias } from "../circulacion/categorias.js";
+import categoriasRoutes from "./categorias.js";
 
 const router = Router();
 
 router.use(requiereLogin);
+
+// Categorías de socio de una biblioteca (ver routes/categorias.js).
+router.use("/:id/categorias", requiereIdValido(), categoriasRoutes);
 
 // --- Bibliotecas (tenants) ---
 
@@ -42,9 +54,9 @@ router.get("/disponibles-para-supervisar", requiereSupervisor, async (req, res) 
 });
 
 // Una sola biblioteca — admin, supervisor con esta en su alcance, o el
-// superbibliotecario de esta biblioteca (mismo criterio que
-// puedeConfigurarCirculacion más abajo, que necesita leer los valores
-// actuales antes de poder editarlos). Va DESPUÉS de
+// superbibliotecario de esta biblioteca (puedeConfigurarCirculacion, mismo
+// criterio que PUT /:id/circulacion más abajo, que necesita leer los
+// valores actuales antes de poder editarlos). Va DESPUÉS de
 // "/disponibles-para-supervisar" a propósito: si estuviera antes, Express
 // probaría a matchear esa ruta literal contra "/:id" primero.
 router.get("/:id", requiereIdValido(), async (req, res) => {
@@ -68,6 +80,9 @@ router.post("/", requiereAdminOSupervisor, async (req, res) => {
   }
   try {
     const biblioteca = await Biblioteca.create({ nombre, codigo });
+    // Arranca con Alumno y Docente, sin reglas propias (siguen la de la
+    // biblioteca) — el colegio las ajusta después desde Categorías.
+    await asegurarCategorias(biblioteca._id);
     // Si la creó un supervisor, queda automáticamente en su alcance — si no,
     // tendría que pedirle al admin que se la asigne aparte para poder
     // gestionarla, lo cual no tiene sentido justo después de crearla.
@@ -83,22 +98,7 @@ router.post("/", requiereAdminOSupervisor, async (req, res) => {
   }
 });
 
-// Admin (siempre), supervisor (si esta biblioteca está en su alcance) o el
-// superbibliotecario de esta biblioteca (nunca de otra) pueden ajustar sus
-// reglas de circulación — un bibliotecario con permisos individuales, no:
-// esto es política de toda la biblioteca, no un permiso otorgable ítem por
-// ítem como catalogar/prestamos/etc.
-function puedeConfigurarCirculacion(req, bibliotecaId) {
-  if (req.usuario.rol === "admin") return true;
-  if (req.usuario.rol === "supervisor") {
-    return (req.usuario.bibliotecasSupervisadas || []).map(String).includes(String(bibliotecaId));
-  }
-  if (req.usuario.rol === "superbibliotecario") {
-    return String(req.usuario.bibliotecaId) === String(bibliotecaId);
-  }
-  return false;
-}
-
+// Quién puede: ver puedeConfigurarCirculacion en middleware/auth.js.
 router.put("/:id/circulacion", requiereIdValido(), async (req, res) => {
   if (!puedeConfigurarCirculacion(req, req.params.id)) {
     return res.status(403).json({ error: "No tenés permiso para configurar esta biblioteca." });
@@ -155,6 +155,7 @@ router.delete("/:id", requiereAdmin, requiereIdValido(), async (req, res) => {
     MaterialDidactico,
     Archivo,
     Objeto,
+    Categoria,
   ];
   await Promise.all(
     modelosConSoftDelete.map((Modelo) =>

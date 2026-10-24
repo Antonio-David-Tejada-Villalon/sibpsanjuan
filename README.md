@@ -275,6 +275,23 @@ describe.
   (para bibliotecas que cierran esos días — ver `contarSabados`/
   `contarDomingos` en `Biblioteca.js` y el conteo día-hábil-por-día en
   `circulacion/reglas.js`).
+- **Categorías de socio** (`models/Categoria.js`, en la misma pantalla,
+  debajo): cada biblioteca nace con **Alumno** y **Docente**, y puede
+  sumar otras. Cada categoría puede fijar sus propios días de préstamo,
+  renovaciones máximas, multa por día y **préstamos a la vez**; lo que
+  deja vacío usa la regla general de la biblioteca (ver
+  `resolverPolitica` en `circulacion/reglas.js`), así que una categoría
+  nueva no inventa ningún límite. El tope de préstamos a la vez cuenta
+  también los pedidos pendientes del OPAC, y se vuelve a chequear después
+  de crear el préstamo o el pedido para que dos simultáneos no lo pasen.
+  Al cargar un socio, la categoría se elige de una lista (ya no es texto
+  libre); un código viejo sin categoría (ej. "ADULTO") se conserva al
+  editar y sigue la regla general. El socio ve sus reglas en "Mis
+  préstamos" del OPAC. Leer las categorías: también los bibliotecarios
+  de esa biblioteca; cambiarlas: los mismos que la configuración general.
+  Para bibliotecas creadas antes de esto: `npm run migrar-categorias`
+  (con `--verificar` primero) agrega Alumno/Docente y da de alta los
+  códigos que sus socios ya usan, sin tocar ningún socio.
 - Cada tarjeta de biblioteca en "Bibliotecas" (admin/supervisor) tiene un
   botón **"Ver OPAC"** que abre el catálogo público de esa biblioteca en
   una pestaña nueva (`/opac/<código>`) — para revisar cómo queda de cara
@@ -549,8 +566,8 @@ npm test
   saltarse ninguno de los dos pasos), que Recursos electrónicos/Archivos/
   Objetos nunca entran a ese circuito ni tienen export, y que los scripts
   de migración de datos (`scripts/migrar-item-polimorfico.js`,
-  `scripts/migrar-roles-jerarquia.js`) dejan todo consultable con la
-  forma nueva. Todas las pruebas de integración viven en **un solo
+  `scripts/migrar-roles-jerarquia.js`, `scripts/migrar-categorias.js`)
+  dejan todo consultable con la forma nueva. Todas las pruebas de integración viven en **un solo
   archivo** a propósito: cada archivo separado que levanta su propio
   Mongo generaba contención seria en algunos entornos (Windows en
   particular) al correr varios a la vez.

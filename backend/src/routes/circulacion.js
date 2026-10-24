@@ -5,7 +5,8 @@ import Ejemplar from "../models/Ejemplar.js";
 import Socio from "../models/Socio.js";
 import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
-import { calcularVencimiento, puedeRenovar, estaVencido } from "../circulacion/reglas.js";
+import { calcularVencimiento, puedeRenovar, estaVencido, superaMaxPrestamos } from "../circulacion/reglas.js";
+import { politicaDeSocio, contarPrestamosEnCurso, mensajeMaxPrestamos } from "../circulacion/categorias.js";
 import { esIdValido, requiereIdValido } from "../utils/objectId.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
 import { opcionDeConsulta } from "../utils/consulta.js";
@@ -31,41 +32,92 @@ async function elegirYReservarEjemplar(bibliotecaId, itemTipo, itemId, ejemplarI
   return Ejemplar.findOneAndUpdate(filtro, { estado: "prestado" }, { new: true });
 }
 
+// Reglas que le tocan a un socio de esta biblioteca según su categoría (ver
+// circulacion/categorias.js). 404 si el socio no existe, está borrado o es
+// de otra biblioteca — antes un socioId ajeno pasaba derecho y quedaba un
+// préstamo cruzado entre bibliotecas.
+async function socioYPolitica(req, socioId) {
+  const socio = await Socio.findOne({ _id: socioId, bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null });
+  if (!socio) {
+    throw Object.assign(new Error("Socio no encontrado en esta biblioteca."), { status: 404 });
+  }
+  const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
+  return { socio, politica: await politicaDeSocio(socio, biblioteca) };
+}
+
 // estadoOrigenEjemplar es "reservado" cuando se aprueba una Solicitud del
 // OPAC (el ejemplar ya quedó reservado a nombre de esa solicitud puntual al
 // crearla — ver POST /solicitudes en opac.js) y "disponible" (default) para
 // un préstamo directo del staff, que nunca pasó por esa reserva previa.
-async function crearPrestamo(req, { socioId, itemTipo, itemId, ejemplarId, registradoPor, estadoOrigenEjemplar = "disponible" }) {
+// solicitudId: la solicitud que se está aprobando, para no contarla dos
+// veces contra el máximo de préstamos de la categoría.
+async function crearPrestamo(
+  req,
+  { socioId, itemTipo, itemId, ejemplarId, registradoPor, estadoOrigenEjemplar = "disponible", solicitudId }
+) {
   if (!esIdValido(socioId) || !esIdValido(itemId)) {
     throw Object.assign(new Error("socioId o itemId inválido."), { status: 400 });
   }
   if (!MODELOS_POR_TIPO[itemTipo]) {
     throw Object.assign(new Error("itemTipo inválido."), { status: 400 });
   }
-  const ejemplar = await elegirYReservarEjemplar(req.usuario.bibliotecaId, itemTipo, itemId, ejemplarId, estadoOrigenEjemplar);
+  const bibliotecaId = req.usuario.bibliotecaId;
+  const { politica } = await socioYPolitica(req, socioId);
+  const conteo = { excluirSolicitudId: solicitudId };
+  if (superaMaxPrestamos(politica, await contarPrestamosEnCurso(bibliotecaId, socioId, conteo))) {
+    throw Object.assign(new Error(mensajeMaxPrestamos(politica)), { status: 409 });
+  }
+  const ejemplar = await elegirYReservarEjemplar(bibliotecaId, itemTipo, itemId, ejemplarId, estadoOrigenEjemplar);
   if (!ejemplar) {
     throw Object.assign(new Error("No hay ejemplares disponibles."), { status: 409 });
   }
-  const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
+  // El ejemplar ya quedó tomado — si algo falla de acá en adelante, hay
+  // que devolverlo a mano (no hay transacciones en este setup) al estado
+  // en que estaba: "disponible", o "reservado" si era de una solicitud que
+  // sigue pendiente.
+  const liberarEjemplar = () => Ejemplar.findByIdAndUpdate(ejemplar._id, { estado: estadoOrigenEjemplar });
   const fechaEntrega = new Date();
+  let prestamo;
   try {
-    return await Prestamo.create({
-      bibliotecaId: req.usuario.bibliotecaId,
+    prestamo = await Prestamo.create({
+      bibliotecaId,
       socioId,
       itemTipo,
       itemId,
       ejemplarId: ejemplar._id,
       fechaEntrega,
-      fechaVencimiento: calcularVencimiento(fechaEntrega, biblioteca.diasPrestamo, biblioteca),
+      fechaVencimiento: calcularVencimiento(fechaEntrega, politica.diasPrestamo, politica),
       registradoPor,
     });
   } catch (err) {
-    // El ejemplar ya quedó reservado arriba — si crear el préstamo falla,
-    // hay que liberarlo a mano (no hay transacciones en este setup) para
-    // no dejarlo trabado en "prestado" sin ningún préstamo asociado.
-    await Ejemplar.findByIdAndUpdate(ejemplar._id, { estado: "disponible" });
+    await liberarEjemplar();
     throw err;
   }
+  // Segundo chequeo, ya con el préstamo creado: dos préstamos simultáneos
+  // al mismo socio pueden pasar los dos el chequeo de arriba. Solo cuenta
+  // lo creado hasta este préstamo, así que se deshace el último y no ambos.
+  if (politica.maxPrestamos != null) {
+    const enCurso = await contarPrestamosEnCurso(bibliotecaId, socioId, { ...conteo, hastaId: prestamo._id });
+    if (enCurso > politica.maxPrestamos) {
+      await Prestamo.deleteOne({ _id: prestamo._id });
+      await liberarEjemplar();
+      throw Object.assign(new Error(mensajeMaxPrestamos(politica)), { status: 409 });
+    }
+  }
+  return prestamo;
+}
+
+// Renovar = correr el vencimiento con los días de la categoría del socio,
+// si todavía le quedan renovaciones según esa misma categoría.
+async function renovar(req, prestamo) {
+  const { politica } = await socioYPolitica(req, prestamo.socioId);
+  if (!puedeRenovar(prestamo, politica)) {
+    throw Object.assign(new Error("Alcanzó el máximo de renovaciones."), { status: 409 });
+  }
+  prestamo.fechaVencimiento = calcularVencimiento(new Date(), politica.diasPrestamo, politica);
+  prestamo.renovaciones += 1;
+  await prestamo.save();
+  return prestamo;
 }
 
 // Adjunta el ítem (Libro o Seriada, según itemTipo) a cada solicitud/
@@ -131,6 +183,7 @@ router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereId
         ejemplarId: solicitud.ejemplarId,
         registradoPor: req.usuario.id,
         estadoOrigenEjemplar: "reservado",
+        solicitudId: solicitud._id,
       });
     } else {
       const prestamo = await Prestamo.findOne({
@@ -140,14 +193,7 @@ router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereId
       if (!prestamo || prestamo.fechaDevolucion) {
         return res.status(409).json({ error: "El préstamo ya no está activo." });
       }
-      const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
-      if (!puedeRenovar(prestamo, biblioteca)) {
-        return res.status(409).json({ error: "Alcanzó el máximo de renovaciones." });
-      }
-      const ahora = new Date();
-      prestamo.fechaVencimiento = calcularVencimiento(ahora, biblioteca.diasPrestamo, biblioteca);
-      prestamo.renovaciones += 1;
-      await prestamo.save();
+      await renovar(req, prestamo);
     }
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message });
@@ -209,15 +255,11 @@ router.post("/prestamos/:id/renovar", requierePermiso("prestamos"), requiereIdVa
   if (prestamo.fechaDevolucion) {
     return res.status(409).json({ error: "Ese préstamo ya fue devuelto." });
   }
-  const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
-  if (!puedeRenovar(prestamo, biblioteca)) {
-    return res.status(409).json({ error: "Alcanzó el máximo de renovaciones." });
+  try {
+    res.json(await renovar(req, prestamo));
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
   }
-  const ahora = new Date();
-  prestamo.fechaVencimiento = calcularVencimiento(ahora, biblioteca.diasPrestamo, biblioteca);
-  prestamo.renovaciones += 1;
-  await prestamo.save();
-  res.json(prestamo);
 });
 
 router.post("/prestamos/:id/devolucion", requierePermiso("devoluciones"), requiereIdValido(), async (req, res) => {

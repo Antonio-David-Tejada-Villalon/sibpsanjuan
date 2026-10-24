@@ -424,6 +424,12 @@ export default function Documentacion() {
           máximas, multa por día de atraso, y si sábados y/o domingos cuentan para calcular vencimiento y atraso (o
           se saltean, para bibliotecas que cierran esos días).
         </p>
+        <p>
+          <strong>Categorías de socio</strong> (en la misma pantalla, debajo): cada biblioteca arranca con Alumno y
+          Docente, y se pueden sumar otras. Cada categoría puede tener sus propios días de préstamo, renovaciones,
+          multa y cantidad de préstamos a la vez; lo que deja vacío usa la regla general. Al cargar un socio se le
+          elige la categoría, y el socio ve sus reglas en "Mis préstamos" del OPAC.
+        </p>
       </Seccion>
 
       <Seccion id="opac" titulo="El catálogo público (OPAC)">

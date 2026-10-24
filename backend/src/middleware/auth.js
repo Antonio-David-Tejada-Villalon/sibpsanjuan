@@ -250,6 +250,23 @@ export function requierePermiso(nombre) {
   };
 }
 
+// Admin (siempre), supervisor (si esta biblioteca está en su alcance) o el
+// superbibliotecario de esta biblioteca (nunca de otra) pueden ajustar sus
+// reglas de circulación y sus categorías de socio — un bibliotecario con
+// permisos individuales, no: esto es política de toda la biblioteca, no un
+// permiso otorgable ítem por ítem como catalogar/prestamos/etc. Usado por
+// routes/bibliotecas.js y routes/categorias.js.
+export function puedeConfigurarCirculacion(req, bibliotecaId) {
+  if (req.usuario.rol === "admin") return true;
+  if (req.usuario.rol === "supervisor") {
+    return (req.usuario.bibliotecasSupervisadas || []).map(String).includes(String(bibliotecaId));
+  }
+  if (req.usuario.rol === "superbibliotecario") {
+    return String(req.usuario.bibliotecaId) === String(bibliotecaId);
+  }
+  return false;
+}
+
 // Requiere sesión de socio, Y que ese socio pertenezca a la biblioteca
 // resuelta en req.biblioteca (ver routes/opac.js) — así un socio de una
 // biblioteca no puede usar su sesión en el OPAC de otra, aunque adivine

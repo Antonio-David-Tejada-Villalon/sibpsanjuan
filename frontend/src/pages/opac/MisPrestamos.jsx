@@ -7,9 +7,46 @@ function formatear(fecha) {
   return new Date(fecha).toLocaleDateString("es-AR");
 }
 
+function veces(n) {
+  return `${n} ${n === 1 ? "vez" : "veces"}`;
+}
+
+// Las reglas de la categoría del socio (Alumno, Docente...), dichas en
+// frases cortas: cuánto dura un préstamo, cuántas veces se renueva, cuántos
+// puede tener a la vez y la multa. Solo lectura — las fija la biblioteca.
+export function ReglasDelSocio({ reglas }) {
+  const items = [`Cada préstamo dura ${reglas.diasPrestamo} ${reglas.diasPrestamo === 1 ? "día" : "días"}.`];
+  items.push(
+    reglas.maxRenovaciones > 0
+      ? `Podés renovarlo hasta ${veces(reglas.maxRenovaciones)}.`
+      : "Los préstamos no se pueden renovar."
+  );
+  if (reglas.maxPrestamos != null) {
+    items.push(
+      `Podés tener hasta ${reglas.maxPrestamos} a la vez, contando los pedidos pendientes. Ahora tenés ${reglas.enCurso}.`
+    );
+  }
+  if (reglas.multaPorDiaVencido > 0) {
+    items.push(`Si te atrasás, la multa es de $${reglas.multaPorDiaVencido} por día.`);
+  }
+  return (
+    <section className="card mis-reglas" aria-labelledby="titulo-mis-reglas">
+      <h2 id="titulo-mis-reglas">
+        Tus reglas de préstamo{reglas.categoria ? ` · ${reglas.categoria.nombre}` : ""}
+      </h2>
+      <ul>
+        {items.map((texto) => (
+          <li key={texto}>{texto}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function MisPrestamos() {
   const { codigo } = useSocioAuth();
   const [prestamos, setPrestamos] = useState(null);
+  const [reglas, setReglas] = useState(null);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [procesandoId, setProcesandoId] = useState(null);
@@ -17,6 +54,11 @@ export default function MisPrestamos() {
   async function recargar() {
     setPrestamos(await api.opacMisPrestamos(codigo));
   }
+
+  useEffect(() => {
+    // Si falla, la página sigue sirviendo sin el recuadro de reglas.
+    api.opacMisReglas(codigo).then(setReglas, () => setReglas(null));
+  }, [codigo]);
 
   useEffect(() => {
     recargar();
@@ -39,6 +81,7 @@ export default function MisPrestamos() {
   return (
     <>
       <h1>Mis préstamos</h1>
+      {reglas && <ReglasDelSocio reglas={reglas} />}
       {mensaje && <div className="flash ok" role="status">{mensaje}</div>}
       {error && <div className="flash error" role="alert">{error}</div>}
       {prestamos === null ? (

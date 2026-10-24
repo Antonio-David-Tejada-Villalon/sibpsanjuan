@@ -19,8 +19,10 @@ import Socio from "../src/models/Socio.js";
 import Ejemplar from "../src/models/Ejemplar.js";
 import Prestamo from "../src/models/Prestamo.js";
 import Solicitud from "../src/models/Solicitud.js";
+import Categoria from "../src/models/Categoria.js";
 import { migrarColeccion } from "../scripts/migrar-item-polimorfico.js";
 import { migrarRolesJerarquia } from "../scripts/migrar-roles-jerarquia.js";
+import { migrarCategorias } from "../scripts/migrar-categorias.js";
 
 process.env.JWT_SECRET = "clave-de-test";
 process.env.COOKIE_SECURE = "0";
@@ -175,7 +177,9 @@ test("flujo completo: admin crea biblioteca+usuario, biblioteca carga libros/soc
       dni: "30111222",
       direccion: "San Martín 123",
       localidad: "San Juan",
-      categoria: "ADULTO",
+      // Una de las dos categorías con las que nace toda biblioteca (ver
+      // CATEGORIAS_BASE) — un código suelto como "ADULTO" ya no se acepta.
+      categoria: "docente",
       email: "mjperez@example.com",
     }),
   });
@@ -714,12 +718,26 @@ test("biblioteca carga un libro con subtipo ebook y urlAcceso, sin ejemplares", 
   assert.equal(entradaEbook.urlAcceso, "https://ejemplo.org/libro.pdf");
 
   // --- sin ejemplares, pedir préstamo del ebook sigue el mismo 409 ya existente ---
+  // (con un socio real: uno inexistente ahora corta antes, con 404)
+  res = await fetch(`${base}/api/socios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieStaff },
+    body: JSON.stringify({ numeroSocio: "0001", apellido: "Lectora", nombre: "Eva" }),
+  });
+  const socio = await res.json();
+  res = await fetch(`${base}/api/circulacion/prestamos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieStaff },
+    body: JSON.stringify({ socioId: socio._id, itemTipo: "Libro", itemId: ebook._id }),
+  });
+  assert.equal(res.status, 409);
+
   res = await fetch(`${base}/api/circulacion/prestamos`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookieStaff },
     body: JSON.stringify({ socioId: new mongoose.Types.ObjectId().toString(), itemTipo: "Libro", itemId: ebook._id }),
   });
-  assert.equal(res.status, 409);
+  assert.equal(res.status, 404);
 });
 
 test("Seriada: circula igual que Libro (ejemplares, préstamo directo, devolución, y 409 sin stock)", async (t) => {
@@ -2915,4 +2933,306 @@ test("consultas malformadas responden 400 controlado y el servidor sigue de pie 
   // Y después de todo eso, el servidor sigue respondiendo.
   res = await fetch(`${base}/api/health`);
   assert.equal(res.status, 200);
+});
+
+// --- Categorías de socio (Alumno/Docente) ---
+
+const JSON_CT = { "Content-Type": "application/json" };
+const UN_DIA = 86400000;
+const diasDePrestamo = (p) => (new Date(p.fechaVencimiento) - new Date(p.fechaEntrega)) / UN_DIA;
+
+// Biblioteca nueva con su superbibliotecario, más atajos para las llamadas
+// que se repiten en los tests de categorías.
+async function bibliotecaDePrueba(base, codigo) {
+  const cookieAdmin = await login(base, "admin", "adminpass123");
+  let res = await fetch(`${base}/api/bibliotecas`, {
+    method: "POST",
+    headers: { ...JSON_CT, Cookie: cookieAdmin },
+    body: JSON.stringify({ nombre: `Biblioteca ${codigo}`, codigo }),
+  });
+  const biblioteca = await res.json();
+  await fetch(`${base}/api/superbibliotecarios`, {
+    method: "POST",
+    headers: { ...JSON_CT, Cookie: cookieAdmin },
+    body: JSON.stringify({ usuario: codigo, password: "clavesegura1", bibliotecaId: biblioteca._id }),
+  });
+  const cookie = await login(base, codigo, "clavesegura1");
+  const enviar = (metodo, ruta, cuerpo) =>
+    fetch(`${base}/api${ruta}`, {
+      method: metodo,
+      headers: cuerpo ? { ...JSON_CT, Cookie: cookie } : { Cookie: cookie },
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    });
+  return {
+    biblioteca,
+    cookie,
+    enviar,
+    categorias: `/bibliotecas/${biblioteca._id}/categorias`,
+    async crearSocio(numeroSocio, categoria) {
+      const r = await enviar("POST", "/socios", { numeroSocio, apellido: "Prueba", nombre: numeroSocio, categoria });
+      assert.equal(r.status, 201);
+      return r.json();
+    },
+    async crearLibro(titulo, codigos) {
+      const r = await enviar("POST", "/libros", {
+        titulo,
+        ejemplares: codigos.map((codigoBarras) => ({ codigoBarras, signatura: "1" })),
+      });
+      assert.equal(r.status, 201);
+      return r.json();
+    },
+    prestar: (socio, libro) =>
+      enviar("POST", "/circulacion/prestamos", { socioId: socio._id, itemTipo: "Libro", itemId: libro._id }),
+    async loginOpac(socio, password) {
+      await enviar("POST", `/socios/${socio._id}/credenciales`, { password });
+      const r = await fetch(`${base}/api/opac/${codigo}/login`, {
+        method: "POST",
+        headers: JSON_CT,
+        body: JSON.stringify({ numeroSocio: socio.numeroSocio, password }),
+      });
+      assert.equal(r.status, 200);
+      const cookieSocio = extraerCookie(r);
+      return (metodo, ruta, cuerpo) =>
+        fetch(`${base}/api/opac/${codigo}${ruta}`, {
+          method: metodo,
+          headers: cuerpo ? { ...JSON_CT, Cookie: cookieSocio } : { Cookie: cookieSocio },
+          body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+        });
+    },
+  };
+}
+
+test("categorías de socio: Alumno y Docente con reglas propias en los préstamos del staff y del OPAC", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpcateg");
+
+  // --- toda biblioteca nueva nace con Alumno y Docente, sin reglas propias ---
+  let res = await b.enviar("GET", b.categorias);
+  assert.equal(res.status, 200);
+  let categorias = await res.json();
+  assert.deepEqual(categorias.map((c) => c.codigo), ["ALUMNO", "DOCENTE"]);
+  assert.equal(categorias[0].diasPrestamo, null);
+  assert.equal(categorias[0].reglas.diasPrestamo, 14, "sin regla propia hereda la de la biblioteca");
+  assert.equal(categorias[0].reglas.maxPrestamos, null);
+  const alumno = categorias[0];
+
+  // --- Alumno: 7 días, 1 renovación, 1 préstamo a la vez, $50 por día de atraso ---
+  res = await b.enviar("PUT", `${b.categorias}/${alumno._id}`, {
+    diasPrestamo: 7,
+    maxRenovaciones: 1,
+    maxPrestamos: 1,
+    multaPorDiaVencido: 50,
+  });
+  assert.equal(res.status, 200);
+
+  // --- valores inválidos: 400 con un mensaje que se entiende ---
+  for (const [cuerpo, texto] of [
+    [{ diasPrestamo: 0 }, /al menos 1/],
+    [{ diasPrestamo: 2.5 }, /número entero/],
+    [{ maxPrestamos: "muchos" }, /tiene que ser un número/],
+    [{ codigo: "OTRO" }, /no se puede cambiar/],
+  ]) {
+    res = await b.enviar("PUT", `${b.categorias}/${alumno._id}`, cuerpo);
+    assert.equal(res.status, 400, JSON.stringify(cuerpo));
+    assert.match((await res.json()).error, texto);
+  }
+  res = await b.enviar("POST", b.categorias, { codigo: "alumno", nombre: "Repetida" });
+  assert.equal(res.status, 409);
+  res = await b.enviar("POST", b.categorias, { codigo: "con espacio", nombre: "Mal código" });
+  assert.equal(res.status, 400);
+
+  // --- un socio solo puede tener una categoría que exista en su biblioteca ---
+  res = await b.enviar("POST", "/socios", { numeroSocio: "X1", apellido: "Prueba", nombre: "X", categoria: "PRECEPTOR" });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /ALUMNO, DOCENTE/);
+
+  const socioAlumno = await b.crearSocio("A100", "alumno");
+  assert.equal(socioAlumno.categoria, "ALUMNO", "se guarda en mayúsculas");
+  const socioDocente = await b.crearSocio("D200", "DOCENTE");
+  const socioViejo = await b.crearSocio("V300"); // sin categoría: el "ADULTO" de siempre, sin reglas propias
+
+  // --- editarle otro dato a un socio con un código viejo no obliga a cambiarle la categoría... ---
+  res = await b.enviar("PUT", `/socios/${socioViejo._id}`, { categoria: "ADULTO", telefono: "264 400 0000" });
+  assert.equal(res.status, 200);
+  // --- ...pero pasarlo a un código que no existe, sí falla ---
+  res = await b.enviar("PUT", `/socios/${socioViejo._id}`, { categoria: "PRECEPTOR" });
+  assert.equal(res.status, 400);
+
+  const libroA = await b.crearLibro("Libro A categorías", ["CAT-A1", "CAT-A2", "CAT-A3"]);
+  const libroB = await b.crearLibro("Libro B categorías", ["CAT-B1", "CAT-B2", "CAT-B3"]);
+
+  // --- Alumno: vence a los 7 días y no puede llevarse un segundo libro ---
+  res = await b.prestar(socioAlumno, libroA);
+  assert.equal(res.status, 201);
+  const prestamoAlumno = await res.json();
+  assert.equal(diasDePrestamo(prestamoAlumno), 7);
+  res = await b.prestar(socioAlumno, libroB);
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).error, /máximo de 1 préstamo a la vez de la categoría Alumno/);
+  assert.equal(
+    await Ejemplar.countDocuments({ itemId: libroB._id, estado: "disponible" }),
+    3,
+    "el rechazo no deja ningún ejemplar tomado"
+  );
+
+  // --- Docente: hereda los 14 días de la biblioteca y no tiene tope ---
+  res = await b.prestar(socioDocente, libroA);
+  assert.equal(res.status, 201);
+  const prestamoDocente = await res.json();
+  assert.equal(diasDePrestamo(prestamoDocente), 14);
+  res = await b.prestar(socioDocente, libroB);
+  assert.equal(res.status, 201);
+
+  // --- código sin categoría dada de alta: la regla general, como antes ---
+  res = await b.prestar(socioViejo, libroB);
+  assert.equal(res.status, 201);
+  assert.equal(diasDePrestamo(await res.json()), 14);
+
+  // --- renovaciones: Alumno 1, Docente 2 (la de la biblioteca) ---
+  const renovar = (p) => b.enviar("POST", `/circulacion/prestamos/${p._id}/renovar`);
+  assert.equal((await renovar(prestamoAlumno)).status, 200);
+  assert.equal((await renovar(prestamoAlumno)).status, 409);
+  assert.equal((await renovar(prestamoDocente)).status, 200);
+  assert.equal((await renovar(prestamoDocente)).status, 200);
+  assert.equal((await renovar(prestamoDocente)).status, 409);
+
+  // --- OPAC: el alumno ve sus reglas, y el tope también corre para sus pedidos ---
+  const opac = await b.loginOpac(socioAlumno, "clavealumno1");
+  res = await opac("GET", "/mis-reglas");
+  assert.equal(res.status, 200);
+  const reglas = await res.json();
+  assert.deepEqual(reglas.categoria, { codigo: "ALUMNO", nombre: "Alumno" });
+  assert.equal(reglas.diasPrestamo, 7);
+  assert.equal(reglas.maxRenovaciones, 1);
+  assert.equal(reglas.maxPrestamos, 1);
+  assert.equal(reglas.enCurso, 1);
+
+  const pedir = (libro) => opac("POST", "/solicitudes", { tipo: "prestamo", itemTipo: "Libro", itemId: libro._id });
+  res = await pedir(libroB);
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).error, /Ya tenés 1 préstamo o pedido en curso/);
+  res = await opac("POST", "/solicitudes", { tipo: "renovacion", prestamoId: prestamoAlumno._id });
+  assert.equal(res.status, 409, "ya usó su única renovación");
+
+  // --- multa con la tarifa de Alumno ($50 por día): 3 días de atraso = $150 ---
+  await Prestamo.findByIdAndUpdate(prestamoAlumno._id, { fechaVencimiento: new Date(Date.now() - 3 * UN_DIA - 60000) });
+  res = await opac("GET", "/mis-prestamos");
+  assert.equal((await res.json())[0].multa, 150);
+
+  // --- devuelve y ahí puede pedir; el pedido pendiente ya cuenta para el tope ---
+  res = await b.enviar("POST", `/circulacion/prestamos/${prestamoAlumno._id}/devolucion`);
+  assert.equal(res.status, 200);
+  res = await pedir(libroB);
+  assert.equal(res.status, 201);
+  const solicitud = await res.json();
+  res = await pedir(libroA);
+  assert.equal(res.status, 409);
+
+  // --- aprobarlo no lo cuenta dos veces, y el préstamo sale con los días de Alumno ---
+  res = await b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/aprobar`);
+  assert.equal(res.status, 200);
+  const prestamoAprobado = await Prestamo.findOne({ socioId: socioAlumno._id, fechaDevolucion: null });
+  assert.equal(diasDePrestamo(prestamoAprobado), 7);
+
+  // --- conteo de socios por categoría, y una categoría en uso no se borra ---
+  res = await b.enviar("GET", b.categorias);
+  categorias = await res.json();
+  assert.equal(categorias.find((c) => c.codigo === "ALUMNO").socios, 1);
+  assert.equal(categorias.find((c) => c.codigo === "ALUMNO").reglas.maxPrestamos, 1);
+  res = await b.enviar("DELETE", `${b.categorias}/${alumno._id}`);
+  assert.equal(res.status, 409);
+  res = await b.enviar("POST", b.categorias, { codigo: "invitado", nombre: "Invitado", maxPrestamos: 2 });
+  assert.equal(res.status, 201);
+  const invitado = await res.json();
+  assert.equal(invitado.codigo, "INVITADO");
+  res = await b.enviar("DELETE", `${b.categorias}/${invitado._id}`);
+  assert.equal(res.status, 200);
+  res = await b.enviar("GET", b.categorias);
+  assert.deepEqual((await res.json()).map((c) => c.codigo), ["ALUMNO", "DOCENTE"]);
+
+  // --- su bibliotecario las lee (para cargar socios) pero no las cambia ---
+  res = await b.enviar("POST", "/bibliotecarios", {
+    usuario: "bibcateg",
+    password: "clavesegura1",
+    permisos: { socios: true, prestamos: true },
+  });
+  assert.equal(res.status, 201);
+  const cookieBib = await login(base, "bibcateg", "clavesegura1");
+  res = await fetch(`${base}/api${b.categorias}`, { headers: { Cookie: cookieBib } });
+  assert.equal(res.status, 200);
+  res = await fetch(`${base}/api${b.categorias}/${alumno._id}`, {
+    method: "PUT",
+    headers: { ...JSON_CT, Cookie: cookieBib },
+    body: JSON.stringify({ maxPrestamos: 5 }),
+  });
+  assert.equal(res.status, 403);
+
+  // --- otra biblioteca ni las ve, y sus socios no pueden recibir préstamos de esta ---
+  const ajena = await bibliotecaDePrueba(base, "bpcategajena");
+  res = await ajena.enviar("GET", b.categorias);
+  assert.equal(res.status, 403);
+  const socioAjeno = await ajena.crearSocio("Z900", "DOCENTE");
+  res = await b.prestar(socioAjeno, libroA);
+  assert.equal(res.status, 404);
+});
+
+test("categorías: dos préstamos o pedidos simultáneos de un alumno con tope 1 dejan pasar uno solo", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpcarrera");
+  const alumno = (await (await b.enviar("GET", b.categorias)).json()).find((c) => c.codigo === "ALUMNO");
+  await b.enviar("PUT", `${b.categorias}/${alumno._id}`, { maxPrestamos: 1 });
+  const socio = await b.crearSocio("A1", "ALUMNO");
+  const libro1 = await b.crearLibro("Carrera 1", ["CAR-1A", "CAR-1B"]);
+  const libro2 = await b.crearLibro("Carrera 2", ["CAR-2A", "CAR-2B"]);
+
+  // --- staff: dos préstamos a la vez ---
+  const respuestas = await Promise.all([b.prestar(socio, libro1), b.prestar(socio, libro2)]);
+  assert.deepEqual(respuestas.map((r) => r.status).sort(), [201, 409]);
+  assert.equal(await Prestamo.countDocuments({ socioId: socio._id, fechaDevolucion: null }), 1);
+  assert.equal(
+    await Ejemplar.countDocuments({ itemId: { $in: [libro1._id, libro2._id] }, estado: "prestado" }),
+    1,
+    "el préstamo deshecho devolvió su ejemplar"
+  );
+
+  // --- OPAC: dos pedidos a la vez, después de devolver ---
+  const prestamo = await Prestamo.findOne({ socioId: socio._id, fechaDevolucion: null });
+  await b.enviar("POST", `/circulacion/prestamos/${prestamo._id}/devolucion`);
+  const opac = await b.loginOpac(socio, "clavealumno1");
+  const pedidos = await Promise.all(
+    [libro1, libro2].map((l) => opac("POST", "/solicitudes", { tipo: "prestamo", itemTipo: "Libro", itemId: l._id }))
+  );
+  assert.deepEqual(pedidos.map((r) => r.status).sort(), [201, 409]);
+  assert.equal(await Solicitud.countDocuments({ socioId: socio._id, estado: "pendiente" }), 1);
+  assert.equal(await Ejemplar.countDocuments({ itemId: { $in: [libro1._id, libro2._id] }, estado: "reservado" }), 1);
+});
+
+test("migración de categorías: las bibliotecas viejas reciben Alumno/Docente y los códigos que ya usan", async () => {
+  const vieja = await Biblioteca.create({ nombre: "Biblioteca anterior a las categorías", codigo: "bpvieja" });
+  await Socio.create([
+    { bibliotecaId: vieja._id, numeroSocio: "1", apellido: "Uno", nombre: "Ana", categoria: "ADULTO" },
+    { bibliotecaId: vieja._id, numeroSocio: "2", apellido: "Dos", nombre: "Beto", categoria: "infantil" },
+    { bibliotecaId: vieja._id, numeroSocio: "3", apellido: "Tres", nombre: "Caro", categoria: "Socio Especial" },
+  ]);
+
+  const resultado = await migrarCategorias();
+  const codigos = (await Categoria.find({ bibliotecaId: vieja._id, eliminadoEn: null }).distinct("codigo")).sort();
+  assert.deepEqual(codigos, ["ADULTO", "ALUMNO", "DOCENTE", "INFANTIL"]);
+  assert.ok(
+    resultado.sinMigrar.some((s) => s.biblioteca === "bpvieja" && s.codigo === "SOCIO ESPECIAL"),
+    "un código con espacios no se puede dar de alta solo: se informa"
+  );
+  assert.equal(
+    (await Socio.findOne({ bibliotecaId: vieja._id, numeroSocio: "2" })).categoria,
+    "infantil",
+    "no toca a los socios"
+  );
+
+  assert.equal((await migrarCategorias()).creadas, 0, "una segunda corrida no crea nada");
 });

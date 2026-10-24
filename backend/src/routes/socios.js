@@ -1,9 +1,11 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import Socio from "../models/Socio.js";
+import Categoria from "../models/Categoria.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
 import { textoDeConsulta } from "../utils/consulta.js";
+import { buscarCategoria, normalizarCodigoCategoria } from "../circulacion/categorias.js";
 
 const router = Router();
 
@@ -11,6 +13,25 @@ router.use(requiereLogin, requiereBiblioteca);
 
 function escaparRegex(texto) {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// La categoría decide las reglas de préstamo del socio (ver
+// circulacion/categorias.js), así que tiene que ser una de las dadas de
+// alta en esta biblioteca. Excepción: dejar la que el socio ya tenía, aunque
+// sea un código viejo sin categoría (ej. "ADULTO") — si no, editarle el
+// teléfono a un socio cargado antes de las categorías fallaría. Normaliza
+// datos.categoria a mayúsculas. Devuelve el mensaje de error, o null.
+async function validarCategoria(req, datos, categoriaActual) {
+  if (datos.categoria === undefined) return null;
+  const codigo = normalizarCodigoCategoria(datos.categoria);
+  if (!codigo) return "Elegí una categoría para el socio.";
+  datos.categoria = codigo;
+  if (categoriaActual !== undefined && normalizarCodigoCategoria(categoriaActual) === codigo) return null;
+  if (await buscarCategoria(req.usuario.bibliotecaId, codigo)) return null;
+  const disponibles = await Categoria.find({ bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null }).distinct("codigo");
+  return disponibles.length
+    ? `La categoría '${codigo}' no existe en esta biblioteca. Las disponibles son: ${disponibles.join(", ")}.`
+    : `La categoría '${codigo}' no existe en esta biblioteca, y todavía no hay ninguna dada de alta.`;
 }
 
 router.get("/", async (req, res) => {
@@ -59,6 +80,8 @@ router.post("/", requierePermiso("socios"), async (req, res) => {
   // La contraseña SOLO se fija por /credenciales (con bcrypt) — nunca
   // aceptamos un passwordHash que venga del cliente en el body.
   delete datos.passwordHash;
+  const errorCategoria = await validarCategoria(req, datos);
+  if (errorCategoria) return res.status(400).json({ error: errorCategoria });
   try {
     const socio = await Socio.create(datos);
     const { passwordHash, ...sinPassword } = socio.toObject();
@@ -76,6 +99,14 @@ router.put("/:id", requierePermiso("socios"), requiereIdValido(), async (req, re
   delete datos._id;
   delete datos.bibliotecaId;
   delete datos.passwordHash;
+  if (datos.categoria !== undefined) {
+    const actual = await Socio.findOne({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null });
+    if (!actual) {
+      return res.status(404).json({ error: "No encontrado." });
+    }
+    const errorCategoria = await validarCategoria(req, datos, actual.categoria);
+    if (errorCategoria) return res.status(400).json({ error: errorCategoria });
+  }
   try {
     const socio = await Socio.findOneAndUpdate(
       { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null },

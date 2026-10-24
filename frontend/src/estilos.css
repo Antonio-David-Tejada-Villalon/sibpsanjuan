@@ -793,6 +793,31 @@ main:has(.doc-layout) { max-width: 1100px; }
 /* Lista de ejemplares (editable) al editar un libro (Libros.jsx) */
 .lista-ejemplares { list-style: none; margin: var(--space-1) 0 var(--space-3); padding: 0; font-size: var(--text-sm); }
 .lista-ejemplares li { padding: var(--space-2) 0; border-bottom: 1px solid var(--borde-tenue); }
+
+/* Categorías de socio (CategoriasSocios.jsx): una entrada por categoría en
+   vez de tabla, para que sus cuatro reglas se acomoden en columnas en
+   escritorio y se apilen en el teléfono sin scroll horizontal. */
+.lista-categorias { list-style: none; margin: var(--space-3) 0 var(--space-4); padding: 0; }
+.lista-categorias > li { padding: var(--space-3) 0; border-bottom: 1px solid var(--borde-tenue); }
+.categoria__encabezado { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.categoria__nota { color: var(--texto-tenue); font-size: var(--text-sm); }
+.categoria__reglas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+.categoria__reglas dt { color: var(--texto-tenue); }
+.categoria__reglas dd { margin: 0; font-weight: 600; }
+.categoria__reglas .categoria__nota { font-weight: 400; }
+.categoria__acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.campos-reglas { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 var(--space-4); }
+.campos-reglas label { margin-bottom: var(--space-3); }
+
+/* Reglas de la categoría del socio en el OPAC (MisPrestamos.jsx) */
+.mis-reglas ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
+.mis-reglas li { margin-bottom: var(--space-1); }
 .pill-estado {
   font-size: var(--text-xs);
   text-transform: uppercase;

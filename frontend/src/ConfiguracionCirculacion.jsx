@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from "react";
 import api from "./api.js";
+import CategoriasSocios from "./CategoriasSocios.jsx";
 
 // Compartido entre Bibliotecarios.jsx (el propio superbibliotecario, sobre
 // su única biblioteca) y AdminBibliotecas.jsx (admin/supervisor, una por
 // cada biblioteca en su alcance) — mismo formulario, el backend decide con
-// puedeConfigurarCirculacion() quién puede tocar cuál (ver bibliotecas.js).
+// puedeConfigurarCirculacion() quién puede tocar cuál (ver
+// middleware/auth.js). Debajo van las categorías de socio, que heredan de
+// esta configuración lo que no fijan por su cuenta.
 export default function ConfiguracionCirculacion({ bibliotecaId }) {
   const [form, setForm] = useState(null); // null = cargando
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
+  // Sube con cada guardado, para que CategoriasSocios vuelva a leer lo
+  // que hereda.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     setForm(null);
@@ -48,6 +54,7 @@ export default function ConfiguracionCirculacion({ bibliotecaId }) {
         contarDomingos: actualizada.contarDomingos,
       });
       setGuardado(true);
+      setVersion((v) => v + 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -64,62 +71,65 @@ export default function ConfiguracionCirculacion({ bibliotecaId }) {
   }
 
   return (
-    <form className="card" onSubmit={onSubmit}>
-      <h3>Configuración de préstamos</h3>
-      {error && <div className="flash error" role="alert">{error}</div>}
-      {guardado && <div className="flash ok" role="status">Guardado.</div>}
-      <label>
-        Días de préstamo
-        <input
-          type="number"
-          min="1"
-          value={form.diasPrestamo}
-          onChange={(e) => onCambiar("diasPrestamo", Number(e.target.value))}
-          required
-        />
-      </label>
-      <label>
-        Renovaciones máximas (0 = no se puede renovar)
-        <input
-          type="number"
-          min="0"
-          value={form.maxRenovaciones}
-          onChange={(e) => onCambiar("maxRenovaciones", Number(e.target.value))}
-          required
-        />
-      </label>
-      <label>
-        Multa por día de atraso, en $ (0 = no cobra)
-        <input
-          type="number"
-          min="0"
-          value={form.multaPorDiaVencido}
-          onChange={(e) => onCambiar("multaPorDiaVencido", Number(e.target.value))}
-          required
-        />
-      </label>
-      <label style={{ display: "block", fontWeight: "normal" }}>
-        <input
-          type="checkbox"
-          checked={form.contarSabados}
-          onChange={(e) => onCambiar("contarSabados", e.target.checked)}
-        />{" "}
-        Contar los sábados para el vencimiento y el atraso
-      </label>
-      <label style={{ display: "block", fontWeight: "normal" }}>
-        <input
-          type="checkbox"
-          checked={form.contarDomingos}
-          onChange={(e) => onCambiar("contarDomingos", e.target.checked)}
-        />{" "}
-        Contar los domingos para el vencimiento y el atraso
-      </label>
-      <p>
-        <small>Si destildás los dos, los préstamos solo cuentan de lunes a viernes.</small>
-      </p>
-      <button type="submit" disabled={guardando}>
-        {guardando ? "Guardando…" : "Guardar configuración"}
-      </button>
-    </form>
+    <>
+      <form className="card" onSubmit={onSubmit}>
+        <h3>Configuración de préstamos</h3>
+        {error && <div className="flash error" role="alert">{error}</div>}
+        {guardado && <div className="flash ok" role="status">Guardado.</div>}
+        <label>
+          Días de préstamo
+          <input
+            type="number"
+            min="1"
+            value={form.diasPrestamo}
+            onChange={(e) => onCambiar("diasPrestamo", Number(e.target.value))}
+            required
+          />
+        </label>
+        <label>
+          Renovaciones máximas (0 = no se puede renovar)
+          <input
+            type="number"
+            min="0"
+            value={form.maxRenovaciones}
+            onChange={(e) => onCambiar("maxRenovaciones", Number(e.target.value))}
+            required
+          />
+        </label>
+        <label>
+          Multa por día de atraso, en $ (0 = no cobra)
+          <input
+            type="number"
+            min="0"
+            value={form.multaPorDiaVencido}
+            onChange={(e) => onCambiar("multaPorDiaVencido", Number(e.target.value))}
+            required
+          />
+        </label>
+        <label style={{ display: "block", fontWeight: "normal" }}>
+          <input
+            type="checkbox"
+            checked={form.contarSabados}
+            onChange={(e) => onCambiar("contarSabados", e.target.checked)}
+          />{" "}
+          Contar los sábados para el vencimiento y el atraso
+        </label>
+        <label style={{ display: "block", fontWeight: "normal" }}>
+          <input
+            type="checkbox"
+            checked={form.contarDomingos}
+            onChange={(e) => onCambiar("contarDomingos", e.target.checked)}
+          />{" "}
+          Contar los domingos para el vencimiento y el atraso
+        </label>
+        <p>
+          <small>Si destildás los dos, los préstamos solo cuentan de lunes a viernes.</small>
+        </p>
+        <button type="submit" disabled={guardando}>
+          {guardando ? "Guardando…" : "Guardar configuración"}
+        </button>
+      </form>
+      <CategoriasSocios bibliotecaId={bibliotecaId} version={version} />
+    </>
   );
 }

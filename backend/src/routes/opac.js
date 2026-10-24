@@ -24,7 +24,8 @@ import {
   requiereLoginSocio,
   requiereSocio,
 } from "../middleware/auth.js";
-import { puedeRenovar, estaVencido, calcularMulta } from "../circulacion/reglas.js";
+import { puedeRenovar, estaVencido, calcularMulta, resolverPolitica, superaMaxPrestamos } from "../circulacion/reglas.js";
+import { politicaDeSocio, contarPrestamosEnCurso } from "../circulacion/categorias.js";
 import { esIdValido } from "../utils/objectId.js";
 import { crearLimitadorLogin } from "../middleware/rateLimit.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
@@ -335,7 +336,36 @@ router.get("/yo", (req, res) => {
   res.json({ numeroSocio: req.usuario.numeroSocio });
 });
 
+// Reglas de la categoría del socio logueado (ver circulacion/categorias.js).
+// null si el socio se borró después de iniciar sesión: la cookie sigue
+// siendo válida, pero ya no debería poder pedir nada.
+async function politicaDelSocio(req) {
+  const socio = await Socio.findOne({ _id: req.usuario.id, bibliotecaId: req.biblioteca._id, eliminadoEn: null });
+  return socio ? politicaDeSocio(socio, req.biblioteca) : null;
+}
+
+const SOCIO_INACTIVO = "Tu cuenta de socio ya no está activa. Consultá en la biblioteca.";
+
+function mensajeMaximoAlcanzado(politica) {
+  const n = politica.maxPrestamos;
+  const categoria = politica.categoria ? ` para la categoría ${politica.categoria.nombre}` : "";
+  return `Ya tenés ${n} ${n === 1 ? "préstamo o pedido" : "préstamos o pedidos"} en curso, el máximo${categoria}. Devolvé uno para poder pedir otro.`;
+}
+
+// Lo que el socio necesita saber antes de pedir: cuántos días le dura un
+// préstamo, cuántas veces puede renovar, la multa y cuántos puede tener a
+// la vez (y cuántos tiene ahora). Nada de esto es configurable desde acá.
+router.get("/mis-reglas", async (req, res) => {
+  const politica = await politicaDelSocio(req);
+  if (!politica) return res.status(403).json({ error: SOCIO_INACTIVO });
+  res.json({
+    ...politica,
+    enCurso: await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id),
+  });
+});
+
 router.get("/mis-prestamos", async (req, res) => {
+  const politica = (await politicaDelSocio(req)) || resolverPolitica(req.biblioteca);
   const prestamos = await Prestamo.find({
     bibliotecaId: req.biblioteca._id,
     socioId: req.usuario.id,
@@ -366,7 +396,7 @@ router.get("/mis-prestamos", async (req, res) => {
       fechaDevolucion: p.fechaDevolucion,
       renovaciones: p.renovaciones,
       vencido: estaVencido(p),
-      multa: calcularMulta(p, req.biblioteca),
+      multa: calcularMulta(p, politica),
     }))
   );
 });
@@ -382,6 +412,11 @@ router.get("/mis-solicitudes", async (req, res) => {
 router.post("/solicitudes", async (req, res) => {
   const { tipo, itemTipo, itemId, prestamoId } = req.body || {};
   let itemReservado = null;
+  if (tipo !== "prestamo" && tipo !== "renovacion") {
+    return res.status(400).json({ error: "tipo debe ser 'prestamo' o 'renovacion'." });
+  }
+  const politica = await politicaDelSocio(req);
+  if (!politica) return res.status(403).json({ error: SOCIO_INACTIVO });
 
   if (tipo === "prestamo") {
     if (!itemTipo || !itemId) return res.status(400).json({ error: "Faltan itemTipo/itemId." });
@@ -390,7 +425,10 @@ router.post("/solicitudes", async (req, res) => {
     if (!Modelo) return res.status(400).json({ error: "itemTipo inválido." });
     const item = await Modelo.findOne({ _id: itemId, bibliotecaId: req.biblioteca._id, eliminadoEn: null });
     if (!item) return res.status(404).json({ error: "Ítem no encontrado." });
-  } else if (tipo === "renovacion") {
+    if (superaMaxPrestamos(politica, await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id))) {
+      return res.status(409).json({ error: mensajeMaximoAlcanzado(politica) });
+    }
+  } else {
     if (!prestamoId) return res.status(400).json({ error: "Falta prestamoId." });
     if (!esIdValido(prestamoId)) return res.status(400).json({ error: "prestamoId inválido." });
     const prestamo = await Prestamo.findOne({
@@ -402,11 +440,9 @@ router.post("/solicitudes", async (req, res) => {
     if (prestamo.fechaDevolucion) {
       return res.status(409).json({ error: "Ese préstamo ya fue devuelto." });
     }
-    if (!puedeRenovar(prestamo, req.biblioteca)) {
+    if (!puedeRenovar(prestamo, politica)) {
       return res.status(409).json({ error: "Este préstamo ya alcanzó el máximo de renovaciones." });
     }
-  } else {
-    return res.status(400).json({ error: "tipo debe ser 'prestamo' o 'renovacion'." });
   }
 
   const yaExiste = await Solicitud.findOne({
@@ -461,6 +497,17 @@ router.post("/solicitudes", async (req, res) => {
     // AUDITORIA.md) — se loguea server-side para que el staff/dev lo vea.
     console.error("Error al crear una solicitud de OPAC:", err);
     return res.status(400).json({ error: "No se pudo registrar el pedido. Probá de nuevo en un momento." });
+  }
+  // Segundo chequeo del máximo, ya con el pedido creado — mismo criterio
+  // que crearPrestamo en circulacion.js: si dos pedidos del mismo socio
+  // pasaron juntos el chequeo de arriba, se deshace solo el último.
+  if (tipo === "prestamo" && politica.maxPrestamos != null) {
+    const enCurso = await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id, { hastaId: solicitud._id });
+    if (enCurso > politica.maxPrestamos) {
+      await Solicitud.deleteOne({ _id: solicitud._id });
+      await Ejemplar.findByIdAndUpdate(itemReservado._id, { estado: "disponible" });
+      return res.status(409).json({ error: mensajeMaximoAlcanzado(politica) });
+    }
   }
   res.status(201).json(solicitud);
 });

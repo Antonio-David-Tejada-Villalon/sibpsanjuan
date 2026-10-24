@@ -67,3 +67,29 @@ export function calcularMulta(prestamo, biblioteca, ahora = new Date()) {
 export function puedeRenovar(prestamo, biblioteca) {
   return prestamo.renovaciones < biblioteca.maxRenovaciones;
 }
+
+// Reglas que se le aplican a un socio: las de su categoría (ver
+// models/Categoria.js) y, para cada una que la categoría deje en null, la
+// de la biblioteca. Sin categoría (un código viejo como "ADULTO" que nadie
+// dio de alta) quedan las de la biblioteca tal cual, como antes. El
+// resultado tiene los mismos nombres de campo que Biblioteca, así que se
+// puede pasar en su lugar a calcularVencimiento/calcularMulta/puedeRenovar.
+// Sábados y domingos siguen siendo de la biblioteca: es su horario, no
+// algo que dependa de quién pide el libro.
+export function resolverPolitica(biblioteca, categoria = null) {
+  const propia = (campo) => (categoria && categoria[campo] != null ? categoria[campo] : biblioteca[campo]);
+  return {
+    diasPrestamo: propia("diasPrestamo"),
+    maxRenovaciones: propia("maxRenovaciones"),
+    multaPorDiaVencido: propia("multaPorDiaVencido") || 0,
+    maxPrestamos: categoria?.maxPrestamos ?? null,
+    contarSabados: biblioteca.contarSabados,
+    contarDomingos: biblioteca.contarDomingos,
+    categoria: categoria ? { codigo: categoria.codigo, nombre: categoria.nombre } : null,
+  };
+}
+
+// cantidad = préstamos activos + pedidos de préstamo pendientes del socio.
+export function superaMaxPrestamos(politica, cantidad) {
+  return politica.maxPrestamos != null && cantidad >= politica.maxPrestamos;
+}
