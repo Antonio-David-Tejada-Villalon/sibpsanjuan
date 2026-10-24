@@ -48,6 +48,11 @@ const categoriaSchema = new Schema({
     min: [1, "El máximo de préstamos tiene que ser al menos 1."],
     validate: entero("El máximo de préstamos tiene que ser un número entero."),
   },
+  // Categoría de menores (Alumno): al cargar sus socios se piden solo los
+  // datos necesarios — legajo, apellido y nombre, curso y, si hace falta,
+  // un correo — y la API rechaza DNI, domicilio, teléfono y fecha de
+  // nacimiento (ver routes/socios.js). No borra lo que ya estuviera cargado.
+  datosMinimos: { type: Boolean, default: false },
   creado: { type: Date, default: Date.now },
   actualizado: { type: Date, default: Date.now },
   eliminadoEn: { type: Date, default: null },

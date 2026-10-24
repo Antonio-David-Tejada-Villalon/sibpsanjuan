@@ -102,6 +102,15 @@ export function useListaCrud({
     setForm((f) => ({ ...f, [nombre]: valor }));
   }
 
+  // Valores que llegan del servidor y no son un cambio del usuario (ej. los
+  // datos de contacto completos de un socio, que el formulario tenía
+  // enmascarados): se cargan en el formulario Y en la base contra la que se
+  // compara, para que no disparen el aviso de "cambios sin guardar".
+  function onCargarDelServidor(valores) {
+    setForm((f) => ({ ...f, ...valores }));
+    formBaseRef.current = { ...formBaseRef.current, ...valores };
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
@@ -207,6 +216,7 @@ export function useListaCrud({
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
+    onCargarDelServidor,
     onSubmit,
     onEliminar,
     onToggleSeleccion,

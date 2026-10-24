@@ -54,13 +54,14 @@ describe("CategoriasSocios", () => {
     await screen.findByText("3 socios");
 
     await user.type(screen.getByLabelText(/código/i), "preceptor");
-    await user.type(screen.getByLabelText(/nombre/i), "Preceptor");
+    await user.type(screen.getByLabelText("Nombre *"), "Preceptor");
     await user.type(screen.getByLabelText("Préstamos a la vez"), "4");
     await user.click(screen.getByRole("button", { name: "Crear categoría" }));
 
     expect(api.crearCategoria).toHaveBeenCalledWith("b1", {
       codigo: "PRECEPTOR",
       nombre: "Preceptor",
+      datosMinimos: false,
       diasPrestamo: null,
       maxRenovaciones: null,
       maxPrestamos: 4,

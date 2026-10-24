@@ -8,6 +8,7 @@ import MaterialCartografico from "../models/MaterialCartografico.js";
 import MaterialGrafico from "../models/MaterialGrafico.js";
 import MaterialDidactico from "../models/MaterialDidactico.js";
 import Socio from "../models/Socio.js";
+import Auditoria from "../models/Auditoria.js";
 import Ejemplar from "../models/Ejemplar.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import {
@@ -192,6 +193,17 @@ router.get("/socios.csv", async (req, res) => {
   if (socios.length === 0) {
     return res.status(404).json({ error: "No hay socios cargados todavía." });
   }
+  // Sale con todos los datos personales (lo necesita Koha): queda registrado
+  // quién lo descargó y cuándo, igual que ver los datos de un socio.
+  await Auditoria.create({
+    bibliotecaId: req.usuario.bibliotecaId,
+    actorId: req.usuario.id,
+    actorRol: req.usuario.rol,
+    accion: "socios.exportar_csv",
+    entidadTipo: "Biblioteca",
+    entidadId: req.usuario.bibliotecaId,
+    resultado: "ok",
+  });
   const csv = sociosACsv(socios);
   res.set("Content-Type", "text/csv; charset=utf-8");
   res.set("Content-Disposition", `attachment; filename="socios-${nombreDeArchivoSeguro(req.usuario.usuario)}.csv"`);

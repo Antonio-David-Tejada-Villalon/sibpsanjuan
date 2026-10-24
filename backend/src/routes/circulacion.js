@@ -6,6 +6,7 @@ import Socio from "../models/Socio.js";
 import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { idempotente } from "../middleware/idempotencia.js";
+import { CAMPOS_SOCIO_EN_CIRCULACION } from "../utils/datosSocio.js";
 import { calcularVencimiento, puedeRenovar, estaVencido, superaMaxPrestamos } from "../circulacion/reglas.js";
 import { politicaDeSocio, contarPrestamosEnCurso, mensajeMaxPrestamos } from "../circulacion/categorias.js";
 import { esIdValido, requiereIdValido } from "../utils/objectId.js";
@@ -163,7 +164,7 @@ router.get("/solicitudes", async (req, res) => {
   if (estado) filtro.estado = estado;
   const solicitudes = await Solicitud.find(filtro).sort({ fechaSolicitud: 1 });
 
-  const socios = await Socio.find({ _id: { $in: solicitudes.map((s) => s.socioId) } }).select("-passwordHash");
+  const socios = await Socio.find({ _id: { $in: solicitudes.map((s) => s.socioId) } }).select(CAMPOS_SOCIO_EN_CIRCULACION);
   const socioPorId = new Map(socios.map((s) => [String(s._id), s]));
   const conItems = await adjuntarItems(solicitudes);
 
@@ -320,7 +321,7 @@ router.get("/prestamos", async (req, res) => {
   if (req.query.estado === "activo") filtro.fechaDevolucion = null;
   const prestamos = await Prestamo.find(filtro).sort({ fechaVencimiento: 1 });
 
-  const socios = await Socio.find({ _id: { $in: prestamos.map((p) => p.socioId) } }).select("-passwordHash");
+  const socios = await Socio.find({ _id: { $in: prestamos.map((p) => p.socioId) } }).select(CAMPOS_SOCIO_EN_CIRCULACION);
   const socioPorId = new Map(socios.map((s) => [String(s._id), s]));
   const conItems = await adjuntarItems(prestamos);
 

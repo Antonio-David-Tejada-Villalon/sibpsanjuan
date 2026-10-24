@@ -337,6 +337,9 @@ const api = {
       cacheInvalidate(`${BASE}/socios`);
       return r;
     }),
+  // Datos de contacto completos (la lista y el formulario los traen
+  // enmascarados). Requiere el permiso "datosSocios" y queda registrado.
+  verDatosContactoSocio: (id) => apiFetch(`${BASE}/socios/${id}/datos-contacto`, { method: "POST" }),
   crearCredencialesSocio: (id, password) =>
     apiFetch(`${BASE}/socios/${id}/credenciales`, { method: "POST", body: JSON.stringify({ password }) }).then(
       (r) => {

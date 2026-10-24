@@ -9,6 +9,11 @@ const socioSchema = new Schema({
   direccion: { type: String, trim: true },
   localidad: { type: String, trim: true },
   categoria: { type: String, trim: true, default: "ADULTO" },
+  // Para categorías de datos mínimos (alumnos, ver Categoria.datosMinimos):
+  // numeroSocio hace de legajo, y en vez de DNI/domicilio/teléfono se
+  // guarda solo curso y división y, si hace falta, el correo del tutor.
+  curso: { type: String, trim: true, maxlength: 30 },
+  emailTutor: { type: String, trim: true, lowercase: true, maxlength: 120 },
   fechaNacimiento: { type: String, trim: true },
   telefono: { type: String, trim: true },
   email: { type: String, trim: true },

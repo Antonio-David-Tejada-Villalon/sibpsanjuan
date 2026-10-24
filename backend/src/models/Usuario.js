@@ -3,7 +3,10 @@ import { Schema, model } from "mongoose";
 // Los 5 permisos individualmente otorgables a un "bibliotecario" por su
 // superbibliotecario — ver circulacion.js/opac.js/libros.js/socios.js/
 // export.js para dónde se chequea cada uno vía requierePermiso().
-export const PERMISOS_BIBLIOTECARIO = ["catalogar", "prestamos", "devoluciones", "socios", "exportar"];
+// datosSocios: ver completos los datos de contacto de un socio (DNI,
+// teléfono, correo, domicilio), que la API devuelve enmascarados por
+// defecto — ver utils/datosSocio.js. Cada vez que se usa queda en Auditoria.
+export const PERMISOS_BIBLIOTECARIO = ["catalogar", "prestamos", "devoluciones", "socios", "exportar", "datosSocios"];
 
 const usuarioSchema = new Schema({
   usuario: { type: String, required: true, trim: true, unique: true },
@@ -47,6 +50,7 @@ const usuarioSchema = new Schema({
       devoluciones: { type: Boolean, default: false },
       socios: { type: Boolean, default: false },
       exportar: { type: Boolean, default: false },
+      datosSocios: { type: Boolean, default: false },
     },
     required: function () {
       return this.rol === "bibliotecario";

@@ -8,8 +8,8 @@ import { resolverPolitica } from "./reglas.js";
 // existían. Sin reglas propias: hasta que alguien las configure, se
 // comportan exactamente como la regla general de la biblioteca.
 export const CATEGORIAS_BASE = [
-  { codigo: "ALUMNO", nombre: "Alumno" },
-  { codigo: "DOCENTE", nombre: "Docente" },
+  { codigo: "ALUMNO", nombre: "Alumno", datosMinimos: true },
+  { codigo: "DOCENTE", nombre: "Docente", datosMinimos: false },
 ];
 
 export function normalizarCodigoCategoria(valor) {
@@ -19,10 +19,10 @@ export function normalizarCodigoCategoria(valor) {
 // Idempotente: crea solo las que falten, sin tocar las que ya existen
 // (aunque alguien les haya cambiado el nombre o las reglas).
 export async function asegurarCategorias(bibliotecaId, categorias = CATEGORIAS_BASE) {
-  for (const { codigo, nombre } of categorias) {
+  for (const { codigo, nombre, datosMinimos = false } of categorias) {
     await Categoria.updateOne(
       { bibliotecaId, codigo, eliminadoEn: null },
-      { $setOnInsert: { bibliotecaId, codigo, nombre } },
+      { $setOnInsert: { bibliotecaId, codigo, nombre, datosMinimos } },
       { upsert: true }
     );
   }

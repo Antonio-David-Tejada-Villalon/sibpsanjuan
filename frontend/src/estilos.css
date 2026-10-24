@@ -1038,6 +1038,11 @@ button:disabled {
 }
 .flash.error { background: var(--error-bg); color: var(--error-texto); }
 .flash.ok { background: var(--ok-bg); color: var(--ok-texto); }
+.flash.aviso { background: var(--reservado-fondo); color: var(--reservado); }
+
+/* Datos de contacto enmascarados en el formulario de socios */
+.datos-ocultos { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+input[readonly] { background: var(--bg-sutil); color: var(--texto-tenue); }
 
 /* Visible solo para lectores de pantalla (encabezados de columnas de solo-ícono/acción). */
 .sr-only {

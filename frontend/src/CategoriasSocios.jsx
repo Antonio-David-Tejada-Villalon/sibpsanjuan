@@ -11,7 +11,15 @@ const REGLAS = [
   { campo: "multaPorDiaVencido", etiqueta: "Multa por día de atraso ($)", min: 0, paso: "any" },
 ];
 
-const VACIA = { codigo: "", nombre: "", diasPrestamo: "", maxRenovaciones: "", maxPrestamos: "", multaPorDiaVencido: "" };
+const VACIA = {
+  codigo: "",
+  nombre: "",
+  datosMinimos: false,
+  diasPrestamo: "",
+  maxRenovaciones: "",
+  maxPrestamos: "",
+  multaPorDiaVencido: "",
+};
 
 export function describirRegla(campo, valor) {
   if (campo === "diasPrestamo") return `${valor} ${valor === 1 ? "día" : "días"}`;
@@ -21,7 +29,7 @@ export function describirRegla(campo, valor) {
 }
 
 function formDesde(categoria) {
-  const form = { codigo: categoria.codigo, nombre: categoria.nombre };
+  const form = { codigo: categoria.codigo, nombre: categoria.nombre, datosMinimos: Boolean(categoria.datosMinimos) };
   for (const { campo } of REGLAS) form[campo] = categoria[campo] ?? "";
   return form;
 }
@@ -76,7 +84,7 @@ export default function CategoriasSocios({ bibliotecaId, version = 0 }) {
     setAviso("");
     setGuardando(true);
     // "" = usar la regla general: el backend lo guarda como null.
-    const datos = { nombre: form.nombre };
+    const datos = { nombre: form.nombre, datosMinimos: form.datosMinimos };
     for (const { campo } of REGLAS) datos[campo] = form[campo] === "" ? null : Number(form[campo]);
     try {
       if (editandoId) {
@@ -145,6 +153,7 @@ export default function CategoriasSocios({ bibliotecaId, version = 0 }) {
                 <span className="categoria__nota">
                   {c.socios} {c.socios === 1 ? "socio" : "socios"}
                 </span>
+                {c.datosMinimos && <span className="categoria__nota">· datos mínimos</span>}
               </div>
               <dl className="categoria__reglas">
                 {REGLAS.map(({ campo, etiqueta }) => (
@@ -191,6 +200,15 @@ export default function CategoriasSocios({ bibliotecaId, version = 0 }) {
         <label>
           Nombre *
           <input value={form.nombre} onChange={(e) => onCambiar("nombre", e.target.value)} required maxLength={60} />
+        </label>
+        <label style={{ fontWeight: "normal" }}>
+          <input
+            type="checkbox"
+            checked={form.datosMinimos}
+            onChange={(e) => onCambiar("datosMinimos", e.target.checked)}
+          />{" "}
+          Datos mínimos (alumnos): pedir solo legajo, apellido y nombre, curso y un correo — sin DNI, domicilio,
+          teléfono ni fecha de nacimiento
         </label>
         <div className="campos-reglas">
           {REGLAS.map(({ campo, etiqueta, min, paso }) => (

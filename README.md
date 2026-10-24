@@ -301,6 +301,20 @@ describe.
   corta antes de ver la respuesta, el frontend reintenta con la misma
   clave y el servidor devuelve el resultado original en vez de repetir la
   operación. Solo se guardan respuestas 2xx, durante 24 h.
+- **Datos personales de socios** (`utils/datosSocio.js`):
+  - Categorías de **datos mínimos** (`Categoria.datosMinimos`; Alumno la
+    trae activada): se pide legajo, apellido y nombre, curso y división y,
+    si hace falta, correo institucional o del tutor. La API rechaza DNI,
+    domicilio, localidad, teléfono y fecha de nacimiento nuevos; lo que ya
+    estuviera cargado no se borra solo (el formulario ofrece borrarlo).
+  - DNI, domicilio, teléfono, correos y fecha de nacimiento salen
+    **enmascarados** de la API (`•••222`, `m•••@dominio`), y Circulación/
+    Préstamos solo traen número, nombre, categoría y curso. Verlos
+    completos es `POST /socios/:id/datos-contacto`: requiere el permiso
+    `datosSocios` (admin, supervisor y superbibliotecario lo tienen; a un
+    bibliotecario se le otorga en Bibliotecarios) y cada pedido, concedido
+    o no, queda en la colección `auditoria` (quién, qué socio, cuándo, sin
+    copiar el dato). Exportar socios a CSV también queda registrado.
 - Cada tarjeta de biblioteca en "Bibliotecas" (admin/supervisor) tiene un
   botón **"Ver OPAC"** que abre el catálogo público de esa biblioteca en
   una pestaña nueva (`/opac/<código>`) — para revisar cómo queda de cara

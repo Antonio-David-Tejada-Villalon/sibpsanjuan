@@ -12,6 +12,7 @@ const PERMISOS = [
   { clave: "devoluciones", etiqueta: "Procesar devoluciones" },
   { clave: "socios", etiqueta: "Gestionar socios (alta, edición, login OPAC)" },
   { clave: "exportar", etiqueta: "Exportar (MARCXML / CSV)" },
+  { clave: "datosSocios", etiqueta: "Ver datos de contacto completos de socios (queda registrado)" },
 ];
 
 function permisosVacios() {

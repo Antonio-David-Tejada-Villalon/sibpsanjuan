@@ -80,12 +80,13 @@ router.get("/", async (req, res) => {
 router.post("/", soloQuienConfigura, async (req, res) => {
   const biblioteca = await Biblioteca.findById(req.params.id);
   if (!biblioteca) return res.status(404).json({ error: "Biblioteca no encontrada." });
-  const { codigo, nombre } = req.body || {};
+  const { codigo, nombre, datosMinimos } = req.body || {};
   try {
     const categoria = await Categoria.create({
       bibliotecaId: biblioteca._id,
       codigo,
       nombre,
+      datosMinimos: datosMinimos === true,
       ...reglasDelCuerpo(req.body || {}),
     });
     res.status(201).json(categoria);
@@ -107,6 +108,7 @@ router.put("/:categoriaId", soloQuienConfigura, requiereIdValido("categoriaId"),
     return res.status(400).json({ error: "El código de una categoría no se puede cambiar; cambiá el nombre." });
   }
   if (cuerpo.nombre !== undefined) categoria.nombre = cuerpo.nombre;
+  if (typeof cuerpo.datosMinimos === "boolean") categoria.datosMinimos = cuerpo.datosMinimos;
   categoria.set(reglasDelCuerpo(cuerpo));
   try {
     await categoria.save();

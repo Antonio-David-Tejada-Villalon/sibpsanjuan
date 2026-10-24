@@ -20,6 +20,7 @@ import Ejemplar from "../src/models/Ejemplar.js";
 import Prestamo from "../src/models/Prestamo.js";
 import Solicitud from "../src/models/Solicitud.js";
 import Categoria from "../src/models/Categoria.js";
+import Auditoria from "../src/models/Auditoria.js";
 import { migrarColeccion } from "../scripts/migrar-item-polimorfico.js";
 import { migrarRolesJerarquia } from "../scripts/migrar-roles-jerarquia.js";
 import { migrarCategorias } from "../scripts/migrar-categorias.js";
@@ -3356,4 +3357,118 @@ test("concurrencia: devoluciones, renovaciones, aprobaciones y pedidos simultán
   }
   assert.equal(await Ejemplar.countDocuments({ itemId: libro._id, estado: "reservado" }), 0, "no queda nada trabado");
   assert.equal(final.bloqueadaHasta, null);
+});
+
+// --- Privacidad de socios: datos mínimos para alumnos y contacto enmascarado ---
+
+test("socios: la API enmascara el contacto, alumnos con datos mínimos, y ver datos completos queda auditado", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpprivado");
+  const categorias = await (await b.enviar("GET", b.categorias)).json();
+  assert.equal(categorias.find((c) => c.codigo === "ALUMNO").datosMinimos, true);
+  assert.equal(categorias.find((c) => c.codigo === "DOCENTE").datosMinimos, false);
+
+  // --- alumno: no se cargan DNI, domicilio ni teléfono ---
+  let res = await b.enviar("POST", "/socios", {
+    numeroSocio: "L-1001", apellido: "Rivas", nombre: "Tomás", categoria: "ALUMNO", dni: "50111222", telefono: "264 400 1111",
+  });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /no se cargan DNI.*sobran: dni, telefono/);
+  res = await b.enviar("POST", "/socios", {
+    numeroSocio: "L-1001", apellido: "Rivas", nombre: "Tomás", categoria: "ALUMNO", curso: "3° B", emailTutor: "Tutora@Familia.com", dni: "",
+  });
+  assert.equal(res.status, 201);
+  const alumno = await res.json();
+  assert.equal(alumno.curso, "3° B");
+  assert.equal(alumno.emailTutor, "t•••@familia.com", "la respuesta ya sale enmascarada");
+
+  // --- docente: se cargan, pero la API los devuelve enmascarados ---
+  res = await b.enviar("POST", "/socios", {
+    numeroSocio: "D-20", apellido: "Herrera", nombre: "Martín", categoria: "DOCENTE",
+    dni: "30111222", telefono: "264 400 1234", email: "mherrera@colegio.edu.ar", direccion: "San Martín 123",
+  });
+  assert.equal(res.status, 201);
+  const docente = await res.json();
+  assert.deepEqual(
+    [docente.dni, docente.telefono, docente.email, docente.direccion],
+    ["•••222", "•••234", "m•••@colegio.edu.ar", "•••"]
+  );
+  res = await b.enviar("GET", "/socios");
+  const listado = await res.json();
+  const enLista = listado.find((s) => s.numeroSocio === "D-20");
+  assert.equal(enLista.dni, "•••222");
+  assert.equal("passwordHash" in enLista, false);
+
+  // --- editar sin tocar el contacto: los valores enmascarados que vuelven no pisan los reales ---
+  res = await b.enviar("PUT", `/socios/${docente._id}`, { ...enLista, localidad: "Rivadavia" });
+  assert.equal(res.status, 200);
+  let enBase = await Socio.findById(docente._id);
+  assert.equal(enBase.dni, "30111222");
+  assert.equal(enBase.email, "mherrera@colegio.edu.ar");
+  assert.equal(enBase.localidad, "Rivadavia");
+  // --- y un valor nuevo sí se guarda ---
+  res = await b.enviar("PUT", `/socios/${docente._id}`, { telefono: "264 500 9876" });
+  assert.equal(res.status, 200);
+  assert.equal((await Socio.findById(docente._id)).telefono, "264 500 9876");
+
+  // --- alumno: tampoco por edición; vaciar un dato viejo sí se puede ---
+  await Socio.updateOne({ _id: alumno._id }, { telefono: "264 999 0000" }); // dato cargado antes de este cambio
+  res = await b.enviar("PUT", `/socios/${alumno._id}`, { telefono: "264 111 2222" });
+  assert.equal(res.status, 400);
+  res = await b.enviar("PUT", `/socios/${alumno._id}`, { telefono: "" });
+  assert.equal(res.status, 200);
+  assert.equal((await Socio.findById(alumno._id)).telefono, "");
+
+  // --- ver los datos completos: superbibliotecario sí, y queda registrado ---
+  res = await b.enviar("POST", `/socios/${docente._id}/datos-contacto`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const completos = await res.json();
+  assert.equal(completos.dni, "30111222");
+  assert.equal(completos.telefono, "264 500 9876");
+  let registros = await Auditoria.find({ entidadId: docente._id, accion: "socio.ver_datos_contacto" });
+  assert.equal(registros.length, 1);
+  assert.equal(registros[0].resultado, "ok");
+  assert.equal(registros[0].actorRol, "superbibliotecario");
+  assert.ok(!JSON.stringify(registros[0]).includes("30111222"), "la auditoría no copia el dato");
+
+  // --- bibliotecario con "socios" pero sin "datosSocios": 403, y el intento también queda ---
+  res = await b.enviar("POST", "/bibliotecarios", {
+    usuario: "bibprivado", password: "clavesegura1", permisos: { socios: true, prestamos: true },
+  });
+  assert.equal(res.status, 201);
+  const bib = await res.json();
+  let cookieBib = await login(base, "bibprivado", "clavesegura1");
+  const comoBib = (metodo, ruta) => fetch(`${base}/api${ruta}`, { method: metodo, headers: { Cookie: cookieBib } });
+  res = await comoBib("POST", `/socios/${docente._id}/datos-contacto`);
+  assert.equal(res.status, 403);
+  registros = await Auditoria.find({ entidadId: docente._id, resultado: "denegado" });
+  assert.equal(registros.length, 1);
+  assert.equal(registros[0].actorRol, "bibliotecario");
+
+  // --- con el permiso otorgado, sí ---
+  res = await b.enviar("PUT", `/bibliotecarios/${bib.id}`, { permisos: { socios: true, prestamos: true, datosSocios: true } });
+  assert.equal(res.status, 200);
+  cookieBib = await login(base, "bibprivado", "clavesegura1");
+  res = await comoBib("POST", `/socios/${docente._id}/datos-contacto`);
+  assert.equal(res.status, 200);
+
+  // --- circulación muestra al socio sin ningún dato de contacto ---
+  const libro = await b.crearLibro("Libro privado", ["PRIV-1"]);
+  await b.prestar(docente, libro);
+  res = await b.enviar("GET", "/circulacion/prestamos");
+  const [prestamo] = await res.json();
+  assert.equal(prestamo.socio.numeroSocio, "D-20");
+  for (const campo of ["dni", "telefono", "email", "direccion", "passwordHash"]) {
+    assert.equal(campo in prestamo.socio, false, `circulación no debería traer ${campo}`);
+  }
+
+  // --- exportar los socios (con todos sus datos, para Koha) queda registrado ---
+  res = await b.enviar("GET", "/export/socios.csv");
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /30111222/);
+  assert.equal(await Auditoria.countDocuments({ bibliotecaId: b.biblioteca._id, accion: "socios.exportar_csv" }), 1);
 });
