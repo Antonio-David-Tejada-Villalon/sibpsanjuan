@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import CampoPassword from "../../CampoPassword.jsx";
+import { useMetadatosPrivados } from "../../metadatos.js";
 
 export default function LoginSocio() {
   const { codigo, login } = useSocioAuth();
   const navigate = useNavigate();
+  useMetadatosPrivados("Ingresar");
   // ?volver=: a dónde ir después de ingresar (ej. la ficha desde la que se
   // quería pedir un libro). Solo rutas de este mismo OPAC: nunca un sitio
   // externo ni otra biblioteca.

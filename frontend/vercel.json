@@ -1,3 +1,29 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "https://sibpsanjuan.onrender.com/sitemap.xml" },
+    { "source": "/opac/:codigo/sitemap.xml", "destination": "https://sibpsanjuan.onrender.com/opac/:codigo/sitemap.xml" },
+    {
+      "source": "/opac/:ruta*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Pinterestbot|redditbot|SkypeUriPreview|Iframely|Embedly|vkShare|Mastodon).*"
+        }
+      ],
+      "destination": "https://sibpsanjuan.onrender.com/opac/:ruta*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/((?!opac/|sitemap|robots).*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
+    },
+    {
+      "source": "/opac/:codigo/(login|cuenta|mis-prestamos|privacidad)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
+    }
+  ]
 }

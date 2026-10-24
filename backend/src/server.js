@@ -34,6 +34,7 @@ import opacRoutes from "./routes/opac.js";
 import circulacionRoutes from "./routes/circulacion.js";
 import portadasRoutes from "./routes/portadas.js";
 import contenidoRoutes from "./routes/contenido.js";
+import { rutasSeo } from "./seo/rutas.js";
 
 dotenv.config();
 
@@ -120,6 +121,12 @@ export function crearApp() {
     ["/portadas", portadasRoutes],
     ["/contenido", contenidoRoutes],
   ];
+  // La API no es una página: que ningún buscador la muestre como resultado
+  // (sí la puede pedir, para ver el catálogo como lo ve una persona).
+  app.use("/api", (req, res, next) => {
+    res.set("X-Robots-Tag", "noindex");
+    next();
+  });
   for (const [ruta, router] of rutasApi) {
     app.use(`/api${ruta}`, router);
     app.use(`/api/v1${ruta}`, router);
@@ -129,8 +136,13 @@ export function crearApp() {
   // En producción, Express sirve el build de React ya compilado — un solo
   // servicio, una sola URL, sin CORS entre front y back.
   const distDir = path.join(__dirname, "..", "..", "frontend", "dist");
-  app.use(express.static(distDir));
+  // Antes que los archivos: robots.txt y sitemaps dinámicos, y las páginas
+  // públicas del OPAC con su <head> ya escrito (ver seo/rutas.js).
+  app.use(rutasSeo({ distDir }));
+  app.use(express.static(distDir, { index: false }));
+  // El resto (panel, ingreso del staff) es la app sin indexar.
   app.get(/^\/(?!api\/).*/, (req, res) => {
+    res.set("X-Robots-Tag", "noindex");
     res.sendFile(path.join(distDir, "index.html"));
   });
 

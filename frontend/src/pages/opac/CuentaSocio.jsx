@@ -5,6 +5,7 @@ import api from "../../api.js";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { urlFicha } from "../../opac.js";
 import { ReglasDelSocio } from "./MisPrestamos.jsx";
+import { useMetadatosPrivados } from "../../metadatos.js";
 
 // Estados de un pedido, en palabras y con ícono (nunca solo con color).
 const ESTADOS = {
@@ -23,6 +24,7 @@ function fecha(f) {
 export default function CuentaSocio() {
   const { codigo, sesion, logout } = useSocioAuth();
   const navigate = useNavigate();
+  useMetadatosPrivados("Mi cuenta");
   const [reglas, setReglas] = useState(null);
   const [pedidos, setPedidos] = useState(null);
   const [error, setError] = useState("");

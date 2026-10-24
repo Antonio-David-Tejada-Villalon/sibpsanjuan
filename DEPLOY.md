@@ -200,7 +200,10 @@ no necesitar un redeploy extra del backend al final):
    404 al entrar directo o refrescar — Vercel lo toma solo, no hace falta
    configurar nada a mano para eso (esto es un `vercel.json` distinto y
    más simple que el de "services" del punto 2 — este es el que sí
-   queremos).
+   queremos). También reenvía a Render los sitemaps y los bots de vista
+   previa (WhatsApp, Facebook…), y marca `noindex` lo que no es catálogo
+   público: si tu API no es `https://sibpsanjuan.onrender.com`, cambiá esa
+   dirección ahí (ver "Buscadores" más abajo).
 5. Deploy. Vercel te da una URL propia (`tuapp.vercel.app`) — de vuelta, no
    hace falta comprar dominio. Guardala, la necesitás en el paso 2.
 
@@ -392,6 +395,113 @@ apagados por default: sin `FRONTEND_URL`/`COOKIE_SAMESITE` definidos, el
 comportamiento same-origin de siempre no cambia. Solo hace falta correr
 `npm install` en `backend/` y, si vas a usar el split de la Opción C,
 definir esas dos variables — ver esa sección para el detalle.
+
+## Buscadores (Google, Bing) y vista previa al compartir
+
+Solo se indexa el catálogo público: el inicio del OPAC (`/opac/<código>`),
+la ficha de cada material (`/opac/<código>/libro/<título>-<id>`, y lo mismo
+para los otros tipos) y las páginas publicadas desde el CMS
+(`/opac/<código>/pagina/<dirección>`). Nunca socios, préstamos, pedidos ni
+búsquedas.
+
+- **Qué ve un buscador.** Cada página pública tiene título, descripción,
+  `canonical`, Open Graph y, en las fichas, datos estructurados `Book` y
+  `BreadcrumbList` (ver `backend/src/seo/`). Con un solo servicio (Opción
+  A/B) el servidor los escribe en el HTML. En la Opción C, Vercel sirve la
+  app y Google los ve al ejecutar el JavaScript, que es lo que hace siempre.
+  WhatsApp, Facebook, Telegram y compañía no ejecutan JavaScript:
+  `frontend/vercel.json` les manda a Render solo a esos bots, que reciben
+  un HTML mínimo con los mismos metadatos. Si la URL de tu API no es
+  `https://sibpsanjuan.onrender.com`, cambiala en ese archivo (aparece tres
+  veces: dos sitemaps y los bots).
+- **Lo que no se indexa** responde `X-Robots-Tag: noindex`: el panel,
+  `/login`, el ingreso, la cuenta y los préstamos del socio, las búsquedas
+  con filtros (`?q=…`, que igual dejan seguir sus enlaces), la API y las
+  vistas previas de Vercel. `robots.txt` no bloquea nada a propósito:
+  bloquear una página impide que el buscador lea ese `noindex`, y bloquear
+  `/api/` le impediría ver el catálogo.
+- **Sitemap.** `/sitemap.xml` lista un sitemap por biblioteca
+  (`/opac/<código>/sitemap.xml`) con todo el material vigente y la fecha
+  de su último cambio. Lo dado de baja deja de aparecer solo.
+- **Direcciones estables.** El id va al final de la dirección de la ficha:
+  si cambia el título, la dirección vieja redirige con un 301 a la nueva y
+  los enlaces ya compartidos siguen andando. Dos libros con el mismo título
+  tienen direcciones distintas.
+- **Imagen al compartir.** Es el logo cuadrado del CMS, nunca la portada:
+  las portadas de Google Books no se pueden guardar más allá de su caché y
+  la licencia de las demás no siempre está clara. Sin logo cargado, la
+  vista previa sale sin imagen. La sinopsis tampoco se publica (el campo
+  "Notas" es texto libre del staff y no va a la descripción).
+- **Dominio.** Las direcciones absolutas (canonical, sitemap) usan
+  `SITIO_URL` si está definida, si no `FRONTEND_URL` (Opción C), si no la
+  dirección del propio servidor. Con un dominio propio, definí `SITIO_URL`
+  en Render y conectá el dominio en Vercel: `robots.txt` toma solo el
+  dominio de producción que le da Vercel al compilar.
+
+### Registrar el sitio en Google y Bing
+
+Ninguno de los dos indexa al instante ni lo garantiza: puede tardar de días
+a semanas, y con pocas fichas o pocos enlaces externos, más.
+
+1. **Google Search Console** (search.google.com/search-console), con la
+   cuenta institucional del colegio:
+   - Con dominio propio: propiedad de tipo **Dominio**, verificada con un
+     registro TXT en el DNS (lo carga quien administre el dominio).
+   - Con `*.vercel.app`: propiedad de tipo **Prefijo de URL**
+     (`https://sibpsanjuan.vercel.app/`), verificada con el **archivo
+     HTML** que da Google: copialo a `frontend/public/` y desplegá.
+   - En "Sitemaps", enviá `sitemap.xml`.
+   - "Inspección de URLs" con una ficha muestra cómo la ve Google, y la
+     "Prueba de resultados enriquecidos" (search.google.com/test/rich-results)
+     muestra si lee los datos `Book`/`BreadcrumbList`.
+2. **Bing Webmaster Tools** (bing.com/webmasters): se puede importar la
+   propiedad desde Search Console, sin verificar de nuevo. Bing también
+   alimenta a DuckDuckGo y a otros buscadores.
+3. **Vista previa al compartir:** la prueba más directa es pegar el enlace
+   de una ficha en un chat de WhatsApp o Telegram. Para ver qué recibe un
+   bot sin compartir nada:
+   ```bash
+   curl -A "WhatsApp/2.23" https://sibpsanjuan.vercel.app/opac/<código>
+   ```
+   Tiene que devolver un HTML con `<meta property="og:title"`. Si devuelve
+   la app vacía (`<div id="root">`), el reenvío de bots de `vercel.json` no
+   se aplicó. Ojo: si Render está dormido (plan gratuito), el bot puede
+   rendirse antes de que despierte y la vista previa sale sin datos.
+
+## Actualizar un despliegue existente (versión del rediseño para la escuela)
+
+Rama `rediseno`: categorías Alumno/Docente, privacidad de socios,
+portadas, CMS del OPAC, OPAC nuevo y SEO. Si tu despliegue es nuevo, no
+hace falta nada de esto: alcanza con los pasos de arriba.
+
+1. **Variables nuevas en Render**, todas opcionales:
+   - `GOOGLE_BOOKS_API_KEY`: sin ella, Google Books casi nunca responde (la
+     cuota anónima es compartida). Ver `backend/.env.example`.
+   - `PORTADAS_AUTOMATICAS=0` si no querés que se busque la portada sola al
+     cargar un libro con ISBN.
+   - `SITIO_URL` solo con dominio propio (ver "Buscadores" arriba).
+2. **Desplegá backend y frontend juntos** (los dos salen de `master`): el
+   OPAC nuevo usa rutas de la API que el backend viejo no tiene. Render
+   tarda más que Vercel en terminar; en ese par de minutos la búsqueda del
+   OPAC puede fallar.
+3. **Migraciones** (desde tu máquina, con el código nuevo y el mismo
+   `MONGODB_URI` de Render). Las dos son idempotentes y tienen
+   `--verificar`, que solo cuenta lo pendiente:
+   ```bash
+   cd backend
+   MONGODB_URI="..." node scripts/migrar-categorias.js --verificar
+   MONGODB_URI="..." node scripts/migrar-categorias.js
+   MONGODB_URI="..." node scripts/migrar-portadas.js --verificar
+   MONGODB_URI="..." node scripts/migrar-portadas.js            # agregá --buscar-isbn para buscar las que faltan
+   ```
+   `migrar-categorias` da de alta Alumno y Docente y cada categoría que tus
+   socios ya usan (sin cambiar reglas). `migrar-portadas` descarga y guarda
+   las portadas que antes eran un enlace externo; sin ella, esos ítems
+   muestran la tapa tipográfica.
+4. **Capacidad de Atlas M0 (512 MB).** Cada portada ocupa en la base unos
+   15 a 30 KB (dos tamaños en WebP): 5.000 libros con portada son entre 75
+   y 150 MB del espacio gratuito. Mirá "Data Size" en Atlas antes de correr
+   `--buscar-isbn` sobre un catálogo grande.
 
 ## Actualizar un despliegue existente (versión con Seriadas/Recursos electrónicos)
 

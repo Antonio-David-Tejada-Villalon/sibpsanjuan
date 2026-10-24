@@ -97,10 +97,6 @@ export default function OpacLayout({ children }) {
   // La barra superior siempre es oscura: primero el logo para fondo oscuro.
   const logo = identidad && (identidad.logos.oscuro || identidad.logos.horizontal || identidad.logos.cuadrado);
 
-  useEffect(() => {
-    document.title = `${nombre} · Catálogo`;
-  }, [nombre]);
-
   async function onLogout() {
     await logout();
     navigate(`/opac/${codigo}`);

@@ -18,10 +18,10 @@ import Socio from "../models/Socio.js";
 import Solicitud from "../models/Solicitud.js";
 import Prestamo from "../models/Prestamo.js";
 import Portada from "../models/Portada.js";
-import ContenidoOpac from "../models/ContenidoOpac.js";
 import ImagenCms from "../models/ImagenCms.js";
-import { contenidoInicial } from "../contenido/validar.js";
 import { contenidoPublico } from "../contenido/publico.js";
+import { datosPublicados } from "../contenido/publicado.js";
+import { metadatosDeFicha, metadatosDeInicio, metadatosDePagina, origenPublico, origenDeLaApi } from "../seo/metadatos.js";
 import { TIPOS, ORDENES, buscarEnCatalogo, fichaDeMaterial, titulosDe } from "../opac/catalogo.js";
 import { textoDeConsulta, opcionDeConsulta, listaDeConsulta, enteroDeConsulta, ErrorHttp } from "../utils/consulta.js";
 import { filtroVigente } from "../portadas/servicio.js";
@@ -387,33 +387,37 @@ router.get("/buscar", async (req, res) => {
   res.json(resultado);
 });
 
+// Cada respuesta pública lleva "seo": título, descripción, canonical y datos
+// estructurados de esa página (ver seo/metadatos.js), los mismos que escribe
+// el servidor en el <head> al entrar directo.
+const opcionesSeo = (req) => ({ codigo: req.biblioteca.codigo, origen: origenPublico(req), origenApi: origenDeLaApi(req) });
+
 router.get("/items/:tipo/:id", async (req, res) => {
   const ficha = esIdValido(req.params.id) ? await fichaDeMaterial(req.biblioteca, req.params.tipo, req.params.id) : null;
   if (!ficha) return res.status(404).json({ error: "Material no encontrado." });
-  res.json(ficha);
+  const { datos } = await datosPublicados(req.biblioteca);
+  const contenido = contenidoPublico(datos, req.biblioteca.codigo);
+  res.json({ ...ficha, seo: metadatosDeFicha(ficha, contenido, opcionesSeo(req)) });
 });
 
 // --- Contenido publicado desde el CMS (ver routes/contenido.js) ---
-
-async function datosPublicados(biblioteca) {
-  const publicada = await ContenidoOpac.findOne({ bibliotecaId: biblioteca._id, estado: "publicada" }).select("datos version");
-  return { datos: publicada?.datos ?? contenidoInicial(biblioteca), version: publicada?.version ?? null };
-}
 
 // Identidad, contacto, avisos vigentes e índice de páginas. Mientras la
 // biblioteca no publique nada: su nombre y el acento del sistema de diseño.
 router.get("/contenido", async (req, res) => {
   const { datos, version } = await datosPublicados(req.biblioteca);
+  const contenido = contenidoPublico(datos, req.biblioteca.codigo);
   res.set("Cache-Control", "public, max-age=60");
-  res.json({ ...contenidoPublico(datos, req.biblioteca.codigo), version });
+  res.json({ ...contenido, version, seo: metadatosDeInicio(contenido, opcionesSeo(req)) });
 });
 
 router.get("/paginas/:slug", async (req, res) => {
   const { datos } = await datosPublicados(req.biblioteca);
   const pagina = datos.paginas.find((p) => p.slug && p.slug === req.params.slug);
   if (!pagina) return res.status(404).json({ error: "Página no encontrada." });
+  const contenido = contenidoPublico(datos, req.biblioteca.codigo);
   res.set("Cache-Control", "public, max-age=60");
-  res.json(pagina);
+  res.json({ ...pagina, seo: metadatosDePagina(pagina, contenido, opcionesSeo(req)) });
 });
 
 // Logos del CMS: nunca cambian (una imagen nueva es otro id), así que se

@@ -10,6 +10,11 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#ff8300" />
+    <!-- Entre estas marcas, el servidor escribe el título, la descripción,
+         el canonical, Open Graph y los datos estructurados de cada página
+         pública del OPAC (ver backend/src/seo/rutas.js); en el navegador
+         los actualiza src/metadatos.js. Lo de acá es para el panel. -->
+    <!-- metadatos -->
     <title>SIBPSANJUAN</title>
     <meta
       name="description"
@@ -27,6 +32,7 @@
     />
     <meta property="og:image" content="https://sibpsanjuan.vercel.app/og-image.png" />
     <meta name="twitter:card" content="summary" />
+    <!-- /metadatos -->
   </head>
   <body>
     <div id="root"></div>

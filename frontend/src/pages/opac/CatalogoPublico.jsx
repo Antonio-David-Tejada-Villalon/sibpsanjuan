@@ -9,6 +9,7 @@ import { useContenidoOpac } from "../../ContenidoOpacContext.jsx";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useAvisoCargaLenta } from "../../useAvisoCargaLenta.js";
 import { textoDisponibilidad, urlFicha } from "../../opac.js";
+import { useMetadatos } from "../../metadatos.js";
 
 // Catálogo público. La búsqueda la hace el servidor (ver
 // backend/src/opac/catalogo.js): el navegador pide una página de resultados
@@ -104,6 +105,7 @@ function Paginacion({ pagina, totalPaginas, hrefDe }) {
 
 export default function CatalogoPublico() {
   const { codigo } = useSocioAuth();
+  const { contenido } = useContenidoOpac();
   const tardando = useAvisoCargaLenta();
   const [params, setParams] = useSearchParams();
   const [datos, setDatos] = useState(null); // la última respuesta (se conserva mientras carga la siguiente)
@@ -125,6 +127,13 @@ export default function CatalogoPublico() {
   const consultaParams = new URLSearchParams(params);
   consultaParams.delete("buscar");
   const consulta = consultaParams.toString();
+
+  // Con búsqueda o filtros es una página de resultados: no se indexa (sería
+  // una copia por cada búsqueda posible), pero sus enlaces sí se siguen.
+  const seo = contenido?.seo;
+  useMetadatos(
+    seo && (consulta ? { ...seo, titulo: q ? `Resultados para «${q}» · ${seo.titulo}` : seo.titulo, robots: "noindex,follow" } : seo)
+  );
 
   useEffect(() => {
     setTexto(q);

@@ -259,7 +259,17 @@ describe.
   martin-fierro-…`), con migas de pan, datos públicos (lista blanca por
   tipo; nunca códigos de barras), portada, materias y autores enlazados
   a la búsqueda, signatura y estado de cada ejemplar, y botón Compartir.
-  Si el título cambia, la dirección vieja redirige a la nueva.
+  Si el título cambia, la dirección vieja redirige (301) a la nueva.
+- **Buscadores** (`backend/src/seo/`): el inicio, las fichas y las páginas
+  del CMS llevan título, descripción, canonical, Open Graph y, en las
+  fichas, datos estructurados `Book` y `BreadcrumbList`. El servidor los
+  escribe en el HTML al entrar directo (también para WhatsApp y otras
+  redes, que no ejecutan JavaScript) y la API los manda en `seo` para que
+  `frontend/src/metadatos.js` los cambie al navegar. `/sitemap.xml` y
+  `/opac/<código>/sitemap.xml` listan el material vigente; el panel, el
+  ingreso, la cuenta, los préstamos, las búsquedas con filtros y la API
+  responden `X-Robots-Tag: noindex`. Detalles y cómo registrar el sitio
+  en Google/Bing: "Buscadores" en `DEPLOY.md`.
 - **Pedir un préstamo** se hace desde la ficha y pide confirmación
   mostrando antes las reglas de la categoría del socio (días,
   renovaciones, cuántos tiene en curso sobre su máximo); en el tope no

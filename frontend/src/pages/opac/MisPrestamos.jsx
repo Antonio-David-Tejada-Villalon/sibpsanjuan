@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { CircleCheck, Clock, TriangleAlert } from "lucide-react";
 import api from "../../api.js";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
+import { useMetadatosPrivados } from "../../metadatos.js";
 
 function formatear(fecha) {
   if (!fecha) return "—";
@@ -72,6 +73,7 @@ export function ReglasDelSocio({ reglas }) {
 
 export default function MisPrestamos() {
   const { codigo } = useSocioAuth();
+  useMetadatosPrivados("Mis préstamos");
   const [prestamos, setPrestamos] = useState(null);
   const [reglas, setReglas] = useState(null);
   const [mensaje, setMensaje] = useState("");

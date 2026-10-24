@@ -1,10 +1,12 @@
 import React from "react";
+import { useMetadatosPrivados } from "../../metadatos.js";
 
 // Contenido basado en AVISO_PRIVACIDAD_BORRADOR.md (raíz del repo) — ver
 // GOB-3 en AUDITORIA.md. Redactado en lenguaje claro, no es asesoría legal:
 // si tu biblioteca depende de un organismo con su propio aviso de
 // privacidad general, ese texto tiene prioridad sobre este.
 export default function AvisoPrivacidad() {
+  useMetadatosPrivados("Aviso de privacidad");
   return (
     <div className="card" style={{ maxWidth: 640 }}>
       <h1>Aviso de privacidad</h1>

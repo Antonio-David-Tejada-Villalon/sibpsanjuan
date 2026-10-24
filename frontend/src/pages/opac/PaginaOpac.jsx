@@ -4,6 +4,7 @@ import api from "../../api.js";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { enVistaPrevia } from "../../ContenidoOpacContext.jsx";
 import TextoSeguro from "../../TextoSeguro.jsx";
+import { useMetadatos } from "../../metadatos.js";
 
 function formatearFecha(iso) {
   const [anio, mes, dia] = iso.split("-");
@@ -30,9 +31,8 @@ export default function PaginaOpac() {
     });
   }, [codigo, slug]);
 
-  useEffect(() => {
-    if (pagina) document.title = pagina.titulo;
-  }, [pagina]);
+  // En la vista previa del borrador no hay "seo": solo el título.
+  useMetadatos(pagina && (pagina.seo || { titulo: pagina.titulo, robots: "noindex,nofollow" }));
 
   if (pagina === undefined) return <p>Cargando…</p>;
   if (!pagina) {

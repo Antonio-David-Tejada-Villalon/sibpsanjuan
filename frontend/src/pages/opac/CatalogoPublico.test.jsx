@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import CatalogoPublico from "./CatalogoPublico.jsx";
 import { SocioAuthProvider } from "../../SocioAuthContext.jsx";
+import { ContenidoOpacProvider } from "../../ContenidoOpacContext.jsx";
 import api from "../../api.js";
 
 // El catálogo ya no filtra en el navegador: le pide al servidor una página
@@ -15,6 +16,7 @@ vi.mock("../../api.js", () => ({
   default: {
     opacBuscar: vi.fn(),
     opacYo: vi.fn(),
+    opacContenido: vi.fn(),
   },
 }));
 
@@ -146,5 +148,56 @@ describe("CatalogoPublico", () => {
     api.opacBuscar.mockResolvedValue(respuesta({ resultados: [] }));
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByText("No encontramos nada para «zzz».")).toBeInTheDocument();
+  });
+});
+
+describe("CatalogoPublico: metadatos", () => {
+  const SEO = {
+    titulo: "Colegio · Catálogo en línea",
+    descripcion: "Catálogo de la biblioteca de Colegio.",
+    canonical: "https://catalogo.example/opac/escolar",
+    robots: "index,follow",
+    og: { tipo: "website", sitio: "Colegio", imagen: null },
+    jsonLd: null,
+  };
+
+  function renderConContenido(entrada) {
+    return render(
+      <MemoryRouter initialEntries={[entrada]}>
+        <Routes>
+          <Route
+            path="/opac/:codigo"
+            element={
+              <ContenidoOpacProvider codigo="escolar">
+                <SocioAuthProvider>
+                  <CatalogoPublico />
+                </SocioAuthProvider>
+              </ContenidoOpacProvider>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.head.innerHTML = "";
+    api.opacYo.mockRejectedValue(new Error("401"));
+    api.opacBuscar.mockResolvedValue(respuesta());
+    api.opacContenido.mockResolvedValue({ identidad: { nombre: "Colegio", logos: {} }, contacto: {}, avisos: [], paginas: [], seo: SEO });
+  });
+
+  it("el inicio se indexa, con su canonical", async () => {
+    renderConContenido("/opac/escolar");
+    await waitFor(() => expect(document.title).toBe("Colegio · Catálogo en línea"));
+    expect(document.head.querySelector('meta[name="robots"]').content).toBe("index,follow");
+    expect(document.head.querySelector('link[rel="canonical"]').href).toBe("https://catalogo.example/opac/escolar");
+  });
+
+  it("una búsqueda no se indexa (pero sus enlaces se siguen)", async () => {
+    renderConContenido("/opac/escolar?q=borges&tipo=Libro");
+    await waitFor(() => expect(document.title).toBe("Resultados para «borges» · Colegio · Catálogo en línea"));
+    expect(document.head.querySelector('meta[name="robots"]').content).toBe("noindex,follow");
   });
 });

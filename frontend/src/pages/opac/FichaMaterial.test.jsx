@@ -46,6 +46,14 @@ const FICHA = {
   ],
   portada: null,
   portadaFuente: null,
+  seo: {
+    titulo: "Martín Fierro · José Hernández · Colegio",
+    descripcion: "Martín Fierro de José Hernández (Colihue, 1872).",
+    canonical: `https://catalogo.example/opac/escolar/libro/martin-fierro-${ID}`,
+    robots: "index,follow",
+    og: { tipo: "book", sitio: "Colegio", imagen: null },
+    jsonLd: { "@context": "https://schema.org", "@graph": [{ "@type": "Book", name: "Martín Fierro" }] },
+  },
 };
 
 const REGLAS = {
@@ -101,6 +109,17 @@ describe("FichaMaterial", () => {
     expect(screen.getByText("Disponible")).toBeInTheDocument();
     expect(screen.getByText("Prestado")).toBeInTheDocument();
     expect(screen.getByText("1 ejemplar disponible")).toBeInTheDocument();
+    // Título, canonical y datos estructurados de la API (los mismos que
+    // escribe el servidor al entrar directo).
+    expect(document.title).toBe("Martín Fierro · José Hernández · Colegio");
+    expect(document.head.querySelector('link[rel="canonical"]').href).toBe(FICHA.seo.canonical);
+    expect(document.head.querySelector('script[type="application/ld+json"]').textContent).toContain('"@type":"Book"');
+  });
+
+  it("el enlace para ingresar no se sigue (es una página privada)", async () => {
+    api.opacYo.mockRejectedValue(new Error("401"));
+    renderFicha();
+    expect(await screen.findByRole("link", { name: "Ingresá para pedirlo" })).toHaveAttribute("rel", "nofollow");
   });
 
   it("si la dirección no es la canónica (título viejo), la reemplaza", async () => {

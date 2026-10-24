@@ -4,8 +4,8 @@ import { CircleCheck, Clock, Globe, Landmark, Share2 } from "lucide-react";
 import api, { urlPortada } from "../../api.js";
 import Portada from "../../Portada.jsx";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
-import { useContenidoOpac } from "../../ContenidoOpacContext.jsx";
 import { idDeDireccion, textoDisponibilidad, urlFicha, useEnLinea, SIN_CONEXION } from "../../opac.js";
+import { useMetadatos } from "../../metadatos.js";
 
 // Ficha pública de un material, con dirección propia
 // (/opac/<código>/<segmento>/<título>-<id>): se puede compartir, guardar y
@@ -81,7 +81,6 @@ function ConfirmarPedido({ ficha, reglas, enviando, enLinea, onConfirmar, onCanc
 
 export default function FichaMaterial({ itemTipo }) {
   const { codigo, sesion } = useSocioAuth();
-  const { contenido } = useContenidoOpac();
   const { slugId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,9 +123,7 @@ export default function FichaMaterial({ itemTipo }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigo, itemTipo, id]);
 
-  useEffect(() => {
-    if (ficha) document.title = `${ficha.titulo} · ${contenido?.identidad?.nombre || "Catálogo"}`;
-  }, [ficha, contenido]);
+  useMetadatos(ficha?.seo);
 
   async function abrirConfirmacion() {
     setConfirmando(true);
@@ -258,7 +255,7 @@ export default function FichaMaterial({ itemTipo }) {
               </button>
             )}
             {puedePedir && ficha.disponibles > 0 && sesion === null && (
-              <Link className="boton-enlace secundario" to={`/opac/${codigo}/login?volver=${encodeURIComponent(location.pathname)}`}>
+              <Link className="boton-enlace secundario" rel="nofollow" to={`/opac/${codigo}/login?volver=${encodeURIComponent(location.pathname)}`}>
                 Ingresá para pedirlo
               </Link>
             )}

@@ -3904,3 +3904,110 @@ test("OPAC: búsqueda paginada sin tildes, facetas con autoridades, ficha públi
   assert.equal(pedido.estado, "pendiente");
   assert.deepEqual(pedido.material, { itemTipo: "Libro", id: fierro._id, titulo: "Martín Fierro", segmento: "libro", slug: "martin-fierro" });
 });
+
+test("SEO: fichas con <head> propio, redirección al título nuevo, sitemaps, robots y nada privado indexable", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpseo");
+  const crear = async (ruta, cuerpo) => (await b.enviar("POST", ruta, cuerpo)).json();
+  const fierro = await crear("/libros", {
+    titulo: "Martín Fierro",
+    autores: ["Hernández, José"],
+    editorial: "Colihue",
+    anio: "1872",
+    isbn: "9789505811236",
+    materias: ["Poesía gauchesca"],
+    ejemplares: [{ codigoBarras: "SEO-SECRETO-1", signatura: "861 HER" }],
+  });
+  const maligno = await crear("/libros", { titulo: 'Hola"><script>alert(1)</script>' });
+  const borrado = await crear("/libros", { titulo: "Libro dado de baja" });
+  await b.enviar("DELETE", `/libros/${borrado._id}`);
+  const revista = await crear("/seriadas", { titulo: "Revista Billiken", periodicidad: "semanal" });
+  const socio = await b.crearSocio("7001", "ALUMNO");
+
+  const pedir = (ruta, opciones) => fetch(`${base}${ruta}`, { redirect: "manual", ...opciones });
+  const canonica = `/opac/bpseo/libro/martin-fierro-${fierro._id}`;
+
+  // --- la ficha llega con su <head>: título, canonical, Open Graph y JSON-LD ---
+  let res = await pedir(canonica);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-robots-tag"), null);
+  let html = await res.text();
+  assert.match(html, /<title>Martín Fierro · José Hernández · Biblioteca bpseo<\/title>/);
+  assert.match(html, new RegExp(`<link rel="canonical" href="${base}${canonica}" />`));
+  assert.match(html, /<meta property="og:type" content="book" \/>/);
+  const jsonLd = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(html)[1]);
+  const libro = jsonLd["@graph"].find((n) => n["@type"] === "Book");
+  assert.equal(libro.isbn, "9789505811236");
+  assert.equal(libro.author[0].name, "José Hernández");
+  assert.doesNotMatch(html, /SEO-SECRETO-1/, "el código de barras no es público");
+
+  // --- título viejo o sin slug: redirección permanente a la dirección actual ---
+  res = await pedir(`/opac/bpseo/libro/titulo-viejo-${fierro._id}`);
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get("location"), canonica);
+  res = await pedir(`/opac/bpseo/publicacion-seriada/${revista._id}`);
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get("location"), `/opac/bpseo/publicacion-seriada/revista-billiken-${revista._id}`);
+
+  // --- el texto del catálogo no puede inyectar HTML ni cerrar el JSON-LD ---
+  res = await pedir(`/opac/bpseo/libro/hola-script-alert-1-script-${maligno._id}`);
+  html = await res.text();
+  assert.equal(res.status, 200);
+  assert.doesNotMatch(html, /<script>alert/);
+
+  // --- inexistentes: 404 sin indexar ---
+  for (const ruta of [`/opac/bpseo/libro/x-${"0".repeat(24)}`, `/opac/bpseo/libro/${borrado._id}`, "/opac/noexiste", "/opac/bpseo/pagina/nada"]) {
+    res = await pedir(ruta);
+    assert.equal(res.status, 404, ruta);
+    assert.equal(res.headers.get("x-robots-tag"), "noindex, nofollow", ruta);
+  }
+
+  // --- privado o de resultados: no se indexa ---
+  for (const ruta of ["/opac/bpseo/login", "/opac/bpseo/cuenta", "/opac/bpseo/mis-prestamos"]) {
+    res = await pedir(ruta);
+    assert.equal(res.headers.get("x-robots-tag"), "noindex, nofollow", ruta);
+    assert.doesNotMatch(await res.text(), /rel="canonical"/, ruta);
+  }
+  res = await pedir("/opac/bpseo?q=fierro");
+  assert.equal(res.headers.get("x-robots-tag"), "noindex, follow");
+  res = await pedir("/opac/bpseo");
+  assert.equal(res.headers.get("x-robots-tag"), null);
+  assert.match(await res.text(), /<title>Biblioteca bpseo · Catálogo en línea<\/title>/);
+  res = await fetch(`${base}/api/v1/opac/bpseo/contenido`);
+  assert.equal(res.headers.get("x-robots-tag"), "noindex");
+
+  // --- la API devuelve los mismos metadatos para la navegación dentro de la app ---
+  res = await fetch(`${base}/api/v1/opac/bpseo/items/Libro/${fierro._id}`);
+  const ficha = await res.json();
+  assert.equal(ficha.seo.canonical, `${base}${canonica}`);
+  process.env.FRONTEND_URL = "https://sibpsanjuan.vercel.app";
+  try {
+    res = await fetch(`${base}/api/v1/opac/bpseo/items/Libro/${fierro._id}`);
+    assert.equal((await res.json()).seo.canonical, `https://sibpsanjuan.vercel.app${canonica}`);
+    res = await pedir("/robots.txt");
+    assert.match(await res.text(), /^Sitemap: https:\/\/sibpsanjuan\.vercel\.app\/sitemap\.xml$/m);
+  } finally {
+    delete process.env.FRONTEND_URL;
+  }
+  res = await fetch(`${base}/api/v1/opac/bpseo/contenido`);
+  assert.equal((await res.json()).seo.canonical, `${base}/opac/bpseo`);
+
+  // --- sitemaps: índice por biblioteca, solo material vigente, nada de socios ---
+  res = await pedir("/sitemap.xml");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /application\/xml/);
+  assert.match(await res.text(), new RegExp(`<loc>${base}/opac/bpseo/sitemap.xml</loc>`));
+  res = await pedir("/opac/bpseo/sitemap.xml");
+  const sitemap = await res.text();
+  assert.match(sitemap, new RegExp(`<loc>${base}/opac/bpseo</loc>`));
+  assert.match(sitemap, new RegExp(`<loc>${base}${canonica}</loc><lastmod>\\d{4}-\\d{2}-\\d{2}T`));
+  assert.match(sitemap, new RegExp(`revista-billiken-${revista._id}`));
+  assert.doesNotMatch(sitemap, new RegExp(String(borrado._id)), "lo dado de baja no está");
+  assert.doesNotMatch(sitemap, /login|cuenta|mis-prestamos|socio|7001/);
+  assert.doesNotMatch(sitemap, new RegExp(String(socio._id)));
+  res = await pedir("/opac/bpseo/sitemap.xml?pagina=2");
+  assert.equal(res.status, 404);
+});
