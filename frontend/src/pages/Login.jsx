@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { rutaPorRol } from "../rutaPorRol.js";
-import ThemeToggle from "../ThemeToggle.jsx";
+import SelectorTema from "../SelectorTema.jsx";
 import CampoPassword from "../CampoPassword.jsx";
 
 export default function Login() {
@@ -29,7 +29,7 @@ export default function Login() {
   return (
     <main>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <ThemeToggle />
+        <SelectorTema />
       </div>
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: 360, margin: "3rem auto" }}>
         <div className="login-marca">

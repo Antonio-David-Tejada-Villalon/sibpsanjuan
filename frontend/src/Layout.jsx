@@ -4,7 +4,7 @@ import { useAuth } from "./AuthContext.jsx";
 import { useFocoEnRuta } from "./useFocoEnRuta.js";
 import api from "./api.js";
 import { obtenerBibliotecaActivaId, fijarBibliotecaActivaId } from "./bibliotecaActiva.js";
-import ThemeToggle from "./ThemeToggle.jsx";
+import SelectorTema from "./SelectorTema.jsx";
 
 const MATERIALES = [
   { to: "/libros", etiqueta: "Libros" },
@@ -225,7 +225,7 @@ export default function Layout({ children }) {
         {sesion && (
           <div className="header-derecha">
             {(sesion.rol === "admin" || sesion.rol === "supervisor") && <SelectorBibliotecaActiva />}
-            <ThemeToggle />
+            <SelectorTema sobreTinta compacto />
             <span className="sesion-usuario">
               {sesion.usuario}
               <Link to="/cambiar-password">Mi perfil</Link>

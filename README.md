@@ -380,10 +380,21 @@ describe.
 
 El ícono (`frontend/public/logo.png`, con el favicon derivado del mismo
 archivo — ver `frontend/public/favicon*.png/.ico` y `apple-touch-icon.png`)
-y el color de marca (naranja `#ff8300`, tomado de ese mismo logo) salen de un solo lugar
-(`frontend/src/estilos.css`, variable `--brand`) y se usan a propósito
-en pocos puntos — el logo, la acción principal de cada pantalla,
-enlaces y el foco de teclado — no como color de fondo general.
+y el color de marca (naranja `#ff8300`, tomado de ese mismo logo) se usan
+a propósito en pocos puntos — el logo, la acción principal de cada
+pantalla, enlaces y el foco de teclado — no como color de fondo general.
+
+Colores, tipografías (Literata en títulos, Public Sans en la interfaz),
+radios, sombras y duraciones salen del sistema de diseño del rediseño:
+`frontend/src/sistema-diseno/tokens.json` es la única fuente, y
+`tokens.css` se genera desde ahí con `npm run tokens` (una prueba avisa si
+quedó desactualizado). Las fuentes se sirven desde el propio sitio
+(`sistema-diseno/fonts/`), sin depender de Google Fonts. `estilos.css`
+mantiene sus nombres de siempre (`--bg`, `--brand`, `--texto-tenue`…)
+como alias de esos tokens, para que todas las pantallas tomen la paleta
+nueva mientras se rediseñan una por una. Encima del naranja de marca el
+texto va siempre en `--sobre-marca` (#1f2937, 5,9:1), nunca en blanco
+(2,47:1).
 
 `frontend/public/manifest.json` (Web App Manifest) permite instalar el
 sitio como app desde Chrome en Android ("Agregar a pantalla de inicio").
@@ -397,18 +408,30 @@ Sin este manifest, Chrome instalaba la app igual (usando el
 `apple-touch-icon`) pero sin control sobre ese recorte.
 
 Tema claro/oscuro en todo el sistema (staff y OPAC), no solo el catálogo:
-el botón 🌙/☀️ en el encabezado (`ThemeToggle.jsx`) guarda la elección en
-`localStorage` y la aplica como `data-theme` en `<html>`; sin elección
-guardada, se sigue el `prefers-color-scheme` del sistema operativo (ver
-el `@media` correspondiente en `estilos.css`). El resto del CSS no sabe
-en qué tema está — todo pasa por variables semánticas (`--bg`,
-`--bg-elevado`, `--texto`, `--texto-tenue`, `--borde`, etc. en `:root`),
-así que un componente nuevo hereda el tema automáticamente con tal de
-usar esas variables en vez de colores sueltos. `tema.js` aplica la
+el selector Claro / Oscuro / Automático (`SelectorTema.jsx`, en el
+encabezado y en el ingreso) guarda la elección en `localStorage` y la
+aplica como `data-theme` en `<html>`; Automático borra la elección y
+sigue el `prefers-color-scheme` del sistema operativo (ver los `@media`
+de `sistema-diseno/tokens.css`). Antes era un botón de dos estados que,
+una vez usado, no dejaba volver a seguir al sistema. El resto del CSS no
+sabe en qué tema está — todo pasa por los tokens (`--papel`,
+`--superficie`, `--texto`, `--borde`…) o sus alias, así que un componente
+nuevo hereda el tema automáticamente con tal de usar esas variables en
+vez de colores sueltos. `tema.js` aplica la
 elección guardada antes de que React monte nada (importado primero en
 `main.jsx`), para que no haya parpadeo del tema equivocado al cargar. El
 cambio de tema también se anuncia a lectores de pantalla (`role="status"`
-oculto visualmente junto al botón — ver A11Y-5 en `AUDITORIA.md`).
+oculto visualmente junto al selector — ver A11Y-5 en `AUDITORIA.md`).
+
+El backend usa Express 5: un error en cualquier ruta, también en las
+async, llega a `middleware/errores.js`, que responde un JSON controlado
+(400 para datos mal formados, 404 para rutas `/api` inexistentes, 500
+sin detalles internos) en vez de dejar una promesa rechazada que
+terminaba el proceso de Node. Los parámetros de la query string se leen
+con `utils/consulta.js`: `?q` solo acepta texto y `?estado` solo los
+valores permitidos, así que `?q[a]=1`, `?q=a&q=b` o `?estado[$ne]=x`
+ya no pueden tirar el servidor ni colarse como operadores en un filtro
+de MongoDB.
 
 El encabezado del panel de staff tiene un link "Panel" (a `/dashboard`)
 como primer ítem del nav, visible para los cuatro roles de staff — antes

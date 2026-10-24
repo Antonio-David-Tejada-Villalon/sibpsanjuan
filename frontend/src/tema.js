@@ -8,9 +8,17 @@
 // (ver el media query en estilos.css) — acá solo se resuelve la elección
 // EXPLÍCITA del usuario (data-theme="light"/"dark"), que la gana.
 const CLAVE = "tema";
+const TEMAS = ["light", "dark"];
 
+// null = Automático. Con el almacenamiento bloqueado (ventana privada,
+// datos del sitio borrados) también se cae en Automático en vez de romper.
 export function obtenerTemaGuardado() {
-  return localStorage.getItem(CLAVE);
+  try {
+    const tema = localStorage.getItem(CLAVE);
+    return TEMAS.includes(tema) ? tema : null;
+  } catch {
+    return null;
+  }
 }
 
 export function aplicarTema(tema) {
@@ -19,8 +27,12 @@ export function aplicarTema(tema) {
 }
 
 export function fijarTema(tema) {
-  if (tema) localStorage.setItem(CLAVE, tema);
-  else localStorage.removeItem(CLAVE);
+  try {
+    if (tema) localStorage.setItem(CLAVE, tema);
+    else localStorage.removeItem(CLAVE);
+  } catch {
+    // Sin almacenamiento, el tema se aplica igual en esta visita.
+  }
   aplicarTema(tema);
 }
 

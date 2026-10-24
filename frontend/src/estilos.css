@@ -1,42 +1,28 @@
+/* Colores, fuentes, radios y duraciones salen de sistema-diseno/tokens.css,
+   generado desde tokens.json (el sistema de diseño del rediseño). Los nombres
+   de abajo son los que ya usaba este archivo: quedan como alias de los tokens
+   para que todas las pantallas tomen la paleta nueva sin reescribirse de una
+   vez. El tema oscuro lo resuelven los tokens; acá solo cambia la sombra. */
 :root {
-  /* Naranja de marca DigiBepé (DBP), tomado del logo — se usa a propósito
-     en pocos lugares (foco, enlaces, acción principal, marca) y no como
-     color de fondo general, para que siga leyéndose como una señal. */
-  --brand: #ff8300;
+  --brand: var(--marca);
   --brand-tenue: rgba(255, 131, 0, 0.14);
-  /* Variante de --brand para texto/links sobre una superficie clara — el
-     naranja de marca "puro" da 2.47:1 de contraste sobre blanco (falla
-     WCAG AA, que exige 4.5:1 para texto normal — ver A11Y-3 en
-     AUDITORIA.md). --brand sigue usándose tal cual para foco, bordes y
-     acciones primarias (fondo sólido + texto blanco), donde el criterio
-     de contraste es otro; esta variable es solo para texto sobre fondo
-     claro. En tema oscuro el naranja original ya pasa cómodo (6.5:1)
-     contra las superficies oscuras, así que ahí no hace falta oscurecerlo
-     — ver los overrides de tema más abajo. */
-  --brand-texto: #a34d00;
-  /* Color fijo de la barra de navegación — no cambia con el tema (ver
-     header.app más abajo): funciona como una franja de marca constante,
-     igual en claro y oscuro, común en la mayoría de los paneles admin. */
+  --brand-texto: var(--marca-texto);
+  /* Franja fija del encabezado actual, igual en los dos temas. Se reemplaza
+     cuando llegue la navegación nueva del rediseño. */
   --ink: #1f2937;
 
-  /* Paleta de superficie/texto — tema claro (default). El tema oscuro
-     pisa estas mismas variables más abajo, así el resto del archivo no
-     tiene que saber en qué tema está: solo usa estos nombres. */
-  --bg: #fafafa;
-  --bg-elevado: #ffffff;
-  --bg-sutil: #f0f0f0;
-  --texto: #1a1a1a;
-  --texto-tenue: #555555;
-  --texto-mudo: #888888;
-  --borde: #dddddd;
-  --borde-tenue: #eeeeee;
-  --overlay: rgba(0, 0, 0, 0.5);
-  --sombra: rgba(0, 0, 0, 0.12);
-  --error-bg: #fdecea;
-  --error-texto: #611a15;
-  --ok-bg: #e6f4ea;
-  --ok-texto: #1e4620;
-  color-scheme: light;
+  --bg: var(--papel);
+  --bg-elevado: var(--superficie);
+  --bg-sutil: var(--superficie-sutil);
+  --texto-tenue: var(--texto-secundario);
+  --texto-mudo: var(--texto-secundario);
+  --borde-tenue: var(--borde);
+  --overlay: var(--velo);
+  --sombra: rgba(31, 41, 55, 0.12);
+  --error-bg: var(--vencido-fondo);
+  --error-texto: var(--vencido);
+  --ok-bg: var(--disponible-fondo);
+  --ok-texto: var(--disponible);
 
   /* Escala de espaciado — de acá salen paddings, márgenes y gaps de todo
      el sistema, en vez de valores sueltos repetidos por archivo. */
@@ -47,8 +33,6 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
 
-  /* Escala tipográfica — antes h1/h2/h3 no tenían tamaño propio y
-     dependían del default del navegador. */
   --text-xs: 0.8rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -56,79 +40,33 @@
   --text-xl: 1.5rem;
   --text-2xl: 1.875rem;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  --radius-sm: var(--radio-etiqueta);
+  --radius-md: var(--radio-control);
 }
-
-/* Tema oscuro: dos reglas con los mismos valores a propósito, no una
-   duplicación por error.
-   1) [data-theme="dark"] — elección explícita del usuario (ThemeToggle),
-      gana sin importar el sistema operativo.
-   2) @media prefers-color-scheme — sin elección guardada (sin el
-      atributo), sigue lo que diga el sistema. :not([data-theme="light"])
-      evita que esta regla pise una elección explícita de tema claro
-      cuando el sistema está en oscuro. */
-:root[data-theme="dark"] {
-  --bg: #14161a;
-  --bg-elevado: #1e2126;
-  --bg-sutil: #262a31;
-  --texto: #e8e8e8;
-  --texto-tenue: #a8adb5;
-  --texto-mudo: #7d838c;
-  --borde: #3a3f47;
-  --borde-tenue: #2b2f36;
-  --overlay: rgba(0, 0, 0, 0.65);
-  --sombra: rgba(0, 0, 0, 0.4);
-  --error-bg: #3a1c1c;
-  --error-texto: #f8b4b0;
-  --ok-bg: #16321f;
-  --ok-texto: #a7e3b8;
-  --brand-texto: var(--brand);
-  color-scheme: dark;
-}
+:root[data-theme="dark"] { --sombra: rgba(0, 0, 0, 0.4); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #14161a;
-    --bg-elevado: #1e2126;
-    --bg-sutil: #262a31;
-    --texto: #e8e8e8;
-    --texto-tenue: #a8adb5;
-    --texto-mudo: #7d838c;
-    --borde: #3a3f47;
-    --borde-tenue: #2b2f36;
-    --overlay: rgba(0, 0, 0, 0.65);
-    --sombra: rgba(0, 0, 0, 0.4);
-    --error-bg: #3a1c1c;
-    --error-texto: #f8b4b0;
-    --ok-bg: #16321f;
-    --ok-texto: #a7e3b8;
-    --brand-texto: var(--brand);
-    color-scheme: dark;
-  }
+  :root:not([data-theme="light"]) { --sombra: rgba(0, 0, 0, 0.4); }
 }
 
 * { box-sizing: border-box; }
 body {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
   margin: 0;
   color: var(--texto);
   background: var(--bg);
   font-size: var(--text-base);
+  line-height: 1.5;
 }
-h1, h2, h3 { line-height: 1.25; margin: 0 0 var(--space-4); }
-h1 { font-size: var(--text-2xl); }
-h2 { font-size: var(--text-lg); }
+/* Literata solo en títulos y nombres de obras; Public Sans en todo lo demás. */
+h1, h2, h3 { font-family: var(--font-serif); line-height: 1.2; margin: 0 0 var(--space-4); text-wrap: balance; }
+h1 { font-size: var(--text-2xl); font-weight: 600; }
+h2 { font-size: var(--text-lg); font-weight: 500; }
 h3 { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); }
 a { color: var(--brand-texto); }
-/* --brand-texto (no --brand) a propósito acá — el naranja puro también
-   falla el contraste no-textual mínimo (3:1) contra superficies claras,
-   mismo cálculo que A11Y-3 (ver AUDITORIA.md, A11Y-7). Queda una
-   excepción conocida y aceptada: un foco sobre un botón que YA tiene
-   fondo --brand (blanco de por medio) sigue con contraste bajo entre
-   sí — eso requeriría tocar el fondo de los botones, que a propósito no
-   se tocó en este arreglo. */
+/* El foco usa el token foco (naranja oscuro en claro, naranja en oscuro):
+   el naranja de marca puro da 2,47:1 sobre blanco y no alcanza el 3:1. */
 :focus-visible {
-  outline: 2px solid var(--brand-texto);
+  outline: 2px solid var(--foco);
   outline-offset: 2px;
 }
 .skip-link {
@@ -138,7 +76,7 @@ a { color: var(--brand-texto); }
   z-index: 100;
   padding: var(--space-2) var(--space-4);
   background: var(--brand);
-  color: white;
+  color: var(--sobre-marca);
   text-decoration: none;
 }
 .skip-link:focus {
@@ -199,24 +137,41 @@ header.app nav a.active { border-bottom-color: var(--brand); }
   white-space: nowrap;
 }
 
-.boton-tema {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: white;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
+/* Selector de tema (SelectorTema.jsx): Claro, Oscuro y Automático. */
+.selector-tema {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radio-control);
+  background: var(--superficie-sutil);
+}
+.selector-tema__opcion {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  line-height: 1;
-  border-radius: 999px;
+  gap: var(--space-1);
+  min-height: 2rem;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radio-etiqueta);
+  background: transparent;
+  color: var(--texto-secundario);
+  font: 500 var(--text-xs) / 1 var(--font-sans);
+  letter-spacing: 0.03em;
+  transition: background-color var(--dur-rapida) var(--curva-rapida), color var(--dur-rapida) var(--curva-rapida);
 }
-.boton-tema:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); filter: none; }
+.selector-tema__opcion.es-activa { background: var(--marca); color: var(--sobre-marca); font-weight: 600; }
+.selector-tema__opcion:hover:not(.es-activa) { filter: none; background: var(--superficie); color: var(--texto); }
+/* Sobre la franja oscura del encabezado (igual en los dos temas). */
+.selector-tema--sobre-tinta { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.25); }
+.selector-tema--sobre-tinta .selector-tema__opcion { color: rgba(255, 255, 255, 0.85); }
+.selector-tema--sobre-tinta .selector-tema__opcion:hover:not(.es-activa) { background: rgba(255, 255, 255, 0.15); color: white; }
+.selector-tema--sobre-tinta .selector-tema__opcion.es-activa { color: var(--sobre-marca); }
+/* El foco naranja oscuro casi no se ve sobre la franja tinta: ahí va el
+   naranja de marca, que sobre #1f2937 da 5,9:1. */
+header.app :focus-visible { outline-color: var(--marca); }
 
-/* Botón hamburguesa: mismo lenguaje visual que .boton-tema (chip translúcido
-   sobre el header oscuro), oculto en escritorio — solo aparece por debajo
+/* Botón hamburguesa: chip translúcido sobre la franja oscura del encabezado,
+   oculto en escritorio — solo aparece por debajo
    de la breakpoint de abajo, donde nav + header-derecha se colapsan. */
 .boton-hamburguesa {
   display: none;
@@ -565,7 +520,7 @@ main:has(.catalogo-layout) { max-width: 1280px; }
 }
 .catalogo-filtros__materias button.activa {
   background: var(--brand);
-  color: white;
+  color: var(--sobre-marca);
 }
 .catalogo-resultados__barra {
   display: flex;
@@ -866,6 +821,11 @@ main:has(.doc-layout) { max-width: 1100px; }
   .modal-detalle__info { padding-right: 0; }
 }
 main { max-width: 900px; margin: var(--space-5) auto; padding: 0 var(--space-4); }
+/* El foco llega al <main> por código al cambiar de pantalla (useFocoEnRuta),
+   para orientar al lector de pantalla; no es foco de teclado sobre un
+   control, así que no se le dibuja contorno (antes aparecía como una línea
+   marrón alrededor de todo el contenido). */
+main:focus { outline: none; }
 
 /* Pie del OPAC (OpacLayout.jsx) — solo el link de privacidad por ahora
    (ver GOB-3 en AUDITORIA.md); discreto, no compite con el contenido. */
@@ -948,8 +908,8 @@ input, select, textarea {
   width: 100%;
   padding: var(--space-2);
   margin-top: var(--space-1);
-  border: 1px solid var(--borde);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--radius-md);
   background: var(--bg-elevado);
   color: var(--texto);
   font: inherit;
@@ -979,13 +939,13 @@ button {
   border-radius: var(--radius-sm);
   border: 1px solid var(--brand);
   background: var(--brand);
-  color: white;
+  color: var(--sobre-marca);
   cursor: pointer;
   font-size: var(--text-sm);
 }
 button:hover:not(:disabled) { filter: brightness(0.93); }
 button.secundario { background: var(--bg-elevado); color: var(--texto); border-color: var(--borde); }
-button.peligro { background: #b91c1c; border-color: #b91c1c; }
+button.peligro { background: var(--vencido); border-color: var(--vencido); color: var(--sobre-peligro); }
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -1059,8 +1019,8 @@ button:disabled {
   font-size: var(--text-xs);
   font-weight: 600;
 }
-.marc-tab[aria-selected="true"] { border-color: var(--brand); background: var(--brand); color: white; }
-.marc-tab[aria-selected="true"] .marc-tab__numero { background: rgba(255, 255, 255, 0.25); color: white; }
+.marc-tab[aria-selected="true"] { border-color: var(--brand); background: var(--brand); color: var(--sobre-marca); }
+.marc-tab[aria-selected="true"] .marc-tab__numero { background: rgba(31, 41, 55, 0.12); color: var(--sobre-marca); }
 .marc-panel {
   border: 1px solid var(--borde);
   border-radius: var(--radius-md);
@@ -1098,7 +1058,7 @@ button:disabled {
 }
 .marc-icono-boton:hover:not(:disabled) { filter: none; color: var(--texto); border-color: var(--texto-tenue); }
 .marc-icono-boton--peligro { color: #b91c1c; border-color: #b91c1c33; }
-.marc-icono-boton--peligro:hover:not(:disabled) { background: #b91c1c; color: white; }
+.marc-icono-boton--peligro:hover:not(:disabled) { background: var(--vencido); color: var(--sobre-peligro); }
 .marc-extra { border-style: dashed; }
 @media (max-width: 640px) {
   .marc-grupo__fila { flex-wrap: wrap; }

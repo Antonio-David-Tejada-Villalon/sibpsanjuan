@@ -1,4 +1,5 @@
 import React, { useId, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 // Envoltorio de <input type="password"> con un botón "ojito" para revisar
 // que se tipeó bien antes de guardar — mismo mecanismo en los diez campos
@@ -34,7 +35,11 @@ export default function CampoPassword({ etiqueta, value, onChange, ...resto }) {
           aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
           aria-pressed={visible}
         >
-          <span aria-hidden="true">{visible ? "🙈" : "👁️"}</span>
+          {visible ? (
+            <EyeOff size={18} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <Eye size={18} strokeWidth={1.5} aria-hidden="true" />
+          )}
         </button>
       </div>
     </div>

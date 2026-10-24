@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
 import { useFocoEnRuta } from "../../useFocoEnRuta.js";
-import ThemeToggle from "../../ThemeToggle.jsx";
+import SelectorTema from "../../SelectorTema.jsx";
 
 export default function OpacLayout({ children }) {
   const { codigo, sesion, logout } = useSocioAuth();
@@ -45,7 +45,7 @@ export default function OpacLayout({ children }) {
           <span aria-hidden="true">{menuAbierto ? "✕" : "☰"}</span>
         </button>
         <div className="header-derecha">
-          <ThemeToggle />
+          <SelectorTema sobreTinta compacto />
           {sesion === undefined ? null : sesion ? (
             <span className="sesion-usuario">
               {sesion.nombre} {sesion.apellido}

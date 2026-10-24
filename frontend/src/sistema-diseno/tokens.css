@@ -1,0 +1,166 @@
+/* SIBPSANJUAN — generado desde tokens.json con `npm run tokens`. No editar a mano. */
+
+@font-face {
+  font-family: "Literata";
+  src: url("./fonts/Literata-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Public Sans";
+  src: url("./fonts/PublicSans-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --papel: #faf8f5;
+  --superficie: #ffffff;
+  --superficie-sutil: #f3f0eb;
+  --borde: #e7e2da;
+  --borde-control: #8c857b;
+  --texto: #1a1a1a;
+  --texto-secundario: #57534e;
+  --tinta: #1f2937;
+  --tinta-hover: #111827;
+  --sobre-tinta: #ffffff;
+  --sobre-tinta-tenue: #a8adb5;
+  --marca: #ff8300;
+  --marca-hover: #e07300;
+  --marca-presionado: #c96600;
+  --sobre-marca: #1f2937;
+  --marca-texto: #a34d00;
+  --foco: var(--marca-texto);
+  --disponible: #15803d;
+  --disponible-fondo: #dcfce7;
+  --reservado: #b45309;
+  --reservado-fondo: #fef3c7;
+  --vencido: #b91c1c;
+  --vencido-fondo: #fee2e2;
+  --informativo: #1d4ed8;
+  --informativo-fondo: #dbeafe;
+  --sobre-peligro: #ffffff;
+  --aviso-exito: #4ade80;
+  --aviso-error: #f87171;
+  --borde-portada: rgba(0, 0, 0, 0.06);
+  --velo: rgba(31, 41, 55, 0.4);
+  --sombra-flotante: 0 4px 12px -2px rgba(31, 41, 55, 0.06), 0 2px 6px -1px rgba(31, 41, 55, 0.04);
+  --sombra-modal: 0 16px 32px -4px rgba(31, 41, 55, 0.12), 0 6px 12px -2px rgba(31, 41, 55, 0.06);
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --gutter: 24px;
+  --gutter-mobile: 16px;
+  --margin: 32px;
+  --margin-mobile: 16px;
+  --radio-etiqueta: 4px;
+  --radio-control: 6px;
+  --radio-tarjeta: 10px;
+  --radio-circulo: 9999px;
+  --dur-rapida: 150ms;
+  --dur-regular: 200ms;
+  --dur-modal: 250ms;
+  --curva-rapida: cubic-bezier(0, 0, 0.2, 1);
+  --curva-regular: cubic-bezier(0.16, 1, 0.3, 1);
+  --curva-modal: cubic-bezier(0.2, 0, 0, 1);
+  --contenedor-opac: 1120px;
+  --contenedor-panel: 1280px;
+  --alto-control: 40px;
+  --alto-busqueda: 48px;
+  --alto-chip: 24px;
+  --fila-tabla: 48px;
+  --fila-compacta: 40px;
+  --area-tactil: 44px;
+  --portada-lista: 80px;
+  --portada-ficha: 160px;
+  --panel-asistente: 400px;
+  --columna-filtros: 260px;
+  --bp-tablet: 768px;
+  --bp-notebook: 1024px;
+  --bp-escritorio: 1280px;
+  --bp-grande: 1600px;
+  --font-serif: "Literata", Georgia, "Times New Roman", serif;
+  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --papel: #14161a;
+  --superficie: #1e2126;
+  --superficie-sutil: #262a31;
+  --borde: #3a3f47;
+  --borde-control: #767c86;
+  --texto: #e8e8e8;
+  --texto-secundario: #a8adb5;
+  --tinta: #e8e8e8;
+  --tinta-hover: #ffffff;
+  --sobre-tinta: #14161a;
+  --sobre-tinta-tenue: #57534e;
+  --marca-texto: #ff8300;
+  --disponible: #4ade80;
+  --disponible-fondo: #052e16;
+  --reservado: #fbbf24;
+  --reservado-fondo: #451a03;
+  --vencido: #f87171;
+  --vencido-fondo: #450a0a;
+  --informativo: #60a5fa;
+  --informativo-fondo: #172554;
+  --sobre-peligro: #14161a;
+  --aviso-exito: #15803d;
+  --aviso-error: #b91c1c;
+  --borde-portada: var(--borde);
+  --sombra-flotante: none;
+  --sombra-modal: none;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papel: #14161a;
+    --superficie: #1e2126;
+    --superficie-sutil: #262a31;
+    --borde: #3a3f47;
+    --borde-control: #767c86;
+    --texto: #e8e8e8;
+    --texto-secundario: #a8adb5;
+    --tinta: #e8e8e8;
+    --tinta-hover: #ffffff;
+    --sobre-tinta: #14161a;
+    --sobre-tinta-tenue: #57534e;
+    --marca-texto: #ff8300;
+    --disponible: #4ade80;
+    --disponible-fondo: #052e16;
+    --reservado: #fbbf24;
+    --reservado-fondo: #451a03;
+    --vencido: #f87171;
+    --vencido-fondo: #450a0a;
+    --informativo: #60a5fa;
+    --informativo-fondo: #172554;
+    --sobre-peligro: #14161a;
+    --aviso-exito: #15803d;
+    --aviso-error: #b91c1c;
+    --borde-portada: var(--borde);
+    --sombra-flotante: none;
+    --sombra-modal: none;
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-rapida: 0ms;
+    --dur-regular: 0ms;
+    --dur-modal: 0ms;
+  }
+}
+
+:root[data-movimiento="reducido"] {
+  --dur-rapida: 0ms;
+  --dur-regular: 0ms;
+  --dur-modal: 0ms;
+}
