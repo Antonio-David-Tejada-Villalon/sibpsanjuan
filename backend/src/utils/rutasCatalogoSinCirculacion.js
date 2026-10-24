@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "./objectId.js";
+import { textoDeConsulta } from "./consulta.js";
 
 function escaparRegex(texto) {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -18,7 +19,7 @@ export function crearRutasCatalogoSinCirculacion({ Modelo, camposBusqueda }) {
 
   router.get("/", async (req, res) => {
     const filtro = { bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null };
-    const q = (req.query.q || "").trim();
+    const q = textoDeConsulta(req.query.q);
     if (q) {
       const rx = new RegExp(escaparRegex(q), "i");
       filtro.$or = camposBusqueda.map((campo) => ({ [campo]: rx }));

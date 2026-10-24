@@ -2850,3 +2850,69 @@ test("catálogo de autoridades de materia: CRUD (staff) + lectura pública desde
   res = await fetch(`${base}/api/opac/${biblioteca.codigo}/materias`);
   assert.equal((await res.json()).length, 0);
 });
+
+test("consultas malformadas responden 400 controlado y el servidor sigue de pie (vulnerabilidad del prompt maestro)", async (t) => {
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const passwordHash = await bcrypt.hash("adminconsultas1", 10);
+  await Usuario.create({ usuario: "admin-consultas", passwordHash, rol: "admin", bibliotecaId: null });
+  const cookie = await login(base, "admin-consultas", "adminconsultas1");
+  assert.ok(cookie);
+
+  let res = await fetch(`${base}/api/v1/bibliotecas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ nombre: "Biblioteca de consultas", codigo: "consultas" }),
+  });
+  assert.equal(res.status, 201);
+  const { _id: bibliotecaId } = await res.json();
+
+  // Las 13 rutas de listado que leen ?q: antes, ?q[a]=1 hacía fallar .trim()
+  // sin que nadie capturara el error, y Node terminaba el proceso.
+  const listados = [
+    "/libros", "/seriadas", "/recursosElectronicos", "/materialSonoro", "/materialAudiovisual",
+    "/materialCartografico", "/materialGrafico", "/materialDidactico", "/archivos", "/objetos",
+    "/socios", "/autores", "/materias",
+  ];
+  for (const ruta of listados) {
+    const url = `${base}/api/v1${ruta}?bibliotecaId=${bibliotecaId}`;
+    res = await fetch(`${url}&q=a&q=b`, { headers: { Cookie: cookie } });
+    assert.equal(res.status, 400, `${ruta}: una lista en q tiene que dar 400`);
+    assert.match((await res.json()).error, /tiene que ser un texto/);
+
+    res = await fetch(`${url}&q[a]=1`, { headers: { Cookie: cookie } });
+    assert.ok(res.status < 500, `${ruta}: q[a]=1 no puede dar un error interno (dio ${res.status})`);
+
+    res = await fetch(`${url}&q=borges`, { headers: { Cookie: cookie } });
+    assert.equal(res.status, 200, `${ruta}: una búsqueda normal sigue funcionando`);
+  }
+
+  // Filtros por estado: solo valores permitidos; un operador no llega a Mongo.
+  const solicitudes = `${base}/api/v1/circulacion/solicitudes?bibliotecaId=${bibliotecaId}`;
+  res = await fetch(`${solicitudes}&estado=pendiente`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 200);
+  res = await fetch(`${solicitudes}&estado=cualquiera`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 400);
+  res = await fetch(`${solicitudes}&estado[$ne]=pendiente`, { headers: { Cookie: cookie } });
+  assert.ok(res.status < 500);
+  res = await fetch(`${base}/api/v1/solicitudes-supervision?estado=cualquiera`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 400);
+
+  // Un cuerpo que no es JSON y una ruta /api inexistente responden JSON, no HTML.
+  res = await fetch(`${base}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{esto no es json",
+  });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /JSON válido/);
+  res = await fetch(`${base}/api/v1/no-existe`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 404);
+  assert.equal((await res.json()).error, "Ruta no encontrada.");
+
+  // Y después de todo eso, el servidor sigue respondiendo.
+  res = await fetch(`${base}/api/health`);
+  assert.equal(res.status, 200);
+});

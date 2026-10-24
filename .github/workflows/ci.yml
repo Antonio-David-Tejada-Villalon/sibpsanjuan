@@ -4,12 +4,13 @@ name: CI
 # se acordaba de hacerlo a mano antes de pushear, y Render despliega directo
 # desde el repo — un commit roto podía llegar a producción sin que nada lo
 # frenara. Este workflow solo bloquea el merge (falla el check del PR/push),
-# no toca el deploy en sí.
+# no toca el deploy en sí. La rama principal del repo es master: con
+# [main], el workflow nunca se disparaba.
 on:
   push:
-    branches: [main]
+    branches: [master, rediseno]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   backend:

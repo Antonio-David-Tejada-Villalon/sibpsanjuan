@@ -4,6 +4,7 @@ import Usuario from "../models/Usuario.js";
 import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereAdmin, requiereSupervisor } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
+import { opcionDeConsulta } from "../utils/consulta.js";
 
 // Autoservicio con aprobación: un supervisor elige qué biblioteca quiere
 // supervisar (de las que todavía no tiene, ver GET /bibliotecas/
@@ -49,7 +50,8 @@ router.get("/mias", requiereSupervisor, async (req, res) => {
 // El admin ve todas (opcionalmente filtradas por estado) para resolverlas.
 router.get("/", requiereAdmin, async (req, res) => {
   const filtro = {};
-  if (req.query.estado) filtro.estado = req.query.estado;
+  const estado = opcionDeConsulta(req.query.estado, ["pendiente", "aprobada", "rechazada"], "estado");
+  if (estado) filtro.estado = estado;
   const solicitudes = await SolicitudSupervision.find(filtro)
     .sort({ creado: -1 })
     .populate("supervisorId", "usuario")

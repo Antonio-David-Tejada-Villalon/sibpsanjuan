@@ -1,5 +1,5 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import express from "express";
 import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
@@ -8,6 +8,7 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 import { conectarDB } from "./db.js";
 import { logRequests } from "./middleware/logging.js";
+import { manejarErrores, rutaApiInexistente } from "./middleware/errores.js";
 import authRoutes from "./routes/auth.js";
 import bibliotecasRoutes from "./routes/bibliotecas.js";
 import supervisoresRoutes from "./routes/supervisores.js";
@@ -77,6 +78,13 @@ export function crearApp() {
   // cubre con margen la carga masiva de CSV (`POST /libros/importar-csv`,
   // el body más grande de esta API) para varios miles de filas de texto.
   app.use(express.json({ limit: "2mb" }));
+  // Express 5 deja req.body en undefined cuando la petición no trae JSON;
+  // Express 4 lo dejaba en {}. Las rutas se escribieron contra lo segundo
+  // (por ejemplo, `const { x } = req.body`), así que se conserva.
+  app.use((req, res, next) => {
+    if (req.body === undefined) req.body = {};
+    next();
+  });
   app.use(cookieParser());
   app.use(logRequests());
 
@@ -121,6 +129,7 @@ export function crearApp() {
     app.use(`/api${ruta}`, router);
     app.use(`/api/v1${ruta}`, router);
   }
+  app.use("/api", rutaApiInexistente);
 
   // En producción, Express sirve el build de React ya compilado — un solo
   // servicio, una sola URL, sin CORS entre front y back.
@@ -129,6 +138,10 @@ export function crearApp() {
   app.get(/^\/(?!api\/).*/, (req, res) => {
     res.sendFile(path.join(distDir, "index.html"));
   });
+
+  // Último: recibe los errores de cualquier ruta, también los de las async
+  // (Express 5 los reenvía solo), y responde un JSON controlado.
+  app.use(manejarErrores);
 
   return app;
 }
@@ -146,6 +159,9 @@ async function main() {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL y no `file://${...}`: en Windows argv[1] trae barras
+// invertidas y letra de unidad, y la comparación literal nunca coincidía
+// (`npm start` terminaba sin levantar el servidor y sin decir nada).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

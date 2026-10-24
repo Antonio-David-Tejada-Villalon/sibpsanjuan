@@ -2,6 +2,7 @@ import { Router } from "express";
 import Autor from "../models/Autor.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
+import { textoDeConsulta } from "../utils/consulta.js";
 
 // CRUD del catálogo de autoridades de autor (ver BIBL-1 en AUDITORIA.md).
 // No usa ninguna de las dos fábricas compartidas (rutasCatalogo.js /
@@ -21,7 +22,7 @@ function limpiarVariantes(variantes) {
 
 router.get("/", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null };
-  const q = (req.query.q || "").trim();
+  const q = textoDeConsulta(req.query.q);
   if (q) {
     const rx = new RegExp(escaparRegex(q), "i");
     filtro.$or = [{ formaAutorizada: rx }, { variantes: rx }];

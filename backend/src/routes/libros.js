@@ -5,6 +5,7 @@ import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middlewar
 import { requiereIdValido } from "../utils/objectId.js";
 import { crearEjemplaresPara, adjuntarEjemplaresPara } from "../utils/ejemplares.js";
 import { plantillaLibrosCsv, parseLibrosCsv } from "../utils/importarLibrosCsv.js";
+import { textoDeConsulta } from "../utils/consulta.js";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ function escaparRegex(texto) {
 
 router.get("/", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null };
-  const q = (req.query.q || "").trim();
+  const q = textoDeConsulta(req.query.q);
   if (q) {
     const rx = new RegExp(escaparRegex(q), "i");
     filtro.$or = [{ titulo: rx }, { autores: rx }, { isbn: rx }];

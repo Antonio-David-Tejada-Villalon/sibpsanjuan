@@ -8,6 +8,7 @@ import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middlewar
 import { calcularVencimiento, puedeRenovar, estaVencido } from "../circulacion/reglas.js";
 import { esIdValido, requiereIdValido } from "../utils/objectId.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
+import { opcionDeConsulta } from "../utils/consulta.js";
 
 const router = Router();
 
@@ -92,7 +93,8 @@ async function adjuntarItems(docs) {
 
 router.get("/solicitudes", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId };
-  if (req.query.estado) filtro.estado = req.query.estado;
+  const estado = opcionDeConsulta(req.query.estado, ["pendiente", "aprobada", "rechazada"], "estado");
+  if (estado) filtro.estado = estado;
   const solicitudes = await Solicitud.find(filtro).sort({ fechaSolicitud: 1 });
 
   const socios = await Socio.find({ _id: { $in: solicitudes.map((s) => s.socioId) } }).select("-passwordHash");

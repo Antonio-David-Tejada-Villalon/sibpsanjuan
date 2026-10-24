@@ -2,6 +2,7 @@ import { Router } from "express";
 import RecursoElectronico from "../models/RecursoElectronico.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
+import { textoDeConsulta } from "../utils/consulta.js";
 
 // Más simple que libros.js/seriadas.js a propósito: no hay Ejemplar
 // involucrado en absoluto — no existe una ruta ":id/ejemplares" acá, y esa
@@ -17,7 +18,7 @@ function escaparRegex(texto) {
 
 router.get("/", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null };
-  const q = (req.query.q || "").trim();
+  const q = textoDeConsulta(req.query.q);
   if (q) {
     const rx = new RegExp(escaparRegex(q), "i");
     filtro.$or = [{ titulo: rx }, { autores: rx }];

@@ -4,6 +4,7 @@ import Ejemplar from "../models/Ejemplar.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
 import { crearEjemplaresPara, adjuntarEjemplaresPara } from "../utils/ejemplares.js";
+import { textoDeConsulta } from "../utils/consulta.js";
 
 // Espejo casi literal de routes/libros.js — misma paginación opt-in, misma
 // búsqueda regex-escapada, mismo rollback manual sin transacciones, mismo
@@ -22,7 +23,7 @@ function escaparRegex(texto) {
 
 router.get("/", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null };
-  const q = (req.query.q || "").trim();
+  const q = textoDeConsulta(req.query.q);
   if (q) {
     const rx = new RegExp(escaparRegex(q), "i");
     filtro.$or = [{ titulo: rx }, { autores: rx }, { issn: rx }];
