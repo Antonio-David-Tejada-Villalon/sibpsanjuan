@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import api from "../api.js";
 import Campo from "../Campo.jsx";
 import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
-import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
+import { usePrecargar } from "../usePrecargar.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
-
-const POR_PAGINA = 50;
 
 const SUBTIPOS_LIBRO = [
   { valor: "impreso", etiqueta: "Impreso" },
@@ -56,7 +53,6 @@ const VACIO = {
   urlInstruccion: "",
   portadaUrl: "",
   ejemplaresTexto: "",
-  ejemplaresExistentes: [],
   // Informativos (900/005) — no se mandan al servidor, ver mapFormADatos.
   creado: "",
   actualizado: "",
@@ -93,9 +89,6 @@ function mapEntidadAForm(libro) {
     urlInstruccion: libro.urlInstruccion || "",
     portadaUrl: libro.portadaUrl || "",
     ejemplaresTexto: "",
-    // Solo para mostrarlos (de solo lectura) mientras se edita — no se
-    // manda de vuelta al servidor (ver mapFormADatos, que no la incluye).
-    ejemplaresExistentes: libro.ejemplares || [],
     creado: libro.creado || "",
     actualizado: libro.actualizado || "",
   };
@@ -222,7 +215,7 @@ function fechaLegible(iso) {
 // archivo tal cual: lo lee en el navegador con FileReader y manda el texto
 // ya parseado, para no tener que sumar multipart/form-data a este backend
 // (que hoy solo habla JSON).
-function CargaMasivaLibros({ onImportado }) {
+export function CargaMasivaLibros({ onImportado }) {
   const [archivo, setArchivo] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -246,7 +239,7 @@ function CargaMasivaLibros({ onImportado }) {
   }
 
   return (
-    <details className="card" id="carga-masiva-csv">
+    <details className="card" id="carga-masiva-csv" open>
       <summary>Carga masiva desde CSV/Excel</summary>
       <p>
         <a href={api.urlPlantillaLibrosCsv()}>Descargar plantilla CSV</a> — abrila y editala con Excel, Google
@@ -304,159 +297,28 @@ function CargaMasivaLibros({ onImportado }) {
   );
 }
 
-// Una fila editable por ejemplar (mientras se edita el libro): muestra
-// código de barras/signatura/estado de solo lectura, con "Editar" que la
-// convierte en dos inputs + Guardar/Cancelar, y "Eliminar" (deshabilitado
-// si no está "disponible" — el backend rechaza igual, esto solo evita el
-// viaje al servidor para un caso que ya se sabe que va a fallar).
-function FilaEjemplar({ libroId, ejemplar, onCambiar, onEliminar }) {
-  const [editando, setEditando] = useState(false);
-  const [codigoBarras, setCodigoBarras] = useState(ejemplar.codigoBarras);
-  const [signatura, setSignatura] = useState(ejemplar.signatura || "");
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState("");
-
-  async function onGuardar() {
-    setGuardando(true);
-    setError("");
-    try {
-      const actualizado = await api.actualizarEjemplarLibro(libroId, ejemplar._id, { codigoBarras, signatura });
-      onCambiar(actualizado);
-      setEditando(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  async function onBorrar() {
-    if (!confirm(`¿Eliminar el ejemplar ${ejemplar.codigoBarras}?`)) return;
-    setError("");
-    try {
-      await api.eliminarEjemplarLibro(libroId, ejemplar._id);
-      onEliminar();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  if (editando) {
-    return (
-      <li>
-        <div className="fila-ejemplar-edicion">
-          <input
-            value={codigoBarras}
-            onChange={(e) => setCodigoBarras(e.target.value)}
-            aria-label="Código de barras"
-          />
-          <input value={signatura} onChange={(e) => setSignatura(e.target.value)} aria-label="Signatura" />
-          <button type="button" onClick={onGuardar} disabled={guardando || !codigoBarras.trim()}>
-            {guardando ? "Guardando…" : "Guardar"}
-          </button>{" "}
-          <button type="button" className="secundario" onClick={() => setEditando(false)}>
-            Cancelar
-          </button>
-        </div>
-        {error && <div className="flash error" role="alert">{error}</div>}
-      </li>
-    );
-  }
-
-  return (
-    <li>
-      <code>{ejemplar.codigoBarras}</code>
-      {ejemplar.signatura && <> — {ejemplar.signatura}</>} <span className="pill-estado">{ejemplar.estado}</span>{" "}
-      <button type="button" className="secundario" onClick={() => setEditando(true)}>
-        Editar
-      </button>{" "}
-      <button
-        type="button"
-        className="peligro"
-        onClick={onBorrar}
-        disabled={ejemplar.estado !== "disponible"}
-        title={ejemplar.estado !== "disponible" ? "Solo se puede eliminar un ejemplar disponible" : undefined}
-      >
-        Eliminar
-      </button>
-      {error && <div className="flash error" role="alert">{error}</div>}
-    </li>
-  );
-}
-
-// Alta de un ejemplar nuevo directamente desde la edición del libro (antes
-// solo se podían agregar ejemplares en la carga inicial).
-function FormularioNuevoEjemplar({ libroId, onAgregado }) {
-  const [codigoBarras, setCodigoBarras] = useState("");
-  const [signatura, setSignatura] = useState("");
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState("");
-
-  async function onAgregar() {
-    if (!codigoBarras.trim()) return;
-    setGuardando(true);
-    setError("");
-    try {
-      const [creado] = await api.agregarEjemplaresLibro(libroId, [
-        { codigoBarras: codigoBarras.trim(), signatura: signatura.trim() },
-      ]);
-      onAgregado(creado);
-      setCodigoBarras("");
-      setSignatura("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  // div, no <form>: esto vive DENTRO del <form> de edición del libro más
-  // abajo, y un <form> anidado es HTML inválido — el navegador lo "abre" y
-  // su botón termina enviando el formulario de afuera (guarda el libro Y
-  // sale del modo edición) en vez de solo agregar el ejemplar.
-  return (
-    <div className="formulario-nuevo-ejemplar">
-      {error && <div className="flash error" role="alert">{error}</div>}
-      <label>
-        Código de barras
-        <input value={codigoBarras} onChange={(e) => setCodigoBarras(e.target.value)} />
-      </label>
-      <label>
-        Signatura
-        <input value={signatura} onChange={(e) => setSignatura(e.target.value)} />
-      </label>
-      <button type="button" onClick={onAgregar} disabled={guardando || !codigoBarras.trim()}>
-        {guardando ? "Agregando…" : "Agregar ejemplar"}
-      </button>
-    </div>
-  );
-}
-
-export default function Libros() {
+export default function Libros({ entidad, alGuardar, alCancelar }) {
   const {
     form,
     editandoId,
     error,
     guardando,
-    recargar,
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
     onSubmit,
   } = useListaCrud({
-    listar: (pagina, porPagina, q) => api.listarLibrosPaginado(pagina, porPagina, q),
     crear: (datos, form) => api.crearLibro({ ...datos, ejemplares: aEjemplares(form.ejemplaresTexto) }),
     actualizar: (id, datos) => api.actualizarLibro(id, datos),
-    eliminar: (id) => api.eliminarLibro(id),
     vacio: VACIO,
-    porPagina: POR_PAGINA,
     mapEntidadAForm,
     mapFormADatos,
+    alGuardar,
+    alCancelar,
   });
 
-  // Si se llegó acá con "Editar" desde "Buscar en el catálogo" (ver
-  // BuscarCatalogo.jsx), precarga esa entidad en el formulario.
-  useEditarDesdeNavegacion(onEditar);
+  // Para editar, el material llega de pages/catalogo/FormularioMaterial.jsx.
+  usePrecargar(entidad, onEditar);
 
   const [solapaActiva, setSolapaActiva] = useState(0);
   useEffect(() => {
@@ -704,40 +566,10 @@ export default function Libros() {
               signaturas de cada copia física.
             </p>
             {editandoId ? (
-              <div>
-                <label>Ejemplares (952 $p / $o)</label>
-                {form.ejemplaresExistentes.length > 0 ? (
-                  <ul className="lista-ejemplares">
-                    {form.ejemplaresExistentes.map((e) => (
-                      <FilaEjemplar
-                        key={e._id}
-                        libroId={editandoId}
-                        ejemplar={e}
-                        onCambiar={(actualizado) =>
-                          onCambiarCampo(
-                            "ejemplaresExistentes",
-                            form.ejemplaresExistentes.map((x) => (x._id === actualizado._id ? actualizado : x))
-                          )
-                        }
-                        onEliminar={() =>
-                          onCambiarCampo(
-                            "ejemplaresExistentes",
-                            form.ejemplaresExistentes.filter((x) => x._id !== e._id)
-                          )
-                        }
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <p>
-                    <small>Este libro todavía no tiene ejemplares cargados.</small>
-                  </p>
-                )}
-                <FormularioNuevoEjemplar
-                  libroId={editandoId}
-                  onAgregado={(nuevo) => onCambiarCampo("ejemplaresExistentes", [...form.ejemplaresExistentes, nuevo])}
-                />
-              </div>
+              <p>
+                Los ejemplares de este libro (copias, códigos de barras, si se prestan, estado) se agregan y editan en la pestaña
+                «Ítems» de su ficha, como en Koha.
+              </p>
             ) : (
               <label>
                 Ejemplares (uno por línea: código de barras, signatura) (952 $p / $o)
@@ -760,20 +592,12 @@ export default function Libros() {
         <button type="submit" disabled={guardando}>
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Guardar"}
         </button>{" "}
-        {editandoId && (
+        {(editandoId || alCancelar) && (
           <button type="button" className="secundario" onClick={onCancelarEdicion}>
             Cancelar
           </button>
         )}
       </form>
-
-      <CargaMasivaLibros onImportado={recargar} />
-
-      <p className="card">
-        ¿Buscás un libro ya cargado (para editarlo, ver su ficha ISBD o eliminarlo)?{" "}
-        <Link to="/catalogo">Buscá en el catálogo</Link> — ahí también aparecen el resto de los tipos de
-        material, con filtros por autor, materia, tipo y disponibilidad.
-      </p>
     </>
   );
 }

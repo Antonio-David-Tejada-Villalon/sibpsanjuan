@@ -637,7 +637,7 @@ main:has(.catalogo-layout) { max-width: 1280px; }
   }
 }
 @media (max-width: 700px) {
-  .catalogo-layout { grid-template-columns: 1fr; }
+  .catalogo-layout { grid-template-columns: minmax(0, 1fr); }
   .catalogo-filtros { position: static; }
 }
 
@@ -1527,3 +1527,256 @@ html:has(.barra-contenido) { scroll-padding-bottom: 7rem; }
 :root[data-ahorro="1"] * {
   animation: none !important;
 }
+
+/* --- Mostrador estilo Koha: socios, notificaciones, catálogo --- */
+
+.texto-secundario { color: var(--texto-secundario); }
+.texto-ok { color: var(--disponible); display: inline-flex; align-items: center; gap: 4px; }
+.icono-no { color: var(--vencido); }
+/* relative: así los textos .sr-only (absolutos) de la tabla quedan adentro y no ensanchan la página. */
+.tabla-desplazable { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.acciones-fila { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.acciones-fila button { min-height: 2.25rem; }
+.lista-simple { margin: 0; padding-left: 1.25rem; }
+.lista-simple li + li { margin-top: var(--space-1); }
+
+/* Etiqueta de estado, siempre con texto (nunca solo color). */
+.etiqueta-estado { display: inline-block; padding: 1px var(--space-2); border-radius: var(--radio-etiqueta); font-size: var(--text-xs); font-weight: 600; }
+.etiqueta-estado--ok { background: var(--disponible-fondo); color: var(--disponible); }
+.etiqueta-estado--aviso { background: var(--reservado-fondo); color: var(--reservado); }
+.etiqueta-estado--error { background: var(--vencido-fondo); color: var(--vencido); }
+.etiqueta-estado--neutro { background: var(--superficie-sutil); color: var(--texto-secundario); }
+.detalle-estado { display: block; color: var(--texto-secundario); font-size: var(--text-xs); }
+
+/* Pestañas de sección (Buscar socios / Nuevo socio, Todos / Vencidos). */
+.pestanas-seccion { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-4); border-bottom: 1px solid var(--borde); }
+.pestanas-seccion a,
+.pestanas-seccion button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--texto-secundario);
+  font-weight: 500;
+  text-decoration: none;
+}
+.pestanas-seccion button:hover { filter: none; color: var(--texto); }
+.pestanas-seccion a.active,
+.pestanas-seccion button.es-activa { border-bottom-color: var(--marca); color: var(--texto); font-weight: 600; }
+
+/* Pestañas dentro de una tarjeta (préstamos del socio). */
+.pestanas { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-4); border-bottom: 1px solid var(--borde); }
+.pestana { min-height: 2.75rem; padding: 0 var(--space-4); border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; color: var(--texto-secundario); font-weight: 500; }
+.pestana:hover { filter: none; color: var(--texto); }
+.pestana.es-activa { border-bottom-color: var(--marca); color: var(--texto); font-weight: 600; }
+
+/* Barra de acciones arriba de una ficha. */
+.barra-herramientas { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); padding: var(--space-2); border-radius: var(--radio-control); background: var(--superficie-sutil); }
+.barra-herramientas > * { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 2.5rem; }
+
+.ficha-datos { display: grid; gap: var(--space-2); margin: 0; }
+.ficha-dato { display: grid; grid-template-columns: minmax(8rem, 35%) 1fr; gap: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--borde); }
+.ficha-dato dt { font-weight: 600; color: var(--texto-secundario); font-size: var(--text-sm); }
+.ficha-dato dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Ficha del socio: resumen a la izquierda, todo lo demás a la derecha. */
+.ficha-socio { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.ficha-socio__resumen { position: sticky; top: var(--space-4); padding: var(--space-4); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); background: var(--superficie); font-size: var(--text-sm); }
+.ficha-socio__resumen p { margin: 0 0 var(--space-1); }
+.ficha-socio__nombre { font-weight: 700; font-size: var(--text-base); }
+.avatar-socio { display: grid; place-items: center; width: 5rem; height: 5rem; margin-bottom: var(--space-3); border-radius: 50%; background: var(--ink); color: var(--marca); font: 600 1.75rem / 1 var(--font-serif); }
+.ficha-socio__menu { display: grid; gap: 2px; margin-top: var(--space-4); }
+.ficha-socio__menu a { display: block; padding: var(--space-2) var(--space-3); border-left: 3px solid transparent; border-radius: var(--radio-etiqueta); background: var(--superficie-sutil); color: var(--texto); text-decoration: none; }
+.ficha-socio__menu a:hover { border-left-color: var(--marca); }
+.ficha-socio__columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4); }
+.ficha-socio__columnas .card { margin: 0; }
+.fila-campo-boton { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.fila-campo-boton input { flex: 1 1 14rem; min-width: 0; }
+.caja-prestar { scroll-margin-top: var(--space-6); }
+.fila-vencida td { background: var(--vencido-fondo); }
+.vencimiento-vencido { color: var(--vencido); font-weight: 600; }
+.vencimiento-vencido small { display: block; font-weight: 500; }
+.seleccionar-todo { font-size: var(--text-xs); font-weight: 400; white-space: nowrap; }
+.casilla-tabla { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 400; }
+.acciones-tabla { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.socio-elegido { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.socio-elegido p { margin: var(--space-1) 0 0; }
+.selector-socio__campo { display: flex; align-items: center; gap: var(--space-2); }
+.selector-socio__campo input { flex: 1; }
+.aviso-reserva { font-size: var(--text-base); }
+
+@media (max-width: 860px) {
+  .ficha-socio { grid-template-columns: minmax(0, 1fr); }
+  .ficha-socio__resumen { position: static; display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-3); }
+  .ficha-socio__resumen .avatar-socio { grid-row: span 4; width: 3.5rem; height: 3.5rem; font-size: 1.25rem; }
+  .ficha-socio__menu { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+  .ficha-dato { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* Campana de notificaciones (panel y OPAC). */
+.campana { position: relative; }
+.campana__boton { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; padding: 0; border: 1px solid var(--borde); border-radius: 50%; background: var(--superficie-sutil); color: var(--texto); }
+.campana__boton--sobre-tinta { border-color: rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: #ffffff; }
+.campana__boton--sobre-tinta:hover:not(:disabled) { filter: none; background: rgba(255, 255, 255, 0.16); }
+.campana__numero { position: absolute; top: -4px; right: -4px; min-width: 1.25rem; height: 1.25rem; padding: 0 4px; border-radius: 999px; background: var(--marca); color: var(--sobre-marca); font: 700 0.7rem / 1.25rem var(--font-sans); text-align: center; }
+.campana__panel { position: absolute; top: calc(100% + var(--space-2)); right: 0; z-index: 40; width: min(24rem, calc(100vw - 2rem)); max-height: min(32rem, 75vh); overflow: auto; border: 1px solid var(--borde); border-radius: var(--radio-control); background: var(--superficie); color: var(--texto); box-shadow: var(--sombra-flotante); text-align: left; }
+.campana__cabecera { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--borde); }
+.campana__vacia { margin: 0; padding: var(--space-4); color: var(--texto-secundario); }
+.campana__lista { margin: 0; padding: 0; list-style: none; }
+.campana__lista li + li { border-top: 1px solid var(--borde); }
+.campana__lista .notificacion { display: grid; gap: 2px; width: 100%; padding: var(--space-3) var(--space-4); border: 0; border-radius: 0; background: none; color: var(--texto); text-align: left; text-decoration: none; font-weight: 400; }
+.campana__lista .notificacion:hover { filter: none; background: var(--superficie-sutil); }
+.campana__lista .es-nueva .notificacion { border-left: 3px solid var(--marca); background: var(--brand-tenue); }
+.notificacion__titulo { font-weight: 600; }
+.notificacion__detalle { color: var(--texto-secundario); font-size: var(--text-sm); }
+.campana__panel a.campana__todas { display: block; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--borde); color: var(--brand-texto); text-align: center; font-weight: 600; }
+.header-campana { display: flex; align-items: center; }
+@media (max-width: 860px) {
+  /* Junto al botón de menú, siempre visible aunque el menú esté plegado. */
+  header.app .header-campana { position: absolute; top: calc(var(--space-3) + 0.125rem); right: calc(var(--space-5) + 2.75rem + var(--space-2)); }
+  header.app:has(.header-campana) .brand-nav { padding-right: 6.5rem; }
+}
+
+/* Página de notificaciones. */
+.lista-notificaciones { margin: 0; padding: 0; list-style: none; }
+.lista-notificaciones > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--borde); }
+.lista-notificaciones > li > div:first-child { flex: 1 1 20rem; }
+.lista-notificaciones p { margin: 0; }
+.lista-notificaciones .notificacion--vencido .notificacion__titulo,
+.lista-notificaciones .notificacion--reserva_sin_retirar .notificacion__titulo { color: var(--vencido); }
+.etiqueta-nueva { margin-left: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radio-etiqueta); background: var(--marca); color: var(--sobre-marca); font-size: var(--text-xs); font-weight: 700; }
+
+/* Catalogar: elegir el tipo de material. */
+.grilla-tipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.tarjeta-tipo { display: grid; align-content: start; gap: var(--space-1); height: 100%; padding: var(--space-4); border: 1px solid var(--borde); border-radius: var(--radio-tarjeta); background: var(--superficie); color: var(--texto); text-decoration: none; }
+.tarjeta-tipo:hover { border-color: var(--marca); }
+.tarjeta-tipo svg { color: var(--marca-texto); }
+.tarjeta-tipo__nombre { font-weight: 600; }
+.tarjeta-tipo__descripcion { color: var(--texto-secundario); font-size: var(--text-sm); }
+
+/* Catálogo: pestañas por tipo de material. */
+.pestanas-tipos { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.pestanas-tipos button { min-height: 2.25rem; padding: 0 var(--space-3); border: 1px solid var(--borde-control); border-radius: 999px; background: var(--superficie); color: var(--texto); font-weight: 500; }
+.pestanas-tipos button:hover:not(:disabled) { filter: none; border-color: var(--marca); }
+.pestanas-tipos button.es-activa { border-color: var(--marca); background: var(--marca); color: var(--sobre-marca); }
+
+/* Ficha del material en el panel: vistas a la izquierda, como Koha. */
+.ficha-material-panel { display: grid; grid-template-columns: 12rem minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.ficha-material-panel__vistas { position: sticky; top: var(--space-4); display: grid; gap: 2px; }
+.ficha-material-panel__vistas button { justify-content: flex-start; min-height: 2.5rem; padding: 0 var(--space-3); border: 0; border-left: 3px solid transparent; border-radius: var(--radio-etiqueta); background: var(--superficie-sutil); color: var(--texto); text-align: left; font-weight: 500; }
+.ficha-material-panel__vistas button:hover:not(:disabled) { filter: none; border-left-color: var(--borde-control); }
+.ficha-material-panel__vistas button.es-activa { border-left-color: var(--marca); background: var(--superficie); font-weight: 700; }
+.subtitulo-ficha { font-weight: 400; color: var(--texto-secundario); }
+.ficha-normal { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--space-4); align-items: start; margin-bottom: var(--space-5); }
+.lista-materias { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.existencias h2 { margin-top: var(--space-4); }
+.ubicacion-estante { display: block; color: var(--texto-secundario); font-size: var(--text-sm); }
+.tabla-existencias td, .tabla-items td { vertical-align: top; }
+.fila-editando td { background: var(--brand-tenue); }
+.barra-seleccion-items { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.barra-seleccion-items button.secundario { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; }
+@media (max-width: 860px) {
+  .ficha-material-panel { grid-template-columns: minmax(0, 1fr); }
+  .ficha-material-panel__vistas { position: static; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); }
+  .ficha-normal { grid-template-columns: minmax(0, 1fr); }
+  .ficha-normal__portada { max-width: 9rem; }
+}
+
+/* Vista MARC, como la de Koha: campo, indicadores y subcampos con nombre. */
+.registro-marc { display: grid; gap: var(--space-2); font-size: var(--text-sm); }
+.campo-marc { padding-bottom: var(--space-2); border-bottom: 1px solid var(--borde); }
+.campo-marc__cabecera { margin: 0 0 var(--space-1); font-weight: 600; }
+.campo-marc__tag, .campo-marc__indicadores, .campo-marc__codigo, .campo-marc__valor { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.campo-marc__indicadores { margin-left: var(--space-2); color: var(--texto-secundario); }
+.campo-marc__subcampos { margin: 0; padding-left: var(--space-4); }
+.campo-marc__subcampos > div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.campo-marc__subcampos dt { font-style: italic; color: var(--texto-secundario); }
+.campo-marc__subcampos dd { margin: 0; }
+.campo-marc__codigo { display: inline-block; min-width: 1.25rem; font-style: normal; font-weight: 700; color: var(--marca-texto); }
+.campo-marc__valor { margin: 0; padding-left: var(--space-4); overflow-wrap: anywhere; }
+
+/* Formulario de ítems (952). */
+.formulario-item { margin-top: var(--space-4); }
+.grilla-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--space-3) var(--space-4); }
+.campo-item { display: grid; gap: var(--space-1); align-content: start; }
+.campo-item label { margin: 0; }
+.campo-item small { color: var(--texto-secundario); }
+.codigo-marc { margin-left: var(--space-1); font: 500 var(--text-xs) ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--texto-secundario); }
+.acciones-formulario { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.cantidad-copias { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 500; }
+.cantidad-copias input { width: 5rem; }
+.advertencias-reserva { margin: var(--space-3) 0; padding: var(--space-3) var(--space-3) var(--space-3) 2rem; border-radius: var(--radio-control); background: var(--reservado-fondo); color: var(--reservado); }
+.eleccion-ejemplar { margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--borde); border-radius: var(--radio-control); }
+.eleccion-ejemplar > label { display: inline-flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); font-weight: 500; }
+.ejemplar-nota { display: block; color: var(--texto-secundario); }
+
+/* Credencial del socio (tamaño tarjeta, 85,6 × 54 mm) y etiquetas de lomo.
+   Colores fijos: se imprimen igual con el tema claro o el oscuro. */
+.pantalla-credencial .credencial { margin-top: var(--space-4); }
+.credencial {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: 85.6mm;
+  height: 54mm;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 3mm;
+  background: #ffffff;
+  color: #1f2937;
+  font: 9pt/1.25 var(--font-sans);
+}
+.credencial__cabecera { display: flex; align-items: center; gap: 2mm; padding: 2mm 3mm; background: #1f2937; color: #ffffff; }
+.credencial__cabecera img { width: 8mm; height: 8mm; object-fit: contain; }
+.credencial__cabecera strong { display: block; font-size: 9pt; }
+.credencial__cabecera span { display: block; font-size: 7pt; color: #d1d5db; }
+.credencial__cuerpo { padding: 1.5mm 3mm 0; }
+.credencial__nombre { margin: 0 0 1mm; font: 700 11pt/1.15 var(--font-serif); }
+.credencial dl { display: grid; grid-template-columns: auto auto; gap: 0 4mm; margin: 0; }
+.credencial dl div { display: flex; gap: 1.5mm; }
+.credencial dt { color: #57534e; font-size: 7pt; }
+.credencial dd { margin: 0; font-size: 8pt; font-weight: 600; }
+.credencial__pie { display: flex; flex-direction: column; align-items: center; padding: 0 3mm 1.5mm; }
+.credencial__pie small { font-size: 6pt; color: #57534e; }
+.codigo-barras { display: block; max-width: 100%; height: auto; }
+.solo-imprimir { display: none; }
+.hoja-etiquetas { grid-template-columns: repeat(3, 38mm); gap: 4mm; padding: 4mm; }
+.etiqueta-lomo { display: grid; justify-items: center; gap: 1mm; padding: 2mm; border: 1px dashed #9ca3af; background: #ffffff; color: #000000; break-inside: avoid; }
+.etiqueta-lomo__signatura { display: grid; font: 700 12pt/1.15 ui-monospace, Consolas, monospace; text-align: center; }
+.etiqueta-lomo small { font-size: 7pt; }
+
+@media print {
+  .no-imprimir, .barra-herramientas, header.app, .skip-link, .estado-app, .navegacion-inferior, .ficha-material-panel__vistas { display: none !important; }
+  body { background: #ffffff; }
+  /* Credencial o etiquetas: solo eso en la hoja. */
+  body:has(.credencial) * { visibility: hidden; }
+  /* Mismo prefijo que la regla de arriba, para ganarle en especificidad. */
+  body:has(.credencial) .credencial,
+  body:has(.credencial) .credencial * { visibility: visible; }
+  .credencial { position: absolute; top: 0; left: 0; }
+  /* Las etiquetas están directo en <body>: lo demás ni ocupa lugar, así no sale una hoja en blanco. */
+  body:has(> .hoja-etiquetas) > :not(.hoja-etiquetas) { display: none !important; }
+  .credencial, .etiqueta-lomo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .solo-imprimir.hoja-etiquetas { display: grid; }
+}
+.advertencias-reserva--bloquea { background: var(--vencido-fondo); color: var(--vencido); }
+/* Fichas con columnas (socio, material): más anchas, como el catálogo. */
+main:has(.ficha-socio), main:has(.ficha-material-panel) { max-width: 1280px; }
+.ficha-socio__columnas { align-items: start; }
+/* Enlaces y botones de la barra, todos del mismo tamaño. */
+.barra-herramientas > a,
+.barra-herramientas > button { min-height: 2.5rem; padding: 0 var(--space-3); font-size: var(--text-sm); font-weight: 500; }
+.lista-notificaciones > li { align-items: center; }
+.campana__lista .notificacion { font-family: inherit; font-size: var(--text-sm); }
+.tabla-items .acciones-fila, .tabla-prestamos-socio .acciones-fila { flex-wrap: nowrap; }
+/* En una celda, sin flex: si no, la celda deja de ser celda y se desarma la fila. */
+td.acciones-fila { display: table-cell; white-space: nowrap; }
+td.acciones-fila > * + * { margin-left: var(--space-2); }
+/* En un celular muy angosto la credencial se ve achicada; impresa, siempre a 85,6 × 54 mm. */
+@media screen and (max-width: 380px) {
+  .pantalla-credencial .credencial { zoom: 0.85; }
+}
+.lista-pedidos li > button { justify-self: start; }

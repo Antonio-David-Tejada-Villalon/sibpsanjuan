@@ -2,6 +2,7 @@ import { Router } from "express";
 import Ejemplar from "../models/Ejemplar.js";
 import Portada from "../models/Portada.js";
 import Solicitud from "../models/Solicitud.js";
+import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereBiblioteca } from "../middleware/auth.js";
 import { esIdValido } from "../utils/objectId.js";
 import { ErrorHttp } from "../utils/consulta.js";
@@ -29,7 +30,8 @@ async function cargar(req) {
 
 router.get("/:tipo/:id", async (req, res) => {
   const { tipo, item, ejemplares } = await cargar(req);
-  const [portada, reservas] = await Promise.all([
+  const [biblioteca, portada, reservas] = await Promise.all([
+    Biblioteca.findById(req.usuario.bibliotecaId).select("codigo nombre"),
     Portada.findOne({ itemId: item._id, ...filtroVigente() }).select("version fuente"),
     tipo.circula
       ? Solicitud.countDocuments({ bibliotecaId: req.usuario.bibliotecaId, tipo: "prestamo", itemId: item._id, estado: { $in: ["pendiente", "en_espera"] } })
@@ -41,6 +43,7 @@ router.get("/:tipo/:id", async (req, res) => {
     segmento: tipo.segmento,
     circula: Boolean(tipo.circula),
     soloLectura: Boolean(tipo.soloLectura),
+    biblioteca: { codigo: biblioteca.codigo, nombre: biblioteca.nombre },
     item,
     ejemplares: ejemplares.map((e) => {
       const visible = estadoVisible(e);

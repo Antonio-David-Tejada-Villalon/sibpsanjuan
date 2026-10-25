@@ -3152,10 +3152,14 @@ test("categorías de socio: Alumno y Docente con reglas propias en los préstamo
   assert.equal(res.status, 409);
 
   // --- aprobarlo no lo cuenta dos veces, y el préstamo sale con los días de Alumno ---
-  res = await b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/aprobar`);
+  // (se lo dan en el mostrador, desde su ficha: no hace falta avisarle que pase a buscarlo)
+  res = await b.enviar("POST", `/circulacion/solicitudes/${solicitud._id}/aprobar`, { enMostrador: true });
   assert.equal(res.status, 200);
   const prestamoAprobado = await Prestamo.findOne({ socioId: socioAlumno._id, fechaDevolucion: null });
   assert.equal(diasDePrestamo(prestamoAprobado), 7);
+  res = await opac("GET", "/notificaciones");
+  const avisos = (await res.json()).notificaciones.map((n) => n.titulo);
+  assert.ok(!avisos.some((t) => /Aceptaron tu pedido/.test(t)), "entregado en mano: sin «pasá a buscarlo»");
 
   // --- conteo de socios por categoría, y una categoría en uso no se borra ---
   res = await b.enviar("GET", b.categorias);

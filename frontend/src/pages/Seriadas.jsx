@@ -1,13 +1,10 @@
 import React from "react";
 import api from "../api.js";
-import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
-import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
+import { usePrecargar } from "../usePrecargar.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
-
-const POR_PAGINA = 50;
 
 const PERIODICIDADES = [
   { valor: "diaria", etiqueta: "Diaria" },
@@ -92,42 +89,28 @@ function mapFormADatos(form) {
   };
 }
 
-export default function Seriadas() {
+export default function Seriadas({ entidad, alGuardar, alCancelar }) {
   const {
     items: seriadas,
-    total,
-    pagina,
-    setPagina,
-    busqueda,
     form,
     editandoId,
-    eliminandoId,
-    seleccionados,
-    eliminandoSeleccion,
     error,
-    cargando,
     guardando,
-    onBuscar,
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
     onSubmit,
-    onEliminar,
-    onToggleSeleccion,
-    onToggleSeleccionTodos,
-    onEliminarSeleccionados,
   } = useListaCrud({
-    listar: (pagina, porPagina, q) => api.listarSeriadasPaginado(pagina, porPagina, q),
     crear: (datos, form) => api.crearSeriada({ ...datos, ejemplares: aEjemplares(form.ejemplaresTexto) }),
     actualizar: (id, datos) => api.actualizarSeriada(id, datos),
-    eliminar: (id) => api.eliminarSeriada(id),
     vacio: VACIO,
-    porPagina: POR_PAGINA,
     mapEntidadAForm,
     mapFormADatos,
+    alGuardar,
+    alCancelar,
   });
 
-  useEditarDesdeNavegacion(onEditar);
+  usePrecargar(entidad, onEditar);
 
   return (
     <>
@@ -187,7 +170,7 @@ export default function Seriadas() {
         {editandoId ? (
           <p>
             <small>
-              Los ejemplares no se editan acá — agregalos desde la carga inicial.
+              Los ejemplares (copias, códigos de barras, si se prestan) se agregan y editan en la pestaña «Ítems» de la ficha del material.
             </small>
           </p>
         ) : (
@@ -208,101 +191,12 @@ export default function Seriadas() {
         <button type="submit" disabled={guardando}>
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Guardar"}
         </button>{" "}
-        {editandoId && (
+        {(editandoId || alCancelar) && (
           <button type="button" className="secundario" onClick={onCancelarEdicion}>
             Cancelar
           </button>
         )}
       </form>
-
-      <label>
-        Buscar por título, entidad responsable o ISSN
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => onBuscar(e.target.value)}
-          placeholder="Ej: Boletín, o 1234-5678"
-        />
-      </label>
-
-      {cargando ? (
-        <p>Cargando...</p>
-      ) : (
-        <>
-          {seleccionados.size > 0 && (
-            <div className="barra-seleccion">
-              <span>{seleccionados.size} seleccionado(s)</span>
-              <button
-                type="button"
-                className="peligro"
-                onClick={() => onEliminarSeleccionados("¿Eliminar las publicaciones seriadas seleccionadas?")}
-                disabled={eliminandoSeleccion}
-              >
-                {eliminandoSeleccion ? "Eliminando…" : "Eliminar seleccionados"}
-              </button>
-            </div>
-          )}
-          <table>
-            <caption className="sr-only">
-              Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
-            </caption>
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={seriadas.length > 0 && seleccionados.size === seriadas.length}
-                    onChange={onToggleSeleccionTodos}
-                    aria-label="Seleccionar todos"
-                  />
-                </th>
-                <th>Título</th>
-                <th>Periodicidad</th>
-                <th>Ejemplares</th>
-                <th><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {seriadas.map((seriada) => (
-                <tr key={seriada._id} className={eliminandoId === seriada._id ? "saliendo" : ""}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={seleccionados.has(seriada._id)}
-                      onChange={() => onToggleSeleccion(seriada._id)}
-                      aria-label={`Seleccionar ${seriada.titulo}`}
-                    />
-                  </td>
-                  <td>{seriada.titulo}</td>
-                  <td>{seriada.periodicidad}</td>
-                  <td>{(seriada.ejemplares || []).length}</td>
-                  <td>
-                    <button className="secundario" onClick={() => onEditar(seriada)}>
-                      Editar
-                    </button>{" "}
-                    <button
-                      className="peligro"
-                      onClick={() => onEliminar(seriada._id, "¿Eliminar esta publicación seriada?")}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {seriadas.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    {busqueda
-                      ? "Ninguna publicación seriada coincide con la búsqueda."
-                      : "Todavía no cargaste ninguna publicación seriada."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-      <Pager pagina={pagina} porPagina={POR_PAGINA} total={total} onCambiar={setPagina} etiqueta="publicaciones seriadas" />
     </>
   );
 }

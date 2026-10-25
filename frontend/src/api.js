@@ -29,6 +29,16 @@ export function nuevaClaveIdempotencia() {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// "?a=1&b=2" sin los valores vacíos, o "" si no queda ninguno.
+function consulta(parametros) {
+  const p = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(parametros)) {
+    if (valor !== undefined && valor !== null && valor !== "") p.set(clave, valor);
+  }
+  const texto = p.toString();
+  return texto ? `?${texto}` : "";
+}
+
 const REINTENTOS_IDEMPOTENTES = 2;
 const SIN_CONEXION = "No hay conexión con el servidor. Revisá tu conexión y probá de nuevo.";
 
@@ -383,11 +393,14 @@ const api = {
     ),
 
   // --- Circulación (staff) ---
-  listarSolicitudes: (estado) => apiFetch(`${BASE}/circulacion/solicitudes${estado ? `?estado=${estado}` : ""}`),
-  aprobarSolicitud: (id, ejemplarId) =>
+  // filtros: { estado, socioId, itemTipo, itemId } (ver GET /circulacion/solicitudes).
+  listarSolicitudes: (filtros = {}) =>
+    apiFetch(`${BASE}/circulacion/solicitudes${consulta(typeof filtros === "string" ? { estado: filtros } : filtros)}`),
+  // enMostrador: el socio está presente (no hay que avisarle que pase a buscarlo).
+  aprobarSolicitud: (id, { enMostrador = false } = {}) =>
     apiFetch(`${BASE}/circulacion/solicitudes/${id}/aprobar`, {
       method: "POST",
-      body: JSON.stringify(ejemplarId ? { ejemplarId } : {}),
+      body: JSON.stringify({ enMostrador }),
       idempotente: true,
     }).then((r) => {
       // Aprobar reserva un ejemplar (cambia su estado a "prestado"), lo que
@@ -403,7 +416,9 @@ const api = {
       body: JSON.stringify({ notaStaff }),
       idempotente: true,
     }),
-  listarPrestamos: (estado) => apiFetch(`${BASE}/circulacion/prestamos${estado ? `?estado=${estado}` : ""}`),
+  // filtros: { estado: activo|vencido|devuelto, socioId, itemTipo, itemId }.
+  listarPrestamos: (filtros = {}) =>
+    apiFetch(`${BASE}/circulacion/prestamos${consulta(typeof filtros === "string" ? { estado: filtros } : filtros)}`),
   crearPrestamoDirecto: (datos) =>
     apiFetch(`${BASE}/circulacion/prestamos`, { method: "POST", body: JSON.stringify(datos), idempotente: true }).then((r) => {
       invalidarCachesCirculantes();
@@ -458,6 +473,70 @@ const api = {
       body: JSON.stringify({ tipo: "renovacion", prestamoId }),
       idempotente: true,
     }),
+
+  // --- Mostrador: socio, préstamo y devolución por código, reservas ---
+  obtenerSocio: (id) => apiFetch(`${BASE}/socios/${id}`),
+  prestarPorCodigo: (socioId, codigoBarras) =>
+    apiFetch(`${BASE}/circulacion/prestamos`, {
+      method: "POST",
+      body: JSON.stringify({ socioId, codigoBarras }),
+      idempotente: true,
+    }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+  devolverPorCodigo: (codigoBarras) =>
+    apiFetch(`${BASE}/circulacion/devoluciones`, { method: "POST", body: JSON.stringify({ codigoBarras }), idempotente: true }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+  crearReserva: (datos) =>
+    apiFetch(`${BASE}/circulacion/reservas`, { method: "POST", body: JSON.stringify(datos), idempotente: true }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+  cancelarSolicitud: (id, notaStaff) =>
+    apiFetch(`${BASE}/circulacion/solicitudes/${id}/cancelar`, {
+      method: "POST",
+      body: JSON.stringify({ notaStaff }),
+      idempotente: true,
+    }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+
+  // --- Ítems (ejemplares) de un material ---
+  listarEjemplares: (itemTipo, itemId) => apiFetch(`${BASE}/ejemplares${consulta({ itemTipo, itemId })}`),
+  buscarEjemplarPorCodigo: (codigo) => apiFetch(`${BASE}/ejemplares/codigo/${encodeURIComponent(codigo)}`),
+  crearEjemplares: (datos) =>
+    apiFetch(`${BASE}/ejemplares`, { method: "POST", body: JSON.stringify(datos) }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+  actualizarEjemplar: (id, datos) =>
+    apiFetch(`${BASE}/ejemplares/${id}`, { method: "PUT", body: JSON.stringify(datos) }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+  eliminarEjemplar: (id) =>
+    apiFetch(`${BASE}/ejemplares/${id}`, { method: "DELETE" }).then((r) => {
+      invalidarCachesCirculantes();
+      return r;
+    }),
+
+  // --- Ficha de un material en el panel ---
+  obtenerMaterial: (itemTipo, id) => apiFetch(`${BASE}/catalogo/${itemTipo}/${id}`),
+  obtenerMarc: (itemTipo, id) => apiFetch(`${BASE}/catalogo/${itemTipo}/${id}/marc`),
+
+  // --- Notificaciones (campana) ---
+  notificaciones: () => apiFetch(`${BASE}/notificaciones`),
+  marcarNotificacionesVistas: (claves) =>
+    apiFetch(`${BASE}/notificaciones/vistas`, { method: "POST", body: JSON.stringify({ claves }) }),
+  opacNotificaciones: (codigo) => apiFetch(`${BASE}/opac/${codigo}/notificaciones`),
+  opacMarcarNotificacionesVistas: (codigo, claves) =>
+    apiFetch(`${BASE}/opac/${codigo}/notificaciones/vistas`, { method: "POST", body: JSON.stringify({ claves }) }),
+  opacCancelarSolicitud: (codigo, id) =>
+    apiFetch(`${BASE}/opac/${codigo}/solicitudes/${id}/cancelar`, { method: "POST", idempotente: true }),
 };
 
 export default api;

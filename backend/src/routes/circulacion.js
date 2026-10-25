@@ -318,6 +318,9 @@ router.post("/solicitudes/:id/aprobar", requierePermiso("prestamos"), requiereId
   }
 
   solicitud.estado = "aprobada";
+  // Aprobada con el socio en el mostrador ("Prestar ahora" desde su ficha):
+  // no hace falta avisarle que pase a buscarlo.
+  solicitud.entregadaEnMostrador = req.body?.enMostrador === true;
   solicitud.fechaResolucion = new Date();
   solicitud.resueltoPor = req.usuario.id;
   solicitud.bloqueadaHasta = null;

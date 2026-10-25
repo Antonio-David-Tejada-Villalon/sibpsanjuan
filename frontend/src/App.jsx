@@ -21,24 +21,23 @@ const CambiarPassword = lazy(() => import("./pages/CambiarPassword.jsx"));
 const Documentacion = lazy(() => import("./pages/Documentacion.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Bibliotecarios = lazy(() => import("./pages/Bibliotecarios.jsx"));
-const Libros = lazy(() => import("./pages/Libros.jsx"));
 const BuscarCatalogo = lazy(() => import("./pages/BuscarCatalogo.jsx"));
+const Catalogar = lazy(() => import("./pages/catalogo/Catalogar.jsx"));
+const ImportarLibros = lazy(() => import("./pages/catalogo/Catalogar.jsx").then((m) => ({ default: m.ImportarLibros })));
+const FormularioMaterial = lazy(() => import("./pages/catalogo/FormularioMaterial.jsx"));
+const FichaMaterialPanel = lazy(() => import("./pages/catalogo/FichaMaterialPanel.jsx"));
 const Autores = lazy(() => import("./pages/Autores.jsx"));
 const Materias = lazy(() => import("./pages/Materias.jsx"));
-const Seriadas = lazy(() => import("./pages/Seriadas.jsx"));
-const RecursosElectronicos = lazy(() => import("./pages/RecursosElectronicos.jsx"));
-const MaterialSonoro = lazy(() => import("./pages/MaterialSonoro.jsx"));
-const MaterialAudiovisual = lazy(() => import("./pages/MaterialAudiovisual.jsx"));
-const MaterialCartografico = lazy(() => import("./pages/MaterialCartografico.jsx"));
-const MaterialGrafico = lazy(() => import("./pages/MaterialGrafico.jsx"));
-const MaterialDidactico = lazy(() => import("./pages/MaterialDidactico.jsx"));
-const Archivos = lazy(() => import("./pages/Archivos.jsx"));
-const Objetos = lazy(() => import("./pages/Objetos.jsx"));
-const Socios = lazy(() => import("./pages/Socios.jsx"));
+const ListaSocios = lazy(() => import("./pages/socios/ListaSocios.jsx"));
+const FormularioSocio = lazy(() => import("./pages/socios/FormularioSocio.jsx"));
+const FichaSocio = lazy(() => import("./pages/socios/FichaSocio.jsx"));
+const Credencial = lazy(() => import("./pages/socios/Credencial.jsx"));
+const Prestar = lazy(() => import("./pages/mostrador/Prestar.jsx"));
+const Devolver = lazy(() => import("./pages/mostrador/Devolver.jsx"));
+const Prestamos = lazy(() => import("./pages/Prestamos.jsx"));
+const Notificaciones = lazy(() => import("./pages/Notificaciones.jsx"));
 const Exportar = lazy(() => import("./pages/Exportar.jsx"));
 const AdminBibliotecas = lazy(() => import("./pages/AdminBibliotecas.jsx"));
-const Circulacion = lazy(() => import("./pages/Circulacion.jsx"));
-const Prestamos = lazy(() => import("./pages/Prestamos.jsx"));
 const CatalogoPublico = lazy(() => import("./pages/opac/CatalogoPublico.jsx"));
 const LoginSocio = lazy(() => import("./pages/opac/LoginSocio.jsx"));
 const MisPrestamos = lazy(() => import("./pages/opac/MisPrestamos.jsx"));
@@ -47,6 +46,21 @@ const PaginaOpac = lazy(() => import("./pages/opac/PaginaOpac.jsx"));
 const FichaMaterial = lazy(() => import("./pages/opac/FichaMaterial.jsx"));
 const CuentaSocio = lazy(() => import("./pages/opac/CuentaSocio.jsx"));
 const ContenidoOpac = lazy(() => import("./pages/ContenidoOpac.jsx"));
+
+// Las direcciones de antes de separar formularios y catálogo (/libros,
+// /seriadas…) llevan al catálogo filtrado por ese tipo.
+const RUTAS_VIEJAS = {
+  "/libros": "Libro",
+  "/seriadas": "Seriada",
+  "/recursos-electronicos": "RecursoElectronico",
+  "/material-sonoro": "MaterialSonoro",
+  "/material-audiovisual": "MaterialAudiovisual",
+  "/material-cartografico": "MaterialCartografico",
+  "/material-grafico": "MaterialGrafico",
+  "/material-didactico": "MaterialDidactico",
+  "/archivos": "Archivo",
+  "/objetos": "Objeto",
+};
 
 // Sin este aviso, la demora inicial del free tier (ver useAvisoCargaLenta)
 // se lee como "está roto" en vez de "es normal, esperá".
@@ -161,202 +175,90 @@ function OpacApp() {
   );
 }
 
+// Una pantalla del panel de una biblioteca (con su Layout y sesión).
+function panel(elemento) {
+  return (
+    <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
+      {elemento}
+    </RutaProtegida>
+  );
+}
+
 function Rutas() {
   const { sesion } = useAuth();
   return (
     <Suspense fallback={<CargandoInicial />}>
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/admin"
-        element={
-          <RutaProtegida rolesPermitidos={["admin", "supervisor"]}>
-            <AdminBibliotecas />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Dashboard />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/libros"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Libros />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/catalogo"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <BuscarCatalogo />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/seriadas"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Seriadas />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/recursos-electronicos"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <RecursosElectronicos />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/material-sonoro"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <MaterialSonoro />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/material-audiovisual"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <MaterialAudiovisual />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/material-cartografico"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <MaterialCartografico />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/material-grafico"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <MaterialGrafico />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/material-didactico"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <MaterialDidactico />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/archivos"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Archivos />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/objetos"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Objetos />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/autores"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Autores />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/materias"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Materias />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/socios"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Socios />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/circulacion"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Circulacion />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/prestamos"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Prestamos />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/exportar"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <Exportar />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/cambiar-password"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF}>
-            <CambiarPassword />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/documentacion"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF}>
-            <Documentacion />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/bibliotecarios"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_GESTIONAN_BIBLIOTECARIOS} requiereBibliotecaActiva>
-            <Bibliotecarios />
-          </RutaProtegida>
-        }
-      />
-      <Route
-        path="/contenido"
-        element={
-          <RutaProtegida rolesPermitidos={ROLES_STAFF} requiereBibliotecaActiva>
-            <ContenidoOpac />
-          </RutaProtegida>
-        }
-      />
-      <Route path="/opac/:codigo/*" element={<OpacApp />} />
-      <Route
-        path="/"
-        element={sesion === undefined ? null : <Navigate to={sesion === null ? "/login" : rutaPorRol(sesion.rol)} replace />}
-      />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/admin"
+          element={
+            <RutaProtegida rolesPermitidos={["admin", "supervisor"]}>
+              <AdminBibliotecas />
+            </RutaProtegida>
+          }
+        />
+        <Route path="/dashboard" element={panel(<Dashboard />)} />
+        <Route path="/notificaciones" element={panel(<Notificaciones />)} />
+        <Route path="/circulacion" element={<Navigate to="/notificaciones" replace />} />
+
+        {/* Socios: la lista y el alta en pestañas, la ficha de cada uno. */}
+        <Route path="/socios" element={panel(<ListaSocios />)} />
+        <Route path="/socios/nuevo" element={panel(<FormularioSocio />)} />
+        <Route path="/socios/:id" element={panel(<FichaSocio />)} />
+        <Route path="/socios/:id/editar" element={panel(<FormularioSocio />)} />
+        <Route path="/socios/:id/credencial" element={panel(<Credencial />)} />
+
+        {/* Mostrador */}
+        <Route path="/prestar" element={panel(<Prestar />)} />
+        <Route path="/devolver" element={panel(<Devolver />)} />
+        <Route path="/prestamos" element={panel(<Prestamos />)} />
+
+        {/* Catálogo: lo cargado (con su ficha) y, aparte, los formularios. */}
+        <Route path="/catalogo" element={panel(<BuscarCatalogo />)} />
+        <Route path="/catalogo/:itemTipo/:id" element={panel(<FichaMaterialPanel />)} />
+        <Route path="/catalogar" element={panel(<Catalogar />)} />
+        <Route path="/catalogar/importar" element={panel(<ImportarLibros />)} />
+        <Route path="/catalogar/:segmento" element={panel(<FormularioMaterial />)} />
+        <Route path="/catalogar/:segmento/:id" element={panel(<FormularioMaterial />)} />
+        {Object.entries(RUTAS_VIEJAS).map(([ruta, itemTipo]) => (
+          <Route key={ruta} path={ruta} element={<Navigate to={`/catalogo?tipo=${itemTipo}`} replace />} />
+        ))}
+        <Route path="/autores" element={panel(<Autores />)} />
+        <Route path="/materias" element={panel(<Materias />)} />
+
+        <Route path="/exportar" element={panel(<Exportar />)} />
+        <Route path="/contenido" element={panel(<ContenidoOpac />)} />
+        <Route
+          path="/cambiar-password"
+          element={
+            <RutaProtegida rolesPermitidos={ROLES_STAFF}>
+              <CambiarPassword />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="/documentacion"
+          element={
+            <RutaProtegida rolesPermitidos={ROLES_STAFF}>
+              <Documentacion />
+            </RutaProtegida>
+          }
+        />
+        <Route
+          path="/bibliotecarios"
+          element={
+            <RutaProtegida rolesPermitidos={ROLES_GESTIONAN_BIBLIOTECARIOS} requiereBibliotecaActiva>
+              <Bibliotecarios />
+            </RutaProtegida>
+          }
+        />
+        <Route path="/opac/:codigo/*" element={<OpacApp />} />
+        <Route
+          path="/"
+          element={sesion === undefined ? null : <Navigate to={sesion === null ? "/login" : rutaPorRol(sesion.rol)} replace />}
+        />
+      </Routes>
     </Suspense>
   );
 }

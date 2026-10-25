@@ -28,15 +28,15 @@ const LIBRO = {
   ejemplares: [{ _id: "ej1", codigoBarras: "BPSJ-1", estado: "disponible" }],
 };
 
-// El listado y la búsqueda de libros ya cargados viven en
-// BuscarCatalogo.jsx (ver BuscarCatalogo.test.jsx) — este archivo se movió
-// junto con esa pantalla. Acá solo queda el editor MARC (alta/edición) y su
-// precarga vía navegación (state:{ editar }), que reemplazó al viejo botón
-// "Editar" de la tabla que este archivo tenía antes.
-function renderLibros({ state } = {}) {
+// El listado vive en BuscarCatalogo.jsx y la ficha en
+// pages/catalogo/FichaMaterialPanel.jsx: acá queda solo el formulario MARC.
+// Para editar, pages/catalogo/FormularioMaterial.jsx trae el material y lo
+// pasa en "entidad"; al guardar o cancelar, la que decide adónde ir es esa
+// pantalla (alGuardar / alCancelar).
+function renderLibros(props = {}) {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: "/libros", state }]}>
-      <Libros />
+    <MemoryRouter>
+      <Libros {...props} />
     </MemoryRouter>
   );
 }
@@ -60,10 +60,12 @@ describe("Libros", () => {
     expect(api.actualizarLibro).not.toHaveBeenCalled();
   });
 
-  it("precarga el formulario al navegar con state:{ editar } (desde Buscar en el catálogo) y guarda con actualizarLibro", async () => {
-    api.actualizarLibro.mockResolvedValue({ ...LIBRO, titulo: "Ficciones (editado)" });
+  it("con un material en «entidad» precarga el formulario y guarda con actualizarLibro", async () => {
+    const guardadoEditado = { ...LIBRO, titulo: "Ficciones (editado)" };
+    api.actualizarLibro.mockResolvedValue(guardadoEditado);
+    const alGuardar = vi.fn();
     const user = userEvent.setup();
-    renderLibros({ state: { editar: LIBRO } });
+    renderLibros({ entidad: LIBRO, alGuardar });
 
     const tituloInput = await screen.findByLabelText(/^título propiamente dicho/i);
     expect(tituloInput).toHaveValue("Ficciones");
@@ -75,6 +77,21 @@ describe("Libros", () => {
 
     expect(api.actualizarLibro).toHaveBeenCalledWith("1", expect.objectContaining({ titulo: "Ficciones (editado)" }));
     expect(api.crearLibro).not.toHaveBeenCalled();
+    // false: no es nuevo (la pantalla que lo envuelve va a la ficha, no a Ítems).
+    expect(alGuardar).toHaveBeenCalledWith(guardadoEditado, false);
+  });
+
+  it("al crear, avisa a alGuardar que es nuevo", async () => {
+    const nuevo = { ...LIBRO, _id: "2", titulo: "Rayuela" };
+    api.crearLibro.mockResolvedValue(nuevo);
+    const alGuardar = vi.fn();
+    const user = userEvent.setup();
+    renderLibros({ alGuardar });
+
+    await user.type(screen.getByLabelText(/^título propiamente dicho/i), "Rayuela");
+    await user.click(screen.getByRole("button", { name: /^guardar$/i }));
+
+    expect(alGuardar).toHaveBeenCalledWith(nuevo, true);
   });
 
   it("avisa antes de salir si hay cambios sin guardar, y deja de avisar tras guardar (ver UX-4)", async () => {
@@ -98,15 +115,19 @@ describe("Libros", () => {
     expect(disparaBeforeUnload().defaultPrevented).toBe(false);
   });
 
-  it("cancelar la edición precargada por navegación vuelve el formulario a 'Nuevo libro' vacío", async () => {
+  it("Cancelar en la edición llama a alCancelar sin guardar ni avisar de cambios", async () => {
+    const alCancelar = vi.fn();
     const user = userEvent.setup();
-    renderLibros({ state: { editar: LIBRO } });
+    renderLibros({ entidad: LIBRO, alCancelar });
 
     expect(await screen.findByRole("heading", { name: /editar libro/i })).toBeInTheDocument();
-
+    await user.type(screen.getByLabelText(/^título propiamente dicho/i), " (borrador)");
     await user.click(screen.getByRole("button", { name: /cancelar/i }));
 
-    expect(screen.getByRole("heading", { name: /nuevo libro/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^título propiamente dicho/i)).toHaveValue("");
+    expect(alCancelar).toHaveBeenCalledTimes(1);
+    expect(api.actualizarLibro).not.toHaveBeenCalled();
+    const evento = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(evento);
+    expect(evento.defaultPrevented).toBe(false);
   });
 });

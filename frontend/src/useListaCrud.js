@@ -30,6 +30,11 @@ export function useListaCrud({
   // "titulo"; Socios (que no lo tiene) pasaría su propia función si algún
   // día suma selección masiva.
   etiquetaItem = (item) => item.titulo || "",
+  // Formulario solo (catalogar, ver pages/catalogo/): sin "listar" no se
+  // carga ninguna lista; alGuardar recibe lo guardado (para ir a su ficha)
+  // y alCancelar reemplaza a "volver a un formulario vacío".
+  alGuardar,
+  alCancelar,
 }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -65,6 +70,7 @@ export function useListaCrud({
   }, []);
 
   async function recargar() {
+    if (!listar) return;
     const { items, total } = await listar(pagina, porPagina, busqueda);
     setItems(items);
     setTotal(total);
@@ -92,6 +98,11 @@ export function useListaCrud({
   }
 
   function onCancelarEdicion() {
+    if (alCancelar) {
+      formBaseRef.current = formRef.current;
+      alCancelar();
+      return;
+    }
     setEditandoId(null);
     setForm(vacio);
     formBaseRef.current = vacio;
@@ -117,10 +128,12 @@ export function useListaCrud({
     setGuardando(true);
     try {
       const datos = mapFormADatos ? mapFormADatos(form) : form;
-      if (editandoId) {
-        await actualizar(editandoId, datos, form);
-      } else {
-        await crear(datos, form);
+      const guardado = editandoId ? await actualizar(editandoId, datos, form) : await crear(datos, form);
+      if (alGuardar) {
+        // Sin aviso de "cambios sin guardar" al irse: ya se guardó.
+        formBaseRef.current = formRef.current;
+        alGuardar(guardado, !editandoId);
+        return;
       }
       setForm(vacio);
       formBaseRef.current = vacio;

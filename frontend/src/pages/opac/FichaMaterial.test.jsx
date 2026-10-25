@@ -93,6 +93,21 @@ describe("FichaMaterial", () => {
     vi.clearAllMocks();
     api.opacFicha.mockResolvedValue(FICHA);
     api.opacMisReglas.mockResolvedValue(REGLAS);
+    api.opacMisSolicitudes.mockResolvedValue([]);
+  });
+
+  it("con todo prestado ofrece reservar, y si ya lo reservó no lo ofrece de nuevo", async () => {
+    api.opacYo.mockResolvedValue({ numeroSocio: "2318" });
+    api.opacFicha.mockResolvedValue({ ...FICHA, disponibles: 0, prestables: 2 });
+    const { unmount } = renderFicha();
+    expect(await screen.findByRole("button", { name: "Reservar" })).toBeInTheDocument();
+    expect(screen.getByText("Sin ejemplares libres: se puede reservar")).toBeInTheDocument();
+    unmount();
+
+    api.opacMisSolicitudes.mockResolvedValue([{ _id: "s1", tipo: "prestamo", itemTipo: "Libro", itemId: ID, estado: "en_espera" }]);
+    renderFicha();
+    expect(await screen.findByRole("link", { name: "Ya lo reservaste: ver en Mi cuenta" })).toHaveAttribute("href", "/opac/escolar/cuenta");
+    expect(screen.queryByRole("button", { name: "Reservar" })).not.toBeInTheDocument();
   });
 
   it("muestra la ficha con migas de pan, autores, datos, materias y el estado de cada ejemplar", async () => {

@@ -102,7 +102,7 @@ const CAMPOS_ADICIONALES = [
   ["ubicacion", "Ubicación"],
 ];
 
-function datosAdicionales(item) {
+export function datosAdicionales(item) {
   return CAMPOS_ADICIONALES.filter(([campo]) => item[campo]).map(([campo, etiqueta]) => [etiqueta, String(item[campo])]);
 }
 

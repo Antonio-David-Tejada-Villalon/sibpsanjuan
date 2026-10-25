@@ -12,9 +12,11 @@ const INDICE = [
   { id: "catalogar", etiqueta: "Catalogar material" },
   { id: "catalogar-libros", etiqueta: "Cargar un libro (editor MARC)" },
   { id: "carga-masiva", etiqueta: "Carga masiva de libros (CSV/Excel)" },
-  { id: "buscar-catalogo", etiqueta: "Buscar en el catálogo" },
-  { id: "socios", etiqueta: "Socios" },
-  { id: "circulacion", etiqueta: "Circulación y préstamos" },
+  { id: "buscar-catalogo", etiqueta: "El catálogo y la ficha de cada material" },
+  { id: "items", etiqueta: "Ítems: los ejemplares (952)" },
+  { id: "socios", etiqueta: "Socios y su ficha" },
+  { id: "circulacion", etiqueta: "Prestar, devolver y reservar" },
+  { id: "notificaciones", etiqueta: "Notificaciones" },
   { id: "opac", etiqueta: "El catálogo público (OPAC)" },
   { id: "exportar", etiqueta: "Exportar a Koha / DigiBepé" },
   { id: "cuentas", etiqueta: "Gestión de cuentas de staff" },
@@ -116,7 +118,7 @@ export default function Documentacion() {
         </ul>
         <p>
           Admin y supervisor no tienen una biblioteca fija — eligen con cuál trabajar desde el selector{" "}
-          <strong>"BIBLIOTECA"</strong> del encabezado antes de entrar a Catalogar, Socios o Circulación. Sin elegir
+          <strong>"BIBLIOTECA"</strong> del encabezado antes de entrar a Catálogo, Socios o Notificaciones. Sin elegir
           ninguna, esas pantallas no muestran nada (no es un error, es que todavía no elegiste sobre qué biblioteca
           operar).
         </p>
@@ -130,11 +132,17 @@ export default function Documentacion() {
       </Seccion>
 
       <Seccion id="catalogar" titulo="Catalogar material">
-        <p>El menú <strong>Catalogar</strong> agrupa los 10 tipos de material que soporta el sistema:</p>
+        <p>
+          Menú <strong>Catálogo → Catalogar</strong>: primero elegís qué vas a cargar, y se abre el formulario de ese
+          tipo de material, solo en su pantalla. Lo que ya está cargado no se ve acá sino en{" "}
+          <a href="#buscar-catalogo">el Catálogo</a>. Al guardar, el sistema te lleva a la ficha del material (si es
+          nuevo y se presta, directo a su vista <a href="#items">Ítems</a>, para cargarle los ejemplares).
+        </p>
         <Captura
-          src="/docs/catalogar.png"
-          alt='Solapa "Clasificación" del editor de Libros, con el ISBN, la CDU y la clasificación Dewey completados como ejemplo.'
+          src="/docs/catalogar-tipos.png"
+          alt='Pantalla "Catalogar": una tarjeta por tipo de material (Libro, Publicación seriada, Recurso electrónico, Material sonoro, audiovisual, cartográfico, gráfico, didáctico, Archivo, Objeto) y otra para la carga masiva de libros.'
         />
+        <p>Los 10 tipos de material que soporta el sistema:</p>
         <ul>
           <li>
             <strong>8 tipos con export a MARC</strong> (tienen ejemplares que se prestan, salvo los subtipos
@@ -153,9 +161,10 @@ export default function Documentacion() {
           convenciones:
         </p>
         <p>
-          <strong>Ejemplares.</strong> Al cargar un ítem que circula, el textarea de ejemplares pide{" "}
-          <code>código de barras, signatura</code> por línea — una línea por copia física. Sin ejemplares cargados,
-          el ítem queda catalogado pero nadie lo puede pedir prestado (0 disponibles).
+          <strong>Ejemplares.</strong> Al cargar un material nuevo que circula, se pueden anotar de una vez los
+          ejemplares, uno por línea (<code>código de barras, signatura</code>). Después, agregar, editar o dar de
+          baja ejemplares se hace en la vista <a href="#items">Ítems</a> de su ficha. Sin ejemplares, el material
+          queda catalogado pero nadie lo puede pedir prestado (0 disponibles).
         </p>
         <p>
           <strong>Autores.</strong> El campo de autores se separa por <strong>punto y coma</strong> (
@@ -170,7 +179,7 @@ export default function Documentacion() {
           técnica más abajo para el motivo.
         </p>
         <p>
-          <strong>Autores y materias con autoridades (opcional).</strong> Menú Catalogar → "Autores (autoridades)" /
+          <strong>Autores y materias con autoridades (opcional).</strong> Menú Catálogo → "Autores (autoridades)" /
           "Materias (autoridades)": un catálogo aparte donde podés declarar que varias formas de escribir un mismo
           autor o materia ("Borges, Jorge Luis" y "Borges, J.L.") son la misma, con una{" "}
           <strong>forma autorizada</strong> y sus <strong>variantes</strong> (separadas por <code>;</code>). El OPAC
@@ -182,7 +191,7 @@ export default function Documentacion() {
 
       <Seccion id="catalogar-libros" titulo="Cómo cargar un libro con el editor MARC">
         <p>
-          Libros → "Nuevo libro" abre un editor organizado en <strong>9 solapas numeradas (0 a 8)</strong>, calcado
+          Catalogar → <strong>Libro</strong> abre un editor organizado en <strong>9 solapas numeradas (0 a 8)</strong>, calcado
           del editor de registros MARC de Koha — cada solapa agrupa los campos y subcampos MARC21 que le
           corresponden, con la etiqueta de cada campo mostrando siempre su número de tag entre paréntesis (ej.{" "}
           <code>245 $a</code>). No hace falta llenar las 9: solo <strong>Título propiamente dicho</strong> (solapa
@@ -252,7 +261,8 @@ export default function Documentacion() {
           <li>
             <strong>Solapa 8 — Ejemplares:</strong> igual que en el resto de los tipos de material, una línea por
             copia física (<code>código de barras, signatura</code>). Es un campo local de Koha (952), no del
-            estándar MARC21 en sí.
+            estándar MARC21 en sí. Solo aparece al cargar un libro nuevo: después, los ejemplares se manejan en la
+            vista <a href="#items">Ítems</a> de la ficha.
           </li>
         </ol>
         <Captura
@@ -270,8 +280,8 @@ export default function Documentacion() {
 
       <Seccion id="carga-masiva" titulo="Carga masiva de libros (CSV/Excel)">
         <p>
-          Solo para <strong>Libros</strong> (el resto de los tipos se carga uno por uno). Desde Libros → "Carga
-          masiva desde CSV/Excel":
+          Solo para <strong>Libros</strong> (el resto de los tipos se carga uno por uno). Desde Catalogar →{" "}
+          <strong>"Carga masiva de libros"</strong>:
         </p>
         <ol>
           <li>
@@ -298,7 +308,7 @@ export default function Documentacion() {
         </p>
         <Captura
           src="/docs/carga-masiva.png"
-          alt='Panel "Carga masiva desde CSV/Excel" desplegado en Libros, con el link para descargar la plantilla y el selector de archivo.'
+          alt='Pantalla "Carga masiva de libros", con el link para descargar la plantilla y el selector de archivo.'
         />
         <p>
           Al terminar, el sistema te muestra <strong>cuántos se cargaron</strong> y una lista de{" "}
@@ -317,16 +327,16 @@ export default function Documentacion() {
         </p>
       </Seccion>
 
-      <Seccion id="buscar-catalogo" titulo="Buscar en el catálogo">
+      <Seccion id="buscar-catalogo" titulo="El catálogo y la ficha de cada material">
         <p>
-          Panel → <strong>"Buscar en el catálogo"</strong>: todo lo que catalogaste, de los 10 tipos de material,
-          en una sola tabla — con el mismo sidebar de filtros que ve el socio en el OPAC (tipo de ítem, autor,
-          materia), más las acciones del staff que no tiene sentido ofrecerle al público: editar, ver la ficha
-          completa, y eliminar.
+          Menú <strong>Catálogo → Catálogo</strong>: todo lo que catalogaste, de los 10 tipos de material. Arriba de
+          la lista, una pestaña por tipo con su cantidad (<strong>Todos</strong>, Libros, Publicaciones seriadas…) para
+          ver un tipo solo; a la izquierda, el mismo sidebar de filtros que ve el socio en el OPAC (tipo de ítem, autor,
+          materia).
         </p>
         <Captura
-          src="/docs/buscar-catalogo.png"
-          alt='Pantalla "Buscar en el catálogo": sidebar de filtros a la izquierda (tipos de ítem, autores, materias) y tabla de resultados a la derecha, con los botones Editar, Ficha ISBD y Eliminar en cada fila.'
+          src="/docs/catalogo.png"
+          alt='Pantalla "Catálogo": búsqueda arriba, sidebar de filtros a la izquierda, pestañas por tipo de material ("Todos (5)", "Libros (5)") y la tabla de resultados con Editar, Ficha ISBD y Eliminar en cada fila.'
         />
         <p>
           <strong>Búsqueda simple</strong>, arriba de todo: un solo campo que busca por título, autor, materia o
@@ -339,88 +349,172 @@ export default function Documentacion() {
           <strong>Filtros del sidebar.</strong> Tipos de ítem, Autores y Materias funcionan igual que en el OPAC —
           multi-selección, con la cantidad de resultados entre paréntesis. Si hay más de cinco valores distintos en
           cualquiera de los tres grupos, solo se muestran los primeros cinco con un botón{" "}
-          <strong>"Ver N más"</strong> — evita que un catálogo con muchos autores o materias se coma toda la
-          pantalla apenas se entra. Un segundo click ("Ver menos") vuelve a las primeras cinco. El mismo mecanismo
-          se aplica también en el sidebar del OPAC.
+          <strong>"Ver N más"</strong>.
         </p>
         <p>
-          <strong>Ficha ISBD.</strong> Cada fila tiene un botón que abre, en un modal, la descripción bibliográfica
-          completa del ítem en formato <strong>ISBD</strong> (International Standard Bibliographic Description) —
-          la misma puntuación que se usa en una ficha catalográfica real:
+          <strong>Editar</strong> abre el formulario de ese tipo de material con el registro cargado.{" "}
+          <strong>Eliminar</strong> es un borrado lógico (recuperable) y admite <strong>selección múltiple</strong>.{" "}
+          <strong>Ficha ISBD</strong> muestra, en un recuadro, la descripción bibliográfica con la puntuación ISBD:
         </p>
         <Captura
           src="/docs/ficha-isbd.png"
-          alt='Modal "Ficha ISBD — Libro" mostrando el párrafo "Ficciones : Cuentos / Borges, Jorge Luis. — Buenos Aires : Emecé, 1944. — ISBN 9789500000000", las materias como etiquetas, el subtipo y la disponibilidad de ejemplares.'
+          alt='Recuadro "Ficha ISBD — Libro" mostrando el párrafo "Ficciones : Cuentos / Borges, Jorge Luis. — Buenos Aires : Emecé, 1944. — ISBN 9789500000000", las materias como etiquetas, el subtipo y la disponibilidad de ejemplares.'
         />
+        <h3>La ficha del material</h3>
         <p>
-          <code>Título : subtítulo / mención de responsabilidad. — Mención de edición. — Lugar de publicación :
-          editorial, fecha. — Extensión : otros detalles ; dimensiones + material complementario. — (Serie ; volumen,
-          ISSN). — Notas. — ISBN.</code> Cada área se omite si el campo correspondiente está vacío — no se inventa
-          nada. Debajo del párrafo, una ficha técnica corta con lo que no entra en la puntuación ISBD clásica (CDU,
-          Dewey, entidad corporativa, subtipo, y los campos propios de cada tipo de material: periodicidad, escala,
-          técnica, edad recomendada, etc.), las materias, y la disponibilidad de ejemplares.
+          El título de cada fila abre la <strong>ficha del material</strong>, como la de Koha: a la izquierda, las
+          vistas; arriba, las acciones (Nuevo, Editar registro, Agregar ítem, Reservar, Imprimir, Dar de baja).
         </p>
-        <p>
-          <strong>Editar</strong> lleva a la pantalla propia de ese tipo de material (Libros, Seriadas, etc.) con el
-          formulario ya precargado — no hace falta volver a buscar el ítem ahí. <strong>Eliminar</strong> funciona
-          igual que en cualquier otra lista del sistema (borrado lógico, recuperable) y también admite{" "}
-          <strong>selección múltiple</strong>: tildá varias filas (de cualquier tipo, mezcladas) y "Eliminar
-          seleccionados" las borra de una, mostrando antes qué se va a eliminar.
-        </p>
-        <p>
-          Por ahora, solo <strong>Libros</strong> tiene el editor completo por solapas — los otros 9 tipos siguen
-          con su formulario simple de siempre (ver <a href="#catalogar">Catalogar material</a>), pero ya aparecen
-          acá, buscables y editables, igual que Libros.
-        </p>
-      </Seccion>
-
-      <Seccion id="socios" titulo="Socios">
-        <p>
-          Alta, edición y baja desde el menú <strong>Socios</strong> (necesita el permiso "Gestionar socios" para
-          bibliotecario; admin/supervisor/superbibliotecario siempre tienen acceso completo).
-        </p>
-        <p>
-          <strong>Login del OPAC.</strong> Un socio nunca se autoregistra — el staff le da de alta el acceso al
-          catálogo público desde el botón <strong>"Login OPAC"</strong> en la fila del socio, poniéndole una
-          contraseña. La tabla muestra un indicador <strong>"OPAC: sí/no"</strong> por socio, para saber de un
-          vistazo quién ya tiene acceso configurado. Si un socio dice que "no puede entrar" al OPAC, revisá primero
-          ese indicador: si dice "no", nunca tuvo contraseña asignada (no es que la haya olvidado).
-        </p>
-        <Captura
-          src="/docs/socios.png"
-          alt='Tabla de Socios: fila de un socio con los botones "Editar" y "Login OPAC", y el indicador "OPAC: sí".'
-        />
-        <p>
-          El borrado de un socio (individual o masivo, con checkbox por fila) es <strong>lógico</strong>: el
-          registro queda marcado como eliminado y recuperable desde la base, no se pierde al instante — ver la
-          sección técnica sobre borrado lógico más abajo.
-        </p>
-      </Seccion>
-
-      <Seccion id="circulacion" titulo="Circulación y préstamos">
-        <p>Dos caminos para que un préstamo empiece:</p>
         <ul>
           <li>
-            <strong>El socio lo pide desde el OPAC.</strong> Al pedirlo, el ejemplar queda{" "}
-            <strong>reservado</strong> ahí mismo (no recién cuando el staff aprueba) — mientras la solicitud está
-            pendiente, ese ejemplar ya no aparece disponible para nadie más. El staff la ve en{" "}
-            <strong>Circulación → Solicitudes</strong> y la aprueba (la reserva pasa a préstamo real) o la rechaza
-            (el ejemplar vuelve a estar disponible).
+            <strong>Normal</strong>: portada, datos y la tabla de <strong>Existencias</strong> — cada ejemplar con su
+            ubicación, signatura, estado (disponible, prestado y a quién, apartado, en reparación…), última vez visto y
+            código de barras, con "Imprimir etiqueta" y "Editar".
           </li>
           <li>
-            <strong>El staff lo carga directo</strong>, desde <strong>Préstamos</strong>, para un socio que llega
-            sin pasar por el OPAC — buscando al socio por número/nombre/apellido y al material por
-            título/ISBN/código de barras.
+            <strong>MARC</strong>: el mismo registro que se exporta a Koha, campo por campo, con los indicadores y el
+            nombre de cada subcampo (no la tienen Archivos y Objetos, que no se exportan a MARC).
+          </li>
+          <li>
+            <strong>ISBD</strong>: la ficha catalográfica con su puntuación.
+          </li>
+          <li>
+            <strong>Ítems</strong> y <strong>Reservas</strong>: ver las secciones <a href="#items">Ítems</a> y{" "}
+            <a href="#circulacion">Prestar, devolver y reservar</a>.
+          </li>
+          <li>
+            <strong>Historial de préstamos</strong>: quién lo tuvo y cuándo.
           </li>
         </ul>
         <Captura
-          src="/docs/circulacion.png"
-          alt='Pantalla de Circulación → Solicitudes pendientes, con un préstamo pedido desde el OPAC esperando "Aprobar" o "Rechazar".'
+          src="/docs/ficha-material.png"
+          alt='Ficha de "Cuentos de la selva" en la vista Normal: vistas a la izquierda (Normal, MARC, ISBD, Ítems, Reservas, Historial de préstamos), barra de acciones, portada, datos y la tabla de Existencias con un ejemplar prestado y otro disponible.'
+        />
+        <Captura
+          src="/docs/vista-marc.png"
+          alt='Vista MARC de la misma ficha: campos 000, 001, 008, 100, 245, 260, 650 y 952, cada uno con sus indicadores y sus subcampos con nombre (por ejemplo, 245 $a Título propiamente dicho).'
+        />
+      </Seccion>
+
+      <Seccion id="items" titulo="Ítems: los ejemplares (952)">
+        <p>
+          La vista <strong>Ítems</strong> de la ficha es el equivalente a "Agregar ítem" de Koha: la lista de copias
+          físicas y, debajo, el formulario para agregar o editar una. Cada campo muestra su subcampo del 952 (código de
+          barras $p, signatura $o, número de copia $t, ubicación $c, si se presta $7, estado físico $4, fecha y fuente
+          de adquisición $d/$e, precio $g, inventario $i, nota pública $z y nota interna $x).
+        </p>
+        <Captura
+          src="/docs/items.png"
+          alt='Vista Ítems: tabla de ejemplares con casillas para elegir cuáles imprimir, botones de editar, duplicar y borrar, y el formulario "Agregar ejemplar" con los campos del 952, el botón "Agregar y duplicar" y "Copias iguales".'
+        />
+        <ul>
+          <li>
+            <strong>Agregar ejemplar</strong>: la signatura viene sugerida de los ejemplares que ya tiene.
+          </li>
+          <li>
+            <strong>Agregar y duplicar</strong>: guarda y deja el formulario listo para la copia siguiente, con el
+            código de barras y el número de copia ya corridos (BPSJ-000009 → BPSJ-000010).
+          </li>
+          <li>
+            <strong>Copias iguales</strong>: carga varias copias de una vez (hasta 50), con códigos correlativos.
+          </li>
+          <li>
+            <strong>Duplicar</strong> (en cada fila) copia los datos de un ejemplar para cargar otro parecido.
+          </li>
+          <li>
+            <strong>¿Se presta?</strong> distingue lo que circula de lo que es solo para leer en sala o de referencia;
+            el <strong>estado físico</strong> (dañado, en reparación, extraviado, retirado) lo saca de circulación
+            hasta corregirlo. Las dos cosas se ven en el OPAC.
+          </li>
+          <li>
+            <strong>Imprimir etiquetas</strong>: tildá los ejemplares y se imprimen las etiquetas de lomo, con la
+            signatura en renglones y el código de barras debajo.
+          </li>
+        </ul>
+        <p>
+          Un ejemplar prestado o apartado no se puede borrar: primero hay que devolverlo o cancelar la reserva.
+        </p>
+      </Seccion>
+
+      <Seccion id="socios" titulo="Socios y su ficha">
+        <p>
+          Menú <strong>Socios</strong> (necesita el permiso "Gestionar socios" para bibliotecario):{" "}
+          <strong>Buscar socios</strong> y <strong>Nuevo socio</strong> son dos pestañas separadas. El alta pide
+          primero la categoría, porque decide qué datos se cargan (para Alumno, solo legajo, curso y correos).
+        </p>
+        <p>
+          Cada socio de la lista abre su <strong>ficha</strong>, como la de Koha: a la izquierda quién es; arriba, las
+          acciones (Editar, Dar acceso al catálogo, Imprimir credencial, Buscar para reservar, Dar de baja); en el
+          centro sus datos y cómo usa la biblioteca (categoría, reglas, cuántos préstamos tiene en curso, cuándo vence
+          su cuenta); y abajo la caja <strong>Prestar</strong> y sus préstamos, pedidos y reservas, e historial.
+        </p>
+        <Captura
+          src="/docs/ficha-socio.png"
+          alt='Ficha de Valentina Gómez (2318): resumen a la izquierda, barra de acciones, datos personales y uso de la biblioteca, caja Prestar con el código de barras, y la pestaña Préstamos con columnas Renovar y Devolver para tildar.'
         />
         <p>
-          <strong>Devoluciones</strong> y <strong>renovaciones</strong> (tanto pedidas por el socio como cargadas
-          directo por el staff) se procesan desde las mismas pantallas de Circulación/Préstamos.
+          <strong>Acceso al catálogo en línea.</strong> Un socio nunca se autoregistra: el staff le pone una
+          contraseña desde su ficha ("Dar acceso al catálogo"). Si alguien dice que no puede entrar, mirá en la ficha
+          "Catálogo en línea": si dice "Sin acceso todavía", nunca tuvo contraseña.
         </p>
+        <p>
+          <strong>Credencial.</strong> "Imprimir credencial" arma una tarjeta de 85,6 × 54 mm (tamaño tarjeta de
+          crédito) con el nombre de la institución, los datos del socio y su número en código de barras (Code 39, el
+          que leen todos los lectores de mostrador). Al imprimir, elegí "Tamaño real" o escala 100 %.
+        </p>
+        <Captura
+          src="/docs/credencial.png"
+          alt='Credencial de Valentina Gómez: cabecera con el nombre del colegio, número de socio 2318, categoría Alumno, curso 3° B y el código de barras del número de socio.'
+        />
+        <p>
+          <strong>Vencimiento de la cuenta</strong> (opcional, al editar): por ejemplo, al terminar el ciclo lectivo.
+          Con la cuenta vencida no se le presta ni se le reserva hasta renovarla.
+        </p>
+        <p>
+          El borrado de un socio es <strong>lógico</strong> (recuperable desde la base) y no se puede dar de baja a
+          alguien con préstamos sin devolver.
+        </p>
+      </Seccion>
+
+      <Seccion id="circulacion" titulo="Prestar, devolver y reservar">
+        <p>Ya no hay una sección "Circulación": cada cosa está donde se usa.</p>
+        <ul>
+          <li>
+            <strong>Prestar</strong>: desde la ficha del socio (caja "Prestar") o desde Socios → Prestar, eligiendo al
+            socio y pasando el lector por cada ejemplar. Se respetan las reglas de su categoría (días, tope de
+            préstamos a la vez) y que su cuenta esté vigente.
+          </li>
+          <li>
+            <strong>Renovar y devolver</strong>: en la pestaña Préstamos de la ficha del socio, tildando en las
+            columnas Renovar y/o Devolver y apretando "Renovar o devolver lo seleccionado" (o "Renovar todos").
+          </li>
+          <li>
+            <strong>Devolver con el lector</strong>: Socios → Devolver, sin buscar al socio. Si alguien estaba
+            esperando ese material, aparece el aviso <strong>"No lo pongas en el estante"</strong> con el nombre de
+            quien lo reservó: el ejemplar ya quedó apartado para esa persona y le llega el aviso.
+          </li>
+          <li>
+            <strong>Préstamos en curso</strong>: Socios → Préstamos en curso, con un filtro de vencidos.
+          </li>
+        </ul>
+        <h3>Pedidos y reservas</h3>
+        <p>
+          <strong>El socio lo pide desde el OPAC.</strong> Si hay un ejemplar libre, queda apartado a su nombre ahí
+          mismo; si están todos prestados, la reserva queda <strong>en espera</strong> y, cuando se devuelve un
+          ejemplar, se le aparta al primero de la cola. En los dos casos, el pedido aparece en{" "}
+          <a href="#notificaciones">Notificaciones</a> y en la ficha del socio, con "Prestar ahora" (cuando viene a
+          buscarlo) o "Rechazar".
+        </p>
+        <p>
+          <strong>La biblioteca reserva para un socio</strong> desde la vista <strong>Reservas</strong> de la ficha del
+          material (o con "Buscar para reservar" desde la ficha del socio): se busca al socio por nombre o número, se
+          elige "el próximo disponible" o un ejemplar puntual, y se ve la cola con su prioridad. Si algo lo impide
+          (cuenta vencida, tope de su categoría, ya lo tiene prestado o ya lo reservó), lo dice antes de intentar.
+        </p>
+        <Captura
+          src="/docs/reservas.png"
+          alt='Vista Reservas de "Facundo": socio elegido (Rivas, Tomás), aviso de que no hay ejemplares libres y la reserva queda en espera, botón "Reservar (en espera)", y la cola con Valentina Gómez primera, con el ejemplar apartado y los botones "Prestar ahora" y "Cancelar".'
+        />
         <p>
           <strong>Reglas configurables por biblioteca</strong> (pantalla "Configurar préstamos", desde Bibliotecas
           para admin/supervisor o desde Bibliotecarios para el superbibliotecario): días de préstamo, renovaciones
@@ -431,7 +525,27 @@ export default function Documentacion() {
           <strong>Categorías de socio</strong> (en la misma pantalla, debajo): cada biblioteca arranca con Alumno y
           Docente, y se pueden sumar otras. Cada categoría puede tener sus propios días de préstamo, renovaciones,
           multa y cantidad de préstamos a la vez; lo que deja vacío usa la regla general. Al cargar un socio se le
-          elige la categoría, y el socio ve sus reglas en "Mis préstamos" del OPAC.
+          elige la categoría, y el socio ve sus reglas en "Mi cuenta" del OPAC.
+        </p>
+      </Seccion>
+
+      <Seccion id="notificaciones" titulo="Notificaciones">
+        <p>
+          La <strong>campana</strong> del encabezado muestra cuántas cosas nuevas hay. Para el personal:{" "}
+          <strong>para resolver</strong> (pedidos del OPAC, renovaciones pedidas, ejemplares apartados que nadie pasó
+          a buscar), <strong>préstamos vencidos</strong> y <strong>avisos del sistema</strong> (por ejemplo, socios con una
+          categoría que no existe, a los que se les aplican las reglas generales). "Ver todas" abre la página de Notificaciones, con las acciones a mano
+          (Prestar, Rechazar, Cancelar reserva).
+        </p>
+        <Captura
+          src="/docs/notificaciones.png"
+          alt='Página "Notificaciones": grupo "Para resolver" con «Facundo» apartado para Valentina Gómez y los botones Prestar y Cancelar reserva; grupos "Préstamos vencidos" y "Avisos del sistema" vacíos.'
+        />
+        <p>
+          El <strong>socio</strong> también tiene su campana en el OPAC: le avisa cuando un préstamo está por vencer o
+          ya venció, cuando aceptaron su pedido o le apartaron una reserva (para que pase a buscarlo), cuando le
+          renovaron un préstamo y cuando le rechazaron o cancelaron un pedido. Las notificaciones se calculan en el momento (no se mandan correos todavía) y se marcan como
+          leídas al abrirlas.
         </p>
       </Seccion>
 
@@ -516,7 +630,7 @@ export default function Documentacion() {
         />
         <p>
           Para admin/supervisor, la gestión de bibliotecarios se hace sobre la biblioteca elegida en el selector
-          del encabezado (igual que Catalogar/Socios/Circulación).
+          del encabezado (igual que Catálogo, Socios y Notificaciones).
         </p>
       </Seccion>
 

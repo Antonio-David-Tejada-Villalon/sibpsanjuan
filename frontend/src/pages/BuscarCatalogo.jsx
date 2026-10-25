@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api.js";
 import Pager from "../Pager.jsx";
 import ListaColapsable from "../ListaColapsable.jsx";
 import FichaIsbdModal from "../FichaIsbd.jsx";
 import { useAvisoCargaLenta } from "../useAvisoCargaLenta.js";
+import { TIPO_POR_ITEM } from "./catalogo/tipos.js";
+import { nombreSocio } from "../circulacion.js";
 
 const POR_PAGINA = 25;
 const NOTA_RECUPERABLE = "Queda guardado y se puede restaurar desde la base de datos si hace falta.";
@@ -13,18 +15,15 @@ function autoresTexto(item) {
   return (item.autores || []).join(", ");
 }
 
-// Un tipo por entrada, mismo criterio que CONFIG_TIPOS de
-// opac/CatalogoPublico.jsx — acá con las funciones de listar/eliminar del
-// lado staff (siempre el documento completo, no la versión recortada que
-// expone el OPAC) y la ruta de edición de cada tipo, para el botón
-// "Editar" (ver useEditarDesdeNavegacion.js). `circula` distingue los 8
-// tipos con ejemplares físicos de Archivo/Objeto (piezas únicas, sin
-// disponibilidad que mostrar).
+// Un tipo por entrada, con las funciones de listar/eliminar del lado staff
+// (siempre el documento completo, no la versión recortada que expone el
+// OPAC). La ficha y el formulario de cada tipo salen de catalogo/tipos.js.
+// `circula` distingue los tipos con ejemplares físicos de los que no
+// tienen disponibilidad que mostrar.
 const CONFIG_TIPOS = [
   {
     itemTipo: "Libro",
     etiquetaTipo: "Libro",
-    rutaEdicion: "/libros",
     circula: true,
     listar: () => api.listarLibros(),
     eliminar: (id) => api.eliminarLibro(id),
@@ -33,7 +32,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "Seriada",
     etiquetaTipo: "Publicación seriada",
-    rutaEdicion: "/seriadas",
     circula: true,
     listar: () => api.listarSeriadas(),
     eliminar: (id) => api.eliminarSeriada(id),
@@ -42,7 +40,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "RecursoElectronico",
     etiquetaTipo: "Recurso electrónico",
-    rutaEdicion: "/recursos-electronicos",
     circula: false,
     listar: () => api.listarRecursosElectronicos(),
     eliminar: (id) => api.eliminarRecursoElectronico(id),
@@ -51,7 +48,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "MaterialSonoro",
     etiquetaTipo: "Material sonoro",
-    rutaEdicion: "/material-sonoro",
     circula: true,
     listar: () => api.listarMaterialSonoro(),
     eliminar: (id) => api.eliminarMaterialSonoro(id),
@@ -60,7 +56,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "MaterialAudiovisual",
     etiquetaTipo: "Material audiovisual",
-    rutaEdicion: "/material-audiovisual",
     circula: true,
     listar: () => api.listarMaterialAudiovisual(),
     eliminar: (id) => api.eliminarMaterialAudiovisual(id),
@@ -69,7 +64,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "MaterialCartografico",
     etiquetaTipo: "Material cartográfico",
-    rutaEdicion: "/material-cartografico",
     circula: true,
     listar: () => api.listarMaterialCartografico(),
     eliminar: (id) => api.eliminarMaterialCartografico(id),
@@ -78,7 +72,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "MaterialGrafico",
     etiquetaTipo: "Material gráfico",
-    rutaEdicion: "/material-grafico",
     circula: true,
     listar: () => api.listarMaterialGrafico(),
     eliminar: (id) => api.eliminarMaterialGrafico(id),
@@ -87,7 +80,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "MaterialDidactico",
     etiquetaTipo: "Material didáctico",
-    rutaEdicion: "/material-didactico",
     circula: true,
     listar: () => api.listarMaterialDidactico(),
     eliminar: (id) => api.eliminarMaterialDidactico(id),
@@ -96,7 +88,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "Archivo",
     etiquetaTipo: "Archivo",
-    rutaEdicion: "/archivos",
     circula: false,
     listar: () => api.listarArchivo(),
     eliminar: (id) => api.eliminarArchivo(id),
@@ -105,7 +96,6 @@ const CONFIG_TIPOS = [
   {
     itemTipo: "Objeto",
     etiquetaTipo: "Objeto de museo",
-    rutaEdicion: "/objetos",
     circula: false,
     listar: () => api.listarObjeto(),
     eliminar: (id) => api.eliminarObjeto(id),
@@ -124,7 +114,7 @@ function ejemplaresTexto(entrada) {
   if (!circula) return "—";
   const total = (item.ejemplares || []).length;
   if (total === 0) return "0";
-  const disponibles = item.ejemplares.filter((e) => e.estado === "disponible").length;
+  const disponibles = item.ejemplares.filter((e) => e.estado === "disponible" && (e.uso ?? "prestamo") === "prestamo" && !e.condicion).length;
   return `${disponibles}/${total}`;
 }
 
@@ -134,6 +124,9 @@ function claveSeleccion(entrada) {
 
 export default function BuscarCatalogo() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const reservarPara = params.get("reservarPara");
+  const [socioReserva, setSocioReserva] = useState(null);
   const tardando = useAvisoCargaLenta();
   const [todos, setTodos] = useState(null); // null = cargando
   const [error, setError] = useState("");
@@ -143,9 +136,27 @@ export default function BuscarCatalogo() {
   const [avanzadaAbierta, setAvanzadaAbierta] = useState(false);
   const [avanzada, setAvanzada] = useState({ titulo: "", autor: "", materia: "", isbnIssn: "", anio: "" });
 
-  const [tiposActivos, setTiposActivos] = useState(() => new Set(CONFIG_TIPOS.map((t) => t.itemTipo)));
-  const [autoresActivos, setAutoresActivos] = useState(() => new Set());
-  const [materiasActivas, setMateriasActivas] = useState(() => new Set());
+  const [tiposActivos, setTiposActivos] = useState(() => {
+    const pedidos = params.getAll("tipo").filter((t) => CONFIG_POR_TIPO.has(t));
+    return new Set(pedidos.length ? pedidos : CONFIG_TIPOS.map((t) => t.itemTipo));
+  });
+  const [autoresActivos, setAutoresActivos] = useState(() => new Set(params.getAll("autor")));
+  const [materiasActivas, setMateriasActivas] = useState(() => new Set(params.getAll("materia")));
+
+  useEffect(() => {
+    if (reservarPara) api.obtenerSocio(reservarPara).then(setSocioReserva, () => setSocioReserva(null));
+  }, [reservarPara]);
+
+  // Un tipo solo, o todos (las pestañas de arriba de la lista).
+  function soloTipo(itemTipo) {
+    setTiposActivos(new Set(itemTipo ? [itemTipo] : CONFIG_TIPOS.map((t) => t.itemTipo)));
+  }
+  const unSoloTipo = tiposActivos.size === 1 ? [...tiposActivos][0] : null;
+
+  function rutaFicha(entrada) {
+    const base = `/catalogo/${entrada.itemTipo}/${entrada.item._id}`;
+    return reservarPara && entrada.circula ? `${base}?vista=reservas&socio=${reservarPara}` : base;
+  }
 
   const [seleccionados, setSeleccionados] = useState(() => new Set());
   const [eliminandoSeleccion, setEliminandoSeleccion] = useState(false);
@@ -155,13 +166,12 @@ export default function BuscarCatalogo() {
 
   async function recargar() {
     const listas = await Promise.all(
-      CONFIG_TIPOS.map(({ itemTipo, etiquetaTipo, rutaEdicion, circula, extra, listar }) =>
+      CONFIG_TIPOS.map(({ itemTipo, etiquetaTipo, circula, extra, listar }) =>
         listar().then((items) =>
           items.map((item) => ({
             item: { ...item, itemTipo },
             itemTipo,
             etiquetaTipo,
-            rutaEdicion,
             circula,
             extraTexto: extra(item),
           }))
@@ -284,7 +294,7 @@ export default function BuscarCatalogo() {
   }
 
   function onEditar(entrada) {
-    navigate(entrada.rutaEdicion, { state: { editar: entrada.item } });
+    navigate(`/catalogar/${TIPO_POR_ITEM[entrada.itemTipo].segmento}/${entrada.item._id}`);
   }
 
   async function onEliminar(entrada) {
@@ -345,11 +355,16 @@ export default function BuscarCatalogo() {
 
   return (
     <>
-      <h1>Buscar en el catálogo</h1>
+      <h1>Catálogo</h1>
       <p>
-        Todo lo que catalogaste, en un solo lugar — con los mismos filtros que ve el socio en el OPAC, más las
-        acciones del staff: editar, ver la ficha ISBD completa, y eliminar (uno por uno o varios a la vez).
+        Todo lo catalogado, separado por tipo de material. Abrí un título para ver su ficha (Normal, MARC, ISBD, Ítems y Reservas). Para cargar
+        algo nuevo, <Link to="/catalogar">Catalogar</Link>.
       </p>
+      {reservarPara && (
+        <div className="flash aviso" role="status">
+          Elegí el material para reservarle a {socioReserva ? nombreSocio(socioReserva) : "este socio"}: al abrirlo vas directo a su pestaña Reservas.
+        </div>
+      )}
 
       {mensaje && <div className="flash ok" role="status">{mensaje}</div>}
       {error && (
@@ -440,6 +455,16 @@ export default function BuscarCatalogo() {
         </aside>
 
         <div className="catalogo-resultados">
+          <nav className="pestanas-tipos" aria-label="Tipo de material">
+            <button type="button" className={tiposActivos.size === CONFIG_TIPOS.length ? "es-activa" : ""} aria-pressed={tiposActivos.size === CONFIG_TIPOS.length} onClick={() => soloTipo(null)}>
+              Todos ({todos?.length ?? 0})
+            </button>
+            {CONFIG_TIPOS.filter((t) => conteoPorTipo.get(t.itemTipo)).map((t) => (
+              <button key={t.itemTipo} type="button" className={unSoloTipo === t.itemTipo ? "es-activa" : ""} aria-pressed={unSoloTipo === t.itemTipo} onClick={() => soloTipo(t.itemTipo)}>
+                {TIPO_POR_ITEM[t.itemTipo].plural} ({conteoPorTipo.get(t.itemTipo)})
+              </button>
+            ))}
+          </nav>
           <div className="catalogo-resultados__barra">
             <span>{todos === null ? "Buscando…" : `${resultados.length} resultado(s)`}</span>
           </div>
@@ -464,75 +489,77 @@ export default function BuscarCatalogo() {
                   </button>
                 </div>
               )}
-              <table>
-                <caption className="sr-only">
-                  Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
-                </caption>
-                <thead>
-                  <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={resultadosPagina.length > 0 && seleccionados.size === resultadosPagina.length}
-                        onChange={onToggleSeleccionTodos}
-                        aria-label="Seleccionar todos"
-                      />
-                    </th>
-                    <th>Título</th>
-                    <th>Tipo</th>
-                    <th>Autores</th>
-                    <th>Año</th>
-                    <th>Ejemplares</th>
-                    <th><span className="sr-only">Acciones</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultadosPagina.map((entrada) => {
-                    const clave = claveSeleccion(entrada);
-                    return (
-                      <tr key={clave} className={eliminandoClave === clave ? "saliendo" : ""}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={seleccionados.has(clave)}
-                            onChange={() => onToggleSeleccion(clave)}
-                            aria-label={`Seleccionar ${entrada.item.titulo}`}
-                          />
-                        </td>
-                        <td>
-                          {entrada.item.titulo}
-                          {entrada.item.subtitulo && (
-                            <>
-                              <br />
-                              <small>{entrada.item.subtitulo}</small>
-                            </>
-                          )}
-                        </td>
-                        <td>{entrada.etiquetaTipo}</td>
-                        <td>{entrada.extraTexto}</td>
-                        <td>{anioOPeriodo(entrada.item)}</td>
-                        <td>{ejemplaresTexto(entrada)}</td>
-                        <td>
-                          <button className="secundario" onClick={() => onEditar(entrada)}>
-                            Editar
-                          </button>{" "}
-                          <button className="secundario" onClick={() => setFichaAbierta(entrada)}>
-                            Ficha ISBD
-                          </button>{" "}
-                          <button className="peligro" onClick={() => onEliminar(entrada)}>
-                            Eliminar
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {resultadosPagina.length === 0 && (
+              <div className="tabla-desplazable">
+                <table>
+                  <caption className="sr-only">
+                    Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
+                  </caption>
+                  <thead>
                     <tr>
-                      <td colSpan={7}>Ningún ítem coincide con los filtros aplicados.</td>
+                      <th>
+                        <input
+                          type="checkbox"
+                          checked={resultadosPagina.length > 0 && seleccionados.size === resultadosPagina.length}
+                          onChange={onToggleSeleccionTodos}
+                          aria-label="Seleccionar todos"
+                        />
+                      </th>
+                      <th>Título</th>
+                      <th>Tipo</th>
+                      <th>Autores</th>
+                      <th>Año</th>
+                      <th>Ejemplares</th>
+                      <th><span className="sr-only">Acciones</span></th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {resultadosPagina.map((entrada) => {
+                      const clave = claveSeleccion(entrada);
+                      return (
+                        <tr key={clave} className={eliminandoClave === clave ? "saliendo" : ""}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={seleccionados.has(clave)}
+                              onChange={() => onToggleSeleccion(clave)}
+                              aria-label={`Seleccionar ${entrada.item.titulo}`}
+                            />
+                          </td>
+                          <td>
+                            <Link to={rutaFicha(entrada)}>{entrada.item.titulo}</Link>
+                            {entrada.item.subtitulo && (
+                              <>
+                                <br />
+                                <small>{entrada.item.subtitulo}</small>
+                              </>
+                            )}
+                          </td>
+                          <td>{entrada.etiquetaTipo}</td>
+                          <td>{entrada.extraTexto}</td>
+                          <td>{anioOPeriodo(entrada.item)}</td>
+                          <td>{ejemplaresTexto(entrada)}</td>
+                          <td>
+                            <button className="secundario" onClick={() => onEditar(entrada)}>
+                              Editar
+                            </button>{" "}
+                            <button className="secundario" onClick={() => setFichaAbierta(entrada)}>
+                              Ficha ISBD
+                            </button>{" "}
+                            <button className="peligro" onClick={() => onEliminar(entrada)}>
+                              Eliminar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {resultadosPagina.length === 0 && (
+                      <tr>
+                        <td colSpan={7}>Ningún ítem coincide con los filtros aplicados.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
               <Pager pagina={pagina} porPagina={POR_PAGINA} total={resultados.length} onCambiar={setPagina} etiqueta="resultados" />
             </>
           )}

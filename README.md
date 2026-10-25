@@ -121,11 +121,13 @@ staff los carga y el OPAC los muestra como catálogo de solo consulta.
   pudo verificar el límite exacto de cada sub-posición contra la
   documentación oficial de LC, así que se prefirió no codificarlas antes
   que arriesgar un valor impreciso (ver comentarios en `marc/marcxml.js`).
-- La circulación es intencionalmente más simple que la de Koha: sin cola
-  de reservas (si dos socios quieren el mismo ítem, el segundo espera a
-  que se libere, no hay lista de espera con orden), sin notificaciones de
-  vencimiento, y las multas son un número que se muestra, no un cobro
-  integrado.
+- La circulación sigue la de Koha en lo que usa una biblioteca escolar
+  (préstamo y devolución por código de barras, ficha del socio con
+  renovar/devolver tildando, reservas con cola de espera, ítems 952), pero
+  sin todo lo demás: las notificaciones se ven en la campana del panel y
+  del OPAC (no se mandan correos), las multas son un número que se
+  muestra, no un cobro integrado, y no hay transferencias entre
+  bibliotecas.
 - No autocompleta datos por ISBN/ISSN (Open Library/Google Books) — se
   carga todo a mano por ahora. Sí valida el dígito verificador de lo que
   se tipea (ISBN-10, ISBN-13 e ISSN, tolerando guiones — ver BIBL-4 en
@@ -366,13 +368,20 @@ describe.
   recién al aprobarlo: mientras la solicitud está pendiente, el catálogo
   del OPAC ya lo muestra sin ejemplares libres (o con los que sigan
   disponibles, si hay más de uno), y nadie más puede pedir ese mismo
-  ejemplar mientras tanto. El staff la aprueba o rechaza desde
-  Circulación: aprobar transforma esa reserva en préstamo ("prestado");
-  rechazar libera el ejemplar de vuelta a "disponible". Pedir una
-  renovación crea la misma clase de solicitud pero sin reservar nada;
-  aprobarla corre el vencimiento y respeta el tope de renovaciones de esa
-  biblioteca. El staff también puede **renovar directo** desde Préstamos
-  (sin que el socio lo haya pedido primero).
+  ejemplar mientras tanto. Si no queda ninguno libre pero hay copias que
+  circulan, el pedido queda **en espera** (`Solicitud.estado:
+  "en_espera"`) y, al devolverse un ejemplar, se le aparta al primero de
+  la cola (`circulacion/reservas.js`); la devolución avisa "No lo pongas
+  en el estante". El staff aprueba o rechaza desde Notificaciones o desde
+  la ficha del socio: aprobar transforma esa reserva en préstamo
+  ("prestado"); rechazar libera el ejemplar (de vuelta a "disponible", o
+  para el siguiente en espera). La biblioteca también reserva para un
+  socio desde la vista Reservas de la ficha del material (`POST
+  /circulacion/reservas`). Pedir una renovación crea la misma clase de
+  solicitud pero sin reservar nada; aprobarla corre el vencimiento y
+  respeta el tope de renovaciones de esa biblioteca. El staff también
+  puede **renovar directo** desde la ficha del socio (sin que el socio lo
+  haya pedido primero).
 - Reglas de circulación **configurables por biblioteca** (pantalla
   "Configurar préstamos" — Bibliotecas para admin/supervisor, o
   Bibliotecarios para el propio superbibliotecario): días de préstamo,
@@ -443,8 +452,8 @@ describe.
   multa (mismas `calcularMulta`/`estaVencido` de `circulacion/reglas.js`
   que ya usaba la vista de staff) — de solo lectura, sin ninguna acción
   para pagarla o resolverla desde ahí.
-- Carga masiva de Libros por CSV/Excel (Libros → "Carga masiva desde
-  CSV/Excel"): plantilla descargable (`GET /libros/plantilla-csv`) con las
+- Carga masiva de Libros por CSV/Excel (Catalogar → "Carga masiva de
+  libros", `/catalogar/importar`): plantilla descargable (`GET /libros/plantilla-csv`) con las
   mismas columnas del formulario, autores/materias separados por punto y
   coma dentro de la celda. La columna `ejemplares` sigue la misma
   convención que el textarea del alta individual (coma separa código de
@@ -460,13 +469,13 @@ describe.
   default (`impreso`). Ninguna fila mala aborta el resto del archivo: se
   acumulan y devuelven los errores/avisos fila por fila
   (`backend/src/utils/importarLibrosCsv.js`).
-- Editar un libro muestra sus ejemplares (código de barras, signatura,
-  estado) con acciones para corregirlos, agregar uno nuevo o eliminar uno
-  puntual — antes esto solo se podía hacer en el alta inicial o por CSV;
-  ahora también desde la edición (`PUT`/`DELETE
-  /libros/:id/ejemplares/:ejemplarId`). Solo se puede eliminar un ejemplar
-  "disponible": borrar uno prestado o reservado dejaría un Préstamo o una
-  Solicitud pendiente apuntando a un ejemplar que ya no existe.
+- Los ejemplares de cualquier tipo de material se manejan en la vista
+  **Ítems** de su ficha (`/ejemplares`, con los subcampos del 952 de Koha:
+  uso, estado físico, ubicación, adquisición, notas pública e interna),
+  con "Agregar y duplicar" y varias copias iguales de una vez. No se borra
+  un ejemplar prestado o apartado (dejaría un Préstamo o una Solicitud
+  apuntando a la nada) ni uno con historial de préstamos (se marca
+  "Retirado").
 - En el catálogo del OPAC, "Ver detalle" en cada tarjeta siempre está
   visible (no solo al pasar el mouse) — abre un modal con toda la ficha
   del ítem tal como la cargó el bibliotecario (autor, editorial, año,
@@ -592,19 +601,18 @@ dos apuntan a `/dashboard`, y para admin/supervisor sin biblioteca activa
 elegida se comportan igual que cualquier otro link a una pantalla scoped
 a biblioteca (mensaje para elegir una desde el selector, no un error).
 
-**Buscar en el catálogo** (`/catalogo`, tarjeta nueva en el Panel) combina
-los 10 tipos de material en una sola tabla, con el mismo sidebar de
-filtros que el catálogo público del OPAC (tipo/autor/materia, colapsados
-a 5 con "Ver más" — ver UX-7 en `AUDITORIA.md`), búsqueda simple y una
-**búsqueda especializada** (título/autor/materia/ISBN-ISSN/año por
-separado). Cada fila tiene **Editar** (lleva a la pantalla propia de ese
-tipo con el formulario ya precargado), **Ficha ISBD** (modal con el
-párrafo bibliográfico completo, en la puntuación real de la norma ISBD —
-título, edición, publicación, descripción física, serie, notas, número
-normalizado) y **Eliminar**, más selección múltiple para borrar varios a
-la vez. Es la evolución de la tabla que antes vivía al pie del formulario
-de Libros — se sacó de ahí porque ya no alcanzaba con un solo tipo de
-material ni con un buscador de texto libre nomás.
+**Catálogo** (`/catalogo`) combina los 10 tipos de material en una sola
+tabla, con pestañas para ver un tipo solo y el mismo sidebar de filtros que
+el catálogo público del OPAC (tipo/autor/materia, colapsados a 5 con "Ver
+más" — ver UX-7 en `AUDITORIA.md`), búsqueda simple y una **búsqueda
+especializada** (título/autor/materia/ISBN-ISSN/año por separado). El
+título abre la ficha del material (`/catalogo/<Tipo>/<id>`, con las vistas
+Normal, MARC, ISBD, Ítems, Reservas e Historial, como en Koha) y cada fila
+tiene **Editar** (el formulario de ese tipo, solo, en
+`/catalogar/<tipo>/<id>`), **Ficha ISBD** (modal con el párrafo
+bibliográfico completo, en la puntuación real de la norma ISBD — título,
+edición, publicación, descripción física, serie, notas, número normalizado)
+y **Eliminar**, más selección múltiple para borrar varios a la vez.
 
 El encabezado (staff y OPAC) es responsive: por debajo de 860px, la
 navegación y el bloque de la derecha (selector de biblioteca, tema,

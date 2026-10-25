@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, CircleUser, House, LogIn, Menu, Search, X } from "lucide-react";
 import { useSocioAuth } from "../../SocioAuthContext.jsx";
@@ -7,6 +7,8 @@ import { useFocoEnRuta } from "../../useFocoEnRuta.js";
 import { cssDeMarca } from "../../marca.js";
 import SelectorTema from "../../SelectorTema.jsx";
 import Preferencias from "../../Preferencias.jsx";
+import CampanaNotificaciones from "../../CampanaNotificaciones.jsx";
+import api from "../../api.js";
 
 // Mismo origen que usa api.js: vacío salvo que el frontend se sirva aparte.
 const ORIGEN_API = import.meta.env.VITE_API_URL || "";
@@ -109,6 +111,9 @@ export default function OpacLayout({ children }) {
   // La barra superior siempre es oscura: primero el logo para fondo oscuro.
   const logo = identidad && (identidad.logos.oscuro || identidad.logos.horizontal || identidad.logos.cuadrado);
 
+  const cargarNotificaciones = useCallback(() => api.opacNotificaciones(codigo), [codigo]);
+  const marcarNotificaciones = useCallback((claves) => api.opacMarcarNotificacionesVistas(codigo, claves), [codigo]);
+
   async function onLogout() {
     await logout();
     navigate(`/opac/${codigo}`);
@@ -142,6 +147,18 @@ export default function OpacLayout({ children }) {
             {sesion && <NavLink to={`/opac/${codigo}/cuenta`}>Mi cuenta</NavLink>}
           </nav>
         </div>
+        {/* La campana del socio: lo que vence, lo aceptado y lo que llegó.
+            Afuera del menú que se pliega, siempre a la vista. */}
+        {sesion && !vistaPrevia && (
+          <div className="header-campana">
+            <CampanaNotificaciones
+              cargar={cargarNotificaciones}
+              marcarVistas={marcarNotificaciones}
+              rutaDe={(n) => `/opac/${codigo}/${n.enlace}`}
+              sobreTinta
+            />
+          </div>
+        )}
         <button
           type="button"
           className="boton-hamburguesa"

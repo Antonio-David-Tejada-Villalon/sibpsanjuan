@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useParams } from "react-router-dom";
 import BuscarCatalogo from "./BuscarCatalogo.jsx";
 import api from "../api.js";
 
@@ -69,12 +69,18 @@ function mockCatalogoVacioSalvo(overrides = {}) {
   api.listarObjeto.mockResolvedValue([]);
 }
 
+function RutaVista({ prefijo }) {
+  const p = useParams();
+  return <p>{[prefijo, p.segmento ?? p.itemTipo, p.id].join(" ")}</p>;
+}
+
 function renderBuscador() {
   return render(
     <MemoryRouter initialEntries={["/catalogo"]}>
       <Routes>
         <Route path="/catalogo" element={<BuscarCatalogo />} />
-        <Route path="/libros" element={<p>PANTALLA DE LIBROS</p>} />
+        <Route path="/catalogar/:segmento/:id" element={<RutaVista prefijo="EDITAR" />} />
+        <Route path="/catalogo/:itemTipo/:id" element={<RutaVista prefijo="FICHA" />} />
       </Routes>
     </MemoryRouter>
   );
@@ -134,7 +140,7 @@ describe("BuscarCatalogo", () => {
     expect(dialogo).toHaveTextContent("ISBN 9789500000000");
   });
 
-  it("Editar navega a la pantalla de edición del tipo correspondiente", async () => {
+  it("Editar abre el formulario de ese tipo de material, solo, con el registro cargado", async () => {
     mockCatalogoVacioSalvo({ libros: [FICCIONES] });
     const user = userEvent.setup();
     renderBuscador();
@@ -142,7 +148,33 @@ describe("BuscarCatalogo", () => {
 
     await user.click(screen.getByRole("button", { name: /^editar$/i }));
 
-    expect(await screen.findByText("PANTALLA DE LIBROS")).toBeInTheDocument();
+    expect(await screen.findByText("EDITAR libro libro1")).toBeInTheDocument();
+  });
+
+  it("el título lleva a la ficha del material (Normal, MARC, ISBD, Ítems, Reservas)", async () => {
+    mockCatalogoVacioSalvo({ seriadas: [REVISTA] });
+    const user = userEvent.setup();
+    renderBuscador();
+
+    await user.click(await screen.findByRole("link", { name: "Revista de Pruebas" }));
+
+    expect(await screen.findByText("FICHA Seriada seriada1")).toBeInTheDocument();
+  });
+
+  it("las pestañas por tipo muestran un tipo solo, con su cantidad, y «Todos» vuelve a la lista completa", async () => {
+    mockCatalogoVacioSalvo({ libros: [FICCIONES], seriadas: [REVISTA] });
+    const user = userEvent.setup();
+    renderBuscador();
+    await screen.findByText("Ficciones");
+    const pestanas = screen.getByRole("navigation", { name: "Tipo de material" });
+
+    await user.click(within(pestanas).getByRole("button", { name: "Libros (1)" }));
+    expect(within(pestanas).getByRole("button", { name: "Libros (1)" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Ficciones")).toBeInTheDocument();
+    expect(screen.queryByText("Revista de Pruebas")).not.toBeInTheDocument();
+
+    await user.click(within(pestanas).getByRole("button", { name: "Todos (2)" }));
+    expect(screen.getByText("Revista de Pruebas")).toBeInTheDocument();
   });
 
   it("selección múltiple + Eliminar seleccionados llama al eliminar del tipo de cada ítem", async () => {

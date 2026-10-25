@@ -7,26 +7,27 @@ import api from "./api.js";
 import { obtenerBibliotecaActivaId, fijarBibliotecaActivaId } from "./bibliotecaActiva.js";
 import SelectorTema from "./SelectorTema.jsx";
 import Preferencias from "./Preferencias.jsx";
+import CampanaNotificaciones from "./CampanaNotificaciones.jsx";
+import { tienePermiso } from "./permisos.js";
 
-const MATERIALES = [
-  { to: "/libros", etiqueta: "Libros" },
-  { to: "/seriadas", etiqueta: "Publicaciones seriadas" },
-  { to: "/recursos-electronicos", etiqueta: "Recursos electrónicos" },
-  { to: "/material-sonoro", etiqueta: "Material sonoro" },
-  { to: "/material-audiovisual", etiqueta: "Material audiovisual" },
-  { to: "/material-cartografico", etiqueta: "Material cartográfico" },
-  { to: "/material-grafico", etiqueta: "Material gráfico" },
-  { to: "/material-didactico", etiqueta: "Material didáctico" },
-  { to: "/archivos", etiqueta: "Archivos" },
-  { to: "/objetos", etiqueta: "Objetos" },
+// Igual que en Koha, los módulos van en el orden de uso. "Circulación" ya
+// no es una sección: lo que había que resolver está en la campana
+// (/notificaciones), y prestar, devolver y los préstamos de cada socio,
+// en "Socios".
+const SOCIOS = [
+  // Buscar, también para el mostrador: la ficha es donde se presta y devuelve.
+  { to: "/socios", etiqueta: "Buscar socios", permiso: ["socios", "prestamos", "devoluciones"], fin: true },
+  { to: "/socios/nuevo", etiqueta: "Nuevo socio", permiso: "socios" },
+  { to: "/prestar", etiqueta: "Prestar", permiso: "prestamos" },
+  { to: "/devolver", etiqueta: "Devolver", permiso: "devoluciones" },
+  { to: "/prestamos", etiqueta: "Préstamos en curso", permiso: ["prestamos", "devoluciones"] },
 ];
 
-// Igual que en Koha: "Circulación" agrupa solicitudes (pedidos pendientes
-// de aprobar) y préstamos activos/devoluciones bajo un solo módulo, en vez
-// de dos links sueltos.
-const CIRCULACION = [
-  { to: "/circulacion", etiqueta: "Solicitudes" },
-  { to: "/prestamos", etiqueta: "Préstamos" },
+const CATALOGO = [
+  { to: "/catalogo", etiqueta: "Catálogo" },
+  { to: "/catalogar", etiqueta: "Catalogar", permiso: "catalogar" },
+  { to: "/autores", etiqueta: "Autores (autoridades)", permiso: "catalogar" },
+  { to: "/materias", etiqueta: "Materias (autoridades)", permiso: "catalogar" },
 ];
 
 // Menú desplegable accesible: botón con aria-haspopup/aria-expanded, cierra
@@ -74,52 +75,35 @@ function MenuDesplegable({ etiqueta, rutas, children }) {
   );
 }
 
-// superbibliotecario tiene acceso completo siempre; bibliotecario solo ve
-// (y el backend solo le permite) lo que su superbibliotecario le haya
-// otorgado en "permisos" — esto es puramente cosmético (ocultar un link que
-// de todos modos daría 403), la restricción real siempre la hace el
-// servidor vía requierePermiso.
-// Orden calcado del módulo de Koha (Circulación, Usuarios, Catalogación,
-// ...Administración al final) — mismo orden relativo que en la interfaz de
-// referencia, salteando los módulos que SIBPSANJUAN todavía no tiene
-// (Adquisiciones, Informes, Herramientas, Autoridades, etc.).
-// admin y supervisor tienen acceso completo dentro de la biblioteca activa
-// que hayan elegido (ver SelectorBibliotecaActiva) — mismo criterio que
-// superbibliotecario, ya que el backend los deja pasar sin permisos
-// granulares (ver requierePermiso en middleware/auth.js).
+// Un bibliotecario solo ve lo que le otorgaron en "permisos"; admin,
+// supervisor y superbibliotecario, todo (ver permisos.js). Es cosmético: la
+// restricción real la hace el servidor (requierePermiso).
 function NavPanelBiblioteca({ sesion }) {
   const accesoCompleto = ["superbibliotecario", "admin", "supervisor"].includes(sesion.rol);
-  const tieneAcceso = accesoCompleto ? () => true : (permiso) => !!sesion.permisos?.[permiso];
+  const puede = (permiso) => !permiso || [permiso].flat().some((p) => tienePermiso(sesion, p));
+  const socios = SOCIOS.filter((m) => puede(m.permiso));
+  const catalogo = CATALOGO.filter((m) => puede(m.permiso));
 
   return (
     <>
-      {(tieneAcceso("prestamos") || tieneAcceso("devoluciones")) && (
-        <MenuDesplegable etiqueta="Circulación" rutas={CIRCULACION.map((c) => c.to)}>
-          {CIRCULACION.map((c) => (
-            <NavLink key={c.to} to={c.to} role="menuitem">
-              {c.etiqueta}
-            </NavLink>
-          ))}
-        </MenuDesplegable>
-      )}
-      {tieneAcceso("socios") && <NavLink to="/socios">Socios</NavLink>}
-      {tieneAcceso("catalogar") && (
-        <MenuDesplegable etiqueta="Catalogar" rutas={[...MATERIALES.map((m) => m.to), "/autores", "/materias"]}>
-          {MATERIALES.map((m) => (
-            <NavLink key={m.to} to={m.to} role="menuitem">
+      {socios.length > 0 && (
+        <MenuDesplegable etiqueta="Socios" rutas={["/socios", "/prestar", "/devolver", "/prestamos"]}>
+          {socios.map((m) => (
+            <NavLink key={m.to} to={m.to} end={m.fin} role="menuitem">
               {m.etiqueta}
             </NavLink>
           ))}
-          <NavLink to="/autores" role="menuitem">
-            Autores (autoridades)
-          </NavLink>
-          <NavLink to="/materias" role="menuitem">
-            Materias (autoridades)
-          </NavLink>
         </MenuDesplegable>
       )}
-      {tieneAcceso("exportar") && <NavLink to="/exportar">Exportar</NavLink>}
-      {tieneAcceso("contenido") && <NavLink to="/contenido">Contenido del OPAC</NavLink>}
+      <MenuDesplegable etiqueta="Catálogo" rutas={["/catalogo", "/catalogar", "/autores", "/materias"]}>
+        {catalogo.map((m) => (
+          <NavLink key={m.to} to={m.to} role="menuitem">
+            {m.etiqueta}
+          </NavLink>
+        ))}
+      </MenuDesplegable>
+      {tienePermiso(sesion, "exportar") && <NavLink to="/exportar">Exportar</NavLink>}
+      {tienePermiso(sesion, "contenido") && <NavLink to="/contenido">Contenido del OPAC</NavLink>}
       {accesoCompleto && <NavLink to="/bibliotecarios">Bibliotecarios</NavLink>}
     </>
   );
@@ -188,6 +172,13 @@ export default function Layout({ children }) {
     navigate("/login");
   }
 
+  // Las notificaciones son de una biblioteca: admin y supervisor las ven
+  // cuando eligieron una en el selector.
+  const conCampana =
+    Boolean(sesion) &&
+    (["superbibliotecario", "bibliotecario"].includes(sesion.rol) || (["admin", "supervisor"].includes(sesion.rol) && Boolean(obtenerBibliotecaActivaId()))) &&
+    ["prestamos", "devoluciones", "socios"].some((p) => tienePermiso(sesion, p));
+
   return (
     <>
       <a href="#contenido" className="skip-link">Saltar al contenido</a>
@@ -216,6 +207,17 @@ export default function Layout({ children }) {
             {sesion && <NavLink to="/documentacion">Documentación</NavLink>}
           </nav>
         </div>
+        {conCampana && (
+          <div className="header-campana">
+            <CampanaNotificaciones
+              cargar={api.notificaciones}
+              marcarVistas={api.marcarNotificacionesVistas}
+              rutaDe={(n) => n.enlace || "/notificaciones"}
+              rutaTodas="/notificaciones"
+              sobreTinta
+            />
+          </div>
+        )}
         <button
           type="button"
           className="boton-hamburguesa"

@@ -1,12 +1,9 @@
 import React, { useEffect, useState } from "react";
 import api from "../api.js";
-import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
-import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
-
-const POR_PAGINA = 50;
+import { usePrecargar } from "../usePrecargar.js";
 
 const SUBTIPOS = [
   { valor: "manuscrito", etiqueta: "Manuscrito" },
@@ -104,42 +101,28 @@ function mapFormADatos(form) {
   };
 }
 
-export default function Archivos() {
+export default function Archivos({ entidad, alGuardar, alCancelar }) {
   const {
     items,
-    total,
-    pagina,
-    setPagina,
-    busqueda,
     form,
     editandoId,
-    eliminandoId,
-    seleccionados,
-    eliminandoSeleccion,
     error,
-    cargando,
     guardando,
-    onBuscar,
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
     onSubmit,
-    onEliminar,
-    onToggleSeleccion,
-    onToggleSeleccionTodos,
-    onEliminarSeleccionados,
   } = useListaCrud({
-    listar: (pagina, porPagina, q) => api.listarArchivoPaginado(pagina, porPagina, q),
     crear: (datos) => api.crearArchivo(datos),
     actualizar: (id, datos) => api.actualizarArchivo(id, datos),
-    eliminar: (id) => api.eliminarArchivo(id),
     vacio: VACIO,
-    porPagina: POR_PAGINA,
     mapEntidadAForm,
     mapFormADatos,
+    alGuardar,
+    alCancelar,
   });
 
-  useEditarDesdeNavegacion(onEditar);
+  usePrecargar(entidad, onEditar);
 
   // Lista completa (no paginada) para el select de "padre" — la jerarquía
   // es opcional (ver ARCHIV-2), así que solo hace falta un listado liviano
@@ -246,96 +229,12 @@ export default function Archivos() {
         <button type="submit" disabled={guardando}>
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Guardar"}
         </button>{" "}
-        {editandoId && (
+        {(editandoId || alCancelar) && (
           <button type="button" className="secundario" onClick={onCancelarEdicion}>
             Cancelar
           </button>
         )}
       </form>
-
-      <label>
-        Buscar por título, código de referencia o productor
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => onBuscar(e.target.value)}
-          placeholder="Ej: acta fundacional"
-        />
-      </label>
-
-      {cargando ? (
-        <p>Cargando...</p>
-      ) : (
-        <>
-          {seleccionados.size > 0 && (
-            <div className="barra-seleccion">
-              <span>{seleccionados.size} seleccionado(s)</span>
-              <button
-                type="button"
-                className="peligro"
-                onClick={() => onEliminarSeleccionados("¿Eliminar los archivos seleccionados?")}
-                disabled={eliminandoSeleccion}
-              >
-                {eliminandoSeleccion ? "Eliminando…" : "Eliminar seleccionados"}
-              </button>
-            </div>
-          )}
-          <table>
-            <caption className="sr-only">
-              Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
-            </caption>
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={items.length > 0 && seleccionados.size === items.length}
-                    onChange={onToggleSeleccionTodos}
-                    aria-label="Seleccionar todos"
-                  />
-                </th>
-                <th>Título</th>
-                <th>Subtipo</th>
-                <th>Nivel</th>
-                <th><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item._id} className={eliminandoId === item._id ? "saliendo" : ""}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={seleccionados.has(item._id)}
-                      onChange={() => onToggleSeleccion(item._id)}
-                      aria-label={`Seleccionar ${item.titulo}`}
-                    />
-                  </td>
-                  <td>{item.titulo}</td>
-                  <td>{item.subtipo}</td>
-                  <td>{item.nivelDescripcion}</td>
-                  <td>
-                    <button className="secundario" onClick={() => onEditar(item)}>
-                      Editar
-                    </button>{" "}
-                    <button className="peligro" onClick={() => onEliminar(item._id, "¿Eliminar este archivo?")}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    {busqueda ? "Ningún archivo coincide con la búsqueda." : "Todavía no cargaste ningún archivo."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-      <Pager pagina={pagina} porPagina={POR_PAGINA} total={total} onCambiar={setPagina} etiqueta="archivos" />
     </>
   );
 }

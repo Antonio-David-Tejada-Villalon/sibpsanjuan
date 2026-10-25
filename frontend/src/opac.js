@@ -56,9 +56,11 @@ export function textoDisponibilidad(material) {
     partes.push(
       material.disponibles > 0
         ? `${material.disponibles} ${material.disponibles === 1 ? "ejemplar disponible" : "ejemplares disponibles"}`
-        : material.total > 0
-          ? "Sin ejemplares libres ahora"
-          : "Sin ejemplares para préstamo"
+        : material.prestables > 0
+          ? "Sin ejemplares libres: se puede reservar"
+          : material.total > 0
+            ? "No se presta: se consulta en la biblioteca"
+            : "Sin ejemplares para préstamo"
     );
   }
   return partes.join(" · ") || "Sin ejemplares para préstamo";

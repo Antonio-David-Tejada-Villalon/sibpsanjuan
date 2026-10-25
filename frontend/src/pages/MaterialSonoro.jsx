@@ -1,13 +1,10 @@
 import React from "react";
 import api from "../api.js";
-import Pager from "../Pager.jsx";
 import Campo from "../Campo.jsx";
 import GestorPortada from "../GestorPortada.jsx";
 import { useListaCrud } from "../useListaCrud.js";
-import { useEditarDesdeNavegacion } from "../useEditarDesdeNavegacion.js";
+import { usePrecargar } from "../usePrecargar.js";
 import { aEjemplares } from "../ejemplaresTexto.js";
-
-const POR_PAGINA = 50;
 
 const SUBTIPOS = [
   { valor: "cd", etiqueta: "CD" },
@@ -88,42 +85,27 @@ function mapFormADatos(form) {
   };
 }
 
-export default function MaterialSonoro() {
+export default function MaterialSonoro({ entidad, alGuardar, alCancelar }) {
   const {
-    items,
-    total,
-    pagina,
-    setPagina,
-    busqueda,
     form,
     editandoId,
-    eliminandoId,
-    seleccionados,
-    eliminandoSeleccion,
     error,
-    cargando,
     guardando,
-    onBuscar,
     onEditar,
     onCancelarEdicion,
     onCambiarCampo,
     onSubmit,
-    onEliminar,
-    onToggleSeleccion,
-    onToggleSeleccionTodos,
-    onEliminarSeleccionados,
   } = useListaCrud({
-    listar: (pagina, porPagina, q) => api.listarMaterialSonoroPaginado(pagina, porPagina, q),
     crear: (datos, form) => api.crearMaterialSonoro({ ...datos, ejemplares: aEjemplares(form.ejemplaresTexto) }),
     actualizar: (id, datos) => api.actualizarMaterialSonoro(id, datos),
-    eliminar: (id) => api.eliminarMaterialSonoro(id),
     vacio: VACIO,
-    porPagina: POR_PAGINA,
     mapEntidadAForm,
     mapFormADatos,
+    alGuardar,
+    alCancelar,
   });
 
-  useEditarDesdeNavegacion(onEditar);
+  usePrecargar(entidad, onEditar);
 
   return (
     <>
@@ -172,7 +154,7 @@ export default function MaterialSonoro() {
         </label>
         {editandoId ? (
           <p>
-            <small>Los ejemplares no se editan acá — agregalos desde la carga inicial.</small>
+            <small>Los ejemplares (copias, códigos de barras, si se prestan) se agregan y editan en la pestaña «Ítems» de la ficha del material.</small>
           </p>
         ) : (
           <label>
@@ -192,98 +174,12 @@ export default function MaterialSonoro() {
         <button type="submit" disabled={guardando}>
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Guardar"}
         </button>{" "}
-        {editandoId && (
+        {(editandoId || alCancelar) && (
           <button type="button" className="secundario" onClick={onCancelarEdicion}>
             Cancelar
           </button>
         )}
       </form>
-
-      <label>
-        Buscar por título, intérprete o sello
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => onBuscar(e.target.value)}
-          placeholder="Ej: Piazzolla"
-        />
-      </label>
-
-      {cargando ? (
-        <p>Cargando...</p>
-      ) : (
-        <>
-          {seleccionados.size > 0 && (
-            <div className="barra-seleccion">
-              <span>{seleccionados.size} seleccionado(s)</span>
-              <button
-                type="button"
-                className="peligro"
-                onClick={() => onEliminarSeleccionados("¿Eliminar los materiales sonoros seleccionados?")}
-                disabled={eliminandoSeleccion}
-              >
-                {eliminandoSeleccion ? "Eliminando…" : "Eliminar seleccionados"}
-              </button>
-            </div>
-          )}
-          <table>
-            <caption className="sr-only">
-              Podés tildar más de una fila para actuar sobre varias a la vez con "Eliminar seleccionados".
-            </caption>
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    checked={items.length > 0 && seleccionados.size === items.length}
-                    onChange={onToggleSeleccionTodos}
-                    aria-label="Seleccionar todos"
-                  />
-                </th>
-                <th>Título</th>
-                <th>Subtipo</th>
-                <th>Ejemplares</th>
-                <th><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item._id} className={eliminandoId === item._id ? "saliendo" : ""}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={seleccionados.has(item._id)}
-                      onChange={() => onToggleSeleccion(item._id)}
-                      aria-label={`Seleccionar ${item.titulo}`}
-                    />
-                  </td>
-                  <td>{item.titulo}</td>
-                  <td>{item.subtipo}</td>
-                  <td>{(item.ejemplares || []).length}</td>
-                  <td>
-                    <button className="secundario" onClick={() => onEditar(item)}>
-                      Editar
-                    </button>{" "}
-                    <button className="peligro" onClick={() => onEliminar(item._id, "¿Eliminar este material sonoro?")}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={5}>
-                    {busqueda
-                      ? "Ningún material sonoro coincide con la búsqueda."
-                      : "Todavía no cargaste ningún material sonoro."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-      <Pager pagina={pagina} porPagina={POR_PAGINA} total={total} onCambiar={setPagina} etiqueta="material sonoro" />
     </>
   );
 }

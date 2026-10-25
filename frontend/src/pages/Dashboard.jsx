@@ -2,21 +2,18 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
+import { tienePermiso } from "../permisos.js";
 
-// Mismo orden que el menú de Layout.jsx (que a su vez calca el de Koha:
-// Circulación, Usuarios, Catalogación, ...Administración al final) — esta
-// grilla es el equivalente de la página de inicio de Koha, con una tarjeta
-// por módulo en vez de un link de texto suelto.
+// La página de inicio del panel, como la de Koha: una tarjeta por módulo, en
+// el orden del menú (Layout.jsx), con los mismos permisos (alcanza con uno
+// de la lista; sin permiso, la ve cualquiera).
 const MODULOS = [
-  { permiso: "circulacion", to: "/circulacion", etiqueta: "Circulación", descripcion: "Solicitudes pendientes y préstamos activos" },
-  { permiso: "socios", to: "/socios", etiqueta: "Socios", descripcion: "Alta, edición y credenciales de OPAC" },
-  { permiso: "catalogar", to: "/libros", etiqueta: "Catalogación", descripcion: "Los 10 tipos de material" },
-  {
-    permiso: "catalogar",
-    to: "/catalogo",
-    etiqueta: "Buscar en el catálogo",
-    descripcion: "Todo lo cargado, con filtros, ficha ISBD y edición",
-  },
+  { permiso: ["prestamos", "devoluciones"], to: "/notificaciones", etiqueta: "Notificaciones", descripcion: "Pedidos y reservas por resolver, préstamos vencidos y avisos" },
+  { permiso: "prestamos", to: "/prestar", etiqueta: "Prestar", descripcion: "Elegir al socio y leer el código de barras" },
+  { permiso: "devoluciones", to: "/devolver", etiqueta: "Devolver", descripcion: "Leer el código de barras del ejemplar" },
+  { permiso: ["socios", "prestamos", "devoluciones"], to: "/socios", etiqueta: "Socios", descripcion: "Buscar, ver su ficha y sus préstamos, dar de alta" },
+  { permiso: null, to: "/catalogo", etiqueta: "Catálogo", descripcion: "Todo lo cargado, por tipo, con su ficha MARC, ISBD e ítems" },
+  { permiso: "catalogar", to: "/catalogar", etiqueta: "Catalogar", descripcion: "Cargar un material nuevo, o muchos libros desde una planilla" },
   { permiso: "exportar", to: "/exportar", etiqueta: "Exportar", descripcion: "MARCXML/CSV para Koha o DigiBepé" },
 ];
 
@@ -25,12 +22,7 @@ export default function Dashboard() {
   const [conteos, setConteos] = useState(null);
 
   const accesoCompleto = ["superbibliotecario", "admin", "supervisor"].includes(sesion?.rol);
-  const tieneAcceso = accesoCompleto
-    ? () => true
-    : (permiso) =>
-        permiso === "circulacion"
-          ? !!(sesion?.permisos?.prestamos || sesion?.permisos?.devoluciones)
-          : !!sesion?.permisos?.[permiso];
+  const tieneAcceso = (permiso) => !permiso || [permiso].flat().some((p) => tienePermiso(sesion, p));
 
   useEffect(() => {
     Promise.all([api.listarLibros(), api.listarSocios()]).then(([libros, socios]) =>
