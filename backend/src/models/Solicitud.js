@@ -16,7 +16,19 @@ const solicitudSchema = new Schema({
   // libera de vuelta a "disponible".
   ejemplarId: { type: Schema.Types.ObjectId, ref: "Ejemplar", default: null },
   prestamoId: { type: Schema.Types.ObjectId, ref: "Prestamo" },
-  estado: { type: String, enum: ["pendiente", "aprobada", "rechazada"], default: "pendiente" },
+  // pendiente: con un ejemplar apartado, esperando que el staff la apruebe
+  // (aprobar = prestar). en_espera: una reserva sin ejemplar libre todavía;
+  // al volver uno, la más vieja pasa a pendiente con ese ejemplar (ver
+  // circulacion/reservas.js). cancelada: la anuló el socio o el staff.
+  estado: { type: String, enum: ["pendiente", "en_espera", "aprobada", "rechazada", "cancelada"], default: "pendiente" },
+  // opac: la pidió el socio; staff: una reserva cargada en el mostrador.
+  origen: { type: String, enum: ["opac", "staff"], default: "opac" },
+  // Desde cuándo hay un ejemplar apartado para ella (para avisarle al socio
+  // que pase a buscarlo y al staff si nadie lo retira).
+  fechaDisponible: { type: Date, default: null },
+  // Aprobada al prestarle el ejemplar en el mostrador (el socio ya lo tiene
+  // en la mano): no hace falta avisarle que pase a buscarlo.
+  entregadaEnMostrador: { type: Boolean, default: false },
   notaStaff: { type: String, trim: true },
   fechaSolicitud: { type: Date, default: Date.now },
   fechaResolucion: { type: Date },

@@ -13,6 +13,7 @@ import Autor from "../models/Autor.js";
 import Materia from "../models/Materia.js";
 import Portada from "../models/Portada.js";
 import { filtroVigente } from "../portadas/servicio.js";
+import { estadoVisible } from "../circulacion/ejemplares.js";
 
 // Búsqueda del OPAC en el servidor: antes el navegador descargaba los 10
 // catálogos completos y filtraba ahí — pesado con mala conexión e
@@ -239,18 +240,25 @@ async function indice(bibliotecaId) {
 }
 
 async function disponibilidadPorItem(bibliotecaId, itemIds) {
-  const filtro = { bibliotecaId, ...(itemIds ? { itemId: { $in: itemIds } } : {}) };
+  // Lo retirado no se muestra. Disponible = libre, de préstamo y sano (ver
+  // circulacion/ejemplares.js); "prestables" son las copias que circulan
+  // aunque ahora estén prestadas: con alguna, se puede reservar y esperar.
+  const filtro = { bibliotecaId, condicion: { $ne: "retirado" }, ...(itemIds ? { itemId: { $in: itemIds } } : {}) };
+  const circula = {
+    $and: [{ $eq: [{ $ifNull: ["$uso", "prestamo"] }, "prestamo"] }, { $eq: [{ $ifNull: ["$condicion", ""] }, ""] }],
+  };
   const filas = await Ejemplar.aggregate([
     { $match: filtro },
     {
       $group: {
         _id: "$itemId",
         total: { $sum: 1 },
-        disponibles: { $sum: { $cond: [{ $eq: ["$estado", "disponible"] }, 1, 0] } },
+        prestables: { $sum: { $cond: [circula, 1, 0] } },
+        disponibles: { $sum: { $cond: [{ $and: [{ $eq: ["$estado", "disponible"] }, circula] }, 1, 0] } },
       },
     },
   ]);
-  return new Map(filas.map((f) => [String(f._id), { disponibles: f.disponibles, total: f.total }]));
+  return new Map(filas.map((f) => [String(f._id), { disponibles: f.disponibles, total: f.total, prestables: f.prestables }]));
 }
 
 async function portadasDe(ids) {
@@ -295,7 +303,7 @@ export async function buscarEnCatalogo(biblioteca, { q = "", tipos = [], autores
   const disponibilidad = await disponibilidadPorItem(biblioteca._id);
   const consulta = normalizar(q).trim();
   const tokens = consulta.split(/\s+/).filter(Boolean);
-  const dispo = (e) => disponibilidad.get(e.id) || { disponibles: 0, total: 0 };
+  const dispo = (e) => disponibilidad.get(e.id) || { disponibles: 0, total: 0, prestables: 0 };
   const estaDisponible = (e) => TIPOS[e.itemTipo].soloLectura || Boolean(e.urlAcceso) || dispo(e).disponibles > 0;
 
   const base = entradas.filter((e) => tokens.every((t) => e.texto.includes(t)) && (!soloDisponibles || estaDisponible(e)));
@@ -374,7 +382,10 @@ export async function fichaDeMaterial(biblioteca, itemTipo, id) {
   const [resolver, ejemplares, portadas, disponibilidad] = await Promise.all([
     mapasDeAutoridad(biblioteca._id),
     tipo.circula
-      ? Ejemplar.find({ bibliotecaId: biblioteca._id, itemTipo, itemId: doc._id }).select("signatura estado").sort({ signatura: 1 }).lean()
+      ? Ejemplar.find({ bibliotecaId: biblioteca._id, itemTipo, itemId: doc._id, condicion: { $ne: "retirado" } })
+          .select("signatura estado uso condicion ubicacion notaPublica")
+          .sort({ signatura: 1 })
+          .lean()
       : [],
     portadasDe([doc._id]),
     disponibilidadPorItem(biblioteca._id, [doc._id]),
@@ -398,8 +409,15 @@ export async function fichaDeMaterial(biblioteca, itemTipo, id) {
     urlInstruccion: doc.urlInstruccion || "",
     soloLectura: Boolean(tipo.soloLectura),
     circula: Boolean(tipo.circula),
-    ...(disponibilidad.get(String(doc._id)) || { disponibles: 0, total: 0 }),
-    ejemplares: ejemplares.map((e) => ({ signatura: e.signatura || "", estado: e.estado })),
+    ...(disponibilidad.get(String(doc._id)) || { disponibles: 0, total: 0, prestables: 0 }),
+    // Del ejemplar, solo lo que sirve para ir a buscarlo: nunca el código de
+    // barras, la nota interna ni a quién está prestado.
+    ejemplares: ejemplares.map((e) => ({
+      signatura: e.signatura || "",
+      estado: estadoVisible(e),
+      ubicacion: e.ubicacion || "",
+      nota: e.notaPublica || "",
+    })),
     portada: portada?.version ?? null,
     portadaFuente: portada?.fuente ?? null,
   };

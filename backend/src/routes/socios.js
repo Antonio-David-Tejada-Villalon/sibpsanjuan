@@ -6,7 +6,8 @@ import Auditoria from "../models/Auditoria.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { requiereIdValido } from "../utils/objectId.js";
 import { textoDeConsulta } from "../utils/consulta.js";
-import { buscarCategoria, normalizarCodigoCategoria } from "../circulacion/categorias.js";
+import { buscarCategoria, normalizarCodigoCategoria, politicaDeSocio, contarPrestamosEnCurso } from "../circulacion/categorias.js";
+import Biblioteca from "../models/Biblioteca.js";
 import { CAMPOS_CONTACTO, CAMPOS_NO_MINIMOS, enmascarar, socioParaPanel } from "../utils/datosSocio.js";
 
 const router = Router();
@@ -91,6 +92,27 @@ router.get("/", async (req, res) => {
 
   const socios = await Socio.find(filtro).sort({ apellido: 1 });
   res.json(socios.map(socioParaPanel));
+});
+
+// La ficha de un socio: sus datos (contacto enmascarado), su categoría y
+// las reglas que le tocan, y cuántos préstamos o pedidos tiene en curso.
+// Los préstamos y las reservas se piden aparte (GET /circulacion/prestamos
+// y /circulacion/solicitudes con ?socioId=).
+router.get("/:id", requiereIdValido(), async (req, res) => {
+  const socio = await Socio.findOne({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, eliminadoEn: null });
+  if (!socio) return res.status(404).json({ error: "Socio no encontrado." });
+  const [biblioteca, categoria] = await Promise.all([
+    Biblioteca.findById(req.usuario.bibliotecaId),
+    buscarCategoria(req.usuario.bibliotecaId, socio.categoria),
+  ]);
+  const politica = await politicaDeSocio(socio, biblioteca);
+  res.set("Cache-Control", "no-store");
+  res.json({
+    ...socioParaPanel(socio),
+    biblioteca: { nombre: biblioteca.nombre, codigo: biblioteca.codigo },
+    categoriaInfo: categoria ? { codigo: categoria.codigo, nombre: categoria.nombre, datosMinimos: Boolean(categoria.datosMinimos) } : null,
+    reglas: { ...politica, enCurso: await contarPrestamosEnCurso(req.usuario.bibliotecaId, socio._id) },
+  });
 });
 
 router.post("/", requierePermiso("socios"), async (req, res) => {

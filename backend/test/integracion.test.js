@@ -2067,7 +2067,7 @@ test("configuración de circulación por biblioteca: PUT /bibliotecas/:id/circul
   assert.equal(res.status, 403);
 });
 
-test("reserva de ejemplar al solicitar: el catálogo lo muestra no disponible ya desde que queda pendiente, y se libera si se rechaza", async (t) => {
+test("reserva de ejemplar al solicitar: el catálogo lo muestra no disponible ya desde que queda pendiente; sin ejemplar libre, el pedido queda en espera y se lleva el que se libera", async (t) => {
   const server = app.listen(0);
   const puerto = server.address().port;
   const base = `http://127.0.0.1:${puerto}`;
@@ -2139,7 +2139,7 @@ test("reserva de ejemplar al solicitar: el catálogo lo muestra no disponible ya
     "mientras la solicitud está pendiente, el catálogo ya no debería ofrecerlo"
   );
 
-  // --- un segundo socio no puede pedirlo mientras el primero está pendiente ---
+  // --- un segundo socio lo pide mientras el primero está pendiente: queda en espera ---
   res = await fetch(`${base}/api/socios`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookieStaff },
@@ -2163,31 +2163,34 @@ test("reserva de ejemplar al solicitar: el catálogo lo muestra no disponible ya
     headers: { "Content-Type": "application/json", Cookie: cookieSocio2 },
     body: JSON.stringify({ tipo: "prestamo", itemTipo: "Libro", itemId: libro._id }),
   });
+  assert.equal(res.status, 201);
+  const enEspera = await res.json();
+  assert.equal(enEspera.estado, "en_espera");
+  assert.equal(enEspera.ejemplarId ?? null, null, "en espera no aparta ningún ejemplar");
+  // Pedirlo de nuevo no suma un segundo lugar en la fila.
+  res = await fetch(`${base}/api/opac/bpreserva/solicitudes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieSocio2 },
+    body: JSON.stringify({ tipo: "prestamo", itemTipo: "Libro", itemId: libro._id }),
+  });
   assert.equal(res.status, 409);
 
-  // --- el staff rechaza la primera: el ejemplar vuelve a estar disponible ---
+  // --- el staff rechaza la primera: el ejemplar pasa a la reserva en espera, no al estante ---
   res = await fetch(`${base}/api/circulacion/solicitudes/${solicitud._id}/rechazar`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookieStaff },
     body: JSON.stringify({}),
   });
   assert.equal(res.status, 200);
+  assert.equal((await res.json()).reservaSiguiente.socio.numeroSocio, "0002", "la respuesta dice para quién apartarlo");
 
   res = await fetch(`${base}/api/opac/bpreserva/libros`);
-  assert.equal(
-    (await res.json())[0].ejemplaresDisponibles,
-    1,
-    "rechazar la solicitud debe liberar el ejemplar reservado"
-  );
+  assert.equal((await res.json())[0].ejemplaresDisponibles, 0, "sigue apartado, ahora para la reserva en espera");
 
-  // --- ahora el segundo socio sí puede pedirlo, y el staff lo aprueba con ese mismo ejemplar ---
-  res = await fetch(`${base}/api/opac/bpreserva/solicitudes`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: cookieSocio2 },
-    body: JSON.stringify({ tipo: "prestamo", itemTipo: "Libro", itemId: libro._id }),
-  });
-  assert.equal(res.status, 201);
-  const solicitud2 = await res.json();
+  res = await fetch(`${base}/api/opac/bpreserva/mis-solicitudes`, { headers: { Cookie: cookieSocio2 } });
+  const solicitud2 = (await res.json()).find((s) => s._id === enEspera._id);
+  assert.equal(solicitud2.estado, "pendiente");
+  assert.equal(String(solicitud2.ejemplarId), String(solicitud.ejemplarId), "se lleva el mismo ejemplar que se liberó");
 
   res = await fetch(`${base}/api/circulacion/solicitudes/${solicitud2._id}/aprobar`, {
     method: "POST",
@@ -2202,6 +2205,12 @@ test("reserva de ejemplar al solicitar: el catálogo lo muestra no disponible ya
 
   res = await fetch(`${base}/api/opac/bpreserva/libros`);
   assert.equal((await res.json())[0].ejemplaresDisponibles, 0, "ahora sí está prestado de verdad");
+
+  // --- el socio ve en su campana que aceptaron el pedido ---
+  res = await fetch(`${base}/api/opac/bpreserva/notificaciones`, { headers: { Cookie: cookieSocio2 } });
+  const campana = await res.json();
+  assert.equal(campana.noLeidas, 1);
+  assert.match(campana.notificaciones[0].titulo, /Aceptaron tu pedido de «El Aleph»/);
 });
 
 test("admin y supervisor pueden operar el catálogo/socios/préstamos de cualquier biblioteca en su alcance vía ?bibliotecaId=", async (t) => {
@@ -3882,7 +3891,7 @@ test("OPAC: búsqueda paginada sin tildes, facetas con autoridades, ficha públi
   assert.equal(ficha.slug, "ficciones");
   assert.deepEqual(ficha.autores, ["Borges, Jorge Luis"]);
   assert.ok(ficha.detalle.some((d) => d.etiqueta === "Año" && d.valor === "1944"));
-  assert.deepEqual(ficha.ejemplares, [{ signatura: "863 0", estado: "disponible" }]);
+  assert.deepEqual(ficha.ejemplares, [{ signatura: "863 0", estado: "disponible", ubicacion: "", nota: "" }]);
   assert.equal(ficha.disponibles, 1);
   assert.ok(!texto.includes("BUS-SECRETO-1"), "el código de barras no sale en la ficha pública");
   assert.ok(!texto.includes("bibliotecaId"));
@@ -4062,4 +4071,128 @@ test("app instalable: manifest de cada catálogo con el nombre y el logo cuadrad
 
   // --- una biblioteca que no existe no tiene manifest ---
   assert.equal((await fetch(`${base}/api/v1/opac/noexiste/manifest.webmanifest`)).status, 404);
+});
+
+test("mostrador estilo Koha: ejemplares con estado, préstamo y devolución por código, reservas en espera, ficha del socio, MARC y notificaciones", async (t) => {
+  const server = app.listen(0);
+  const base = `${"http"}://127.0.0.1:${server.address().port}`;
+  t.after(() => server.close());
+
+  const b = await bibliotecaDePrueba(base, "bpkoha");
+  const json = async (r) => ({ status: r.status, cuerpo: await r.json() });
+  const libro = await (await b.enviar("POST", "/libros", { titulo: "Rayuela", autores: ["Cortázar, Julio"], isbn: "9789505811236" })).json();
+  const objeto = await (await b.enviar("POST", "/objetos", { titulo: "Brújula antigua" })).json();
+  const alumna = await b.crearSocio("8001", "ALUMNO");
+  const docente = await b.crearSocio("8002", "DOCENTE");
+
+  // --- ítems: varias copias de una vez, con la numeración siguiendo ---
+  let r = await json(await b.enviar("POST", "/v1/ejemplares", {
+    itemTipo: "Libro", itemId: libro._id, codigoBarras: "KOH-0009", signatura: "863 COR", numeroCopia: "1", ubicacion: "Literatura", cantidad: 3,
+  }));
+  assert.equal(r.status, 201);
+  assert.deepEqual(r.cuerpo.map((e) => [e.codigoBarras, e.numeroCopia]), [["KOH-0009", "1"], ["KOH-0010", "2"], ["KOH-0011", "3"]]);
+  const [copia1, copia2, copia3] = r.cuerpo;
+  r = await json(await b.enviar("POST", "/v1/ejemplares", { itemTipo: "Libro", itemId: libro._id, codigoBarras: "KOH-0010" }));
+  assert.equal(r.status, 409);
+  assert.match(r.cuerpo.error, /KOH-0010/);
+  r = await json(await b.enviar("POST", "/v1/ejemplares", { itemTipo: "Objeto", itemId: objeto._id, codigoBarras: "X1" }));
+  assert.equal(r.status, 400, "lo que no circula no tiene ejemplares");
+
+  // Una copia de referencia y otra en reparación: no cuentan como disponibles.
+  await b.enviar("PUT", `/v1/ejemplares/${copia2._id}`, { uso: "no_prestable" });
+  await b.enviar("PUT", `/v1/ejemplares/${copia3._id}`, { condicion: "reparacion", notaInterna: "Lomo despegado" });
+  r = await json(await fetch(`${base}/api/v1/opac/bpkoha/items/Libro/${libro._id}`));
+  assert.equal(r.cuerpo.disponibles, 1);
+  assert.deepEqual(r.cuerpo.ejemplares.map((e) => e.estado).sort(), ["disponible", "no_prestable", "reparacion"]);
+  assert.ok(!JSON.stringify(r.cuerpo).includes("Lomo despegado"), "la nota interna no es pública");
+
+  // --- préstamo con el lector de códigos ---
+  r = await json(await b.enviar("POST", "/v1/circulacion/prestamos", { socioId: alumna._id, codigoBarras: "KOH-0010" }));
+  assert.equal(r.status, 409);
+  assert.match(r.cuerpo.error, /no se presta/);
+  r = await json(await b.enviar("POST", "/v1/circulacion/prestamos", { socioId: alumna._id, codigoBarras: "KOH-9999" }));
+  assert.equal(r.status, 404);
+  r = await json(await b.enviar("POST", "/v1/circulacion/prestamos", { socioId: alumna._id, codigoBarras: "KOH-0009" }));
+  assert.equal(r.status, 201);
+  const prestamo = r.cuerpo;
+
+  // La ficha del socio y sus préstamos, con lo que necesita la tabla.
+  r = await json(await b.enviar("GET", `/v1/socios/${alumna._id}`));
+  assert.equal(r.cuerpo.numeroSocio, "8001");
+  assert.equal(r.cuerpo.categoriaInfo.nombre, "Alumno");
+  assert.equal(r.cuerpo.reglas.enCurso, 1);
+  r = await json(await b.enviar("GET", `/v1/circulacion/prestamos?estado=activo&socioId=${alumna._id}`));
+  assert.equal(r.cuerpo.length, 1);
+  assert.equal(r.cuerpo[0].ejemplar.codigoBarras, "KOH-0009");
+  assert.equal(r.cuerpo[0].item.titulo, "Rayuela");
+  assert.equal(typeof r.cuerpo[0].renovacionesRestantes, "number");
+
+  // --- reserva desde el mostrador: no hay copia libre, queda en espera ---
+  r = await json(await b.enviar("POST", "/v1/circulacion/reservas", { socioId: docente._id, itemTipo: "Libro", itemId: libro._id }));
+  assert.equal(r.status, 201);
+  assert.equal(r.cuerpo.estado, "en_espera");
+  r = await json(await b.enviar("GET", `/v1/circulacion/solicitudes?estado=abiertas&itemTipo=Libro&itemId=${libro._id}`));
+  assert.deepEqual(r.cuerpo.map((s) => [s.socio.numeroSocio, s.estado]), [["8002", "en_espera"]]);
+
+  // Devolución con el lector: el ejemplar pasa a la reserva en espera.
+  r = await json(await b.enviar("POST", "/v1/circulacion/devoluciones", { codigoBarras: "KOH-0009" }));
+  assert.equal(r.status, 200);
+  assert.equal(r.cuerpo.reservaSiguiente.socio.numeroSocio, "8002");
+  assert.equal(r.cuerpo.item.titulo, "Rayuela");
+  r = await json(await b.enviar("POST", "/v1/circulacion/devoluciones", { codigoBarras: "KOH-0009" }));
+  assert.equal(r.status, 409, "ya no figura prestado");
+
+  // A otro socio no se le presta lo apartado; al de la reserva, sí, y su reserva queda entregada.
+  r = await json(await b.enviar("POST", "/v1/circulacion/prestamos", { socioId: alumna._id, codigoBarras: "KOH-0009" }));
+  assert.equal(r.status, 409);
+  assert.match(r.cuerpo.error, /apartado para la reserva de otro socio/);
+  r = await json(await b.enviar("POST", "/v1/circulacion/prestamos", { socioId: docente._id, codigoBarras: "KOH-0009" }));
+  assert.equal(r.status, 201);
+  r = await json(await b.enviar("GET", `/v1/circulacion/solicitudes?socioId=${docente._id}`));
+  assert.equal(r.cuerpo[0].estado, "aprobada");
+  assert.equal(r.cuerpo[0].entregadaEnMostrador, true);
+
+  // --- un ejemplar con historial no se borra: se marca retirado ---
+  r = await json(await b.enviar("DELETE", `/v1/ejemplares/${copia1._id}`));
+  assert.equal(r.status, 409);
+  r = await json(await b.enviar("DELETE", `/v1/ejemplares/${copia3._id}`));
+  assert.equal(r.status, 200);
+
+  // --- la ficha del panel y su vista MARC (con los ítems en el 952) ---
+  r = await json(await b.enviar("GET", `/v1/catalogo/Libro/${libro._id}`));
+  assert.equal(r.cuerpo.item.titulo, "Rayuela");
+  assert.equal(r.cuerpo.ejemplares.length, 2);
+  r = await json(await b.enviar("GET", `/v1/catalogo/Libro/${libro._id}/marc`));
+  const campo = (tag) => r.cuerpo.campos.filter((c) => c.tag === tag);
+  assert.equal(campo("245")[0].nombre, "MENCIÓN DE TÍTULO");
+  assert.deepEqual(campo("245")[0].subcampos[0], { codigo: "a", valor: "Rayuela", nombre: "Título propiamente dicho" });
+  assert.equal(campo("952").length, 2);
+  assert.ok(campo("952")[0].subcampos.some((s) => s.codigo === "c" && s.valor === "Literatura"));
+  r = await json(await b.enviar("GET", `/v1/catalogo/Objeto/${objeto._id}/marc`));
+  assert.equal(r.status, 404);
+
+  // --- cuenta vencida: no se le presta ni reserva ---
+  await b.enviar("PUT", `/v1/socios/${alumna._id}`, { vigenteHasta: "2020-12-31" });
+  r = await json(await b.enviar("POST", "/v1/circulacion/reservas", { socioId: alumna._id, itemTipo: "Libro", itemId: libro._id }));
+  assert.equal(r.status, 409);
+  assert.match(r.cuerpo.error, /venció el 31\/12\/2020/);
+  r = await json(await b.enviar("PUT", `/v1/socios/${alumna._id}`, { vigenteHasta: "31-12-2030" }));
+  assert.equal(r.status, 400, "la fecha va como AAAA-MM-DD");
+
+  // --- notificaciones del staff: vencidos y avisos del sistema, y marcar vistas ---
+  await Prestamo.updateOne({ socioId: docente._id, fechaDevolucion: null }, { fechaVencimiento: new Date(Date.now() - 3 * 86400000) });
+  await Socio.updateOne({ _id: alumna._id }, { categoria: "VIEJA" });
+  r = await json(await b.enviar("GET", "/v1/notificaciones"));
+  const tipos = r.cuerpo.notificaciones.map((n) => n.tipo);
+  assert.ok(tipos.includes("vencido"));
+  assert.ok(tipos.includes("sistema"));
+  const vencida = r.cuerpo.notificaciones.find((n) => n.tipo === "vencido");
+  assert.match(vencida.titulo, /«Rayuela» de 8002 Prueba está vencido/);
+  assert.equal(vencida.enlace, `/socios/${docente._id}`);
+  const antes = r.cuerpo.noLeidas;
+  await b.enviar("POST", "/v1/notificaciones/vistas", { claves: [vencida.clave] });
+  r = await json(await b.enviar("GET", "/v1/notificaciones"));
+  assert.equal(r.cuerpo.noLeidas, antes - 1);
+  assert.equal(r.cuerpo.notificaciones.find((n) => n.clave === vencida.clave).leida, true);
+  void prestamo;
 });

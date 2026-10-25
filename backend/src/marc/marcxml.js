@@ -136,6 +136,33 @@ function construirCampo008(item, campos1834Fn) {
   return campo;
 }
 
+// 952: un ítem de Koha por ejemplar (ver models/Ejemplar.js). Las marcas
+// de estado van como 1 (sí): 7 no para préstamo, 5 uso restringido (solo
+// en sala), 4 dañado, 1 extraviado, 0 retirado. "En reparación" va como no
+// para préstamo, con la aclaración en la nota interna.
+export function subcampos952(ejemplar) {
+  const uso = ejemplar.uso || "prestamo";
+  const condicion = ejemplar.condicion || "";
+  const notaInterna = [ejemplar.notaInterna, condicion === "reparacion" ? "En reparación" : ""].filter(Boolean).join(". ");
+  return [
+    ["p", ejemplar.codigoBarras],
+    ["o", ejemplar.signatura],
+    ["t", ejemplar.numeroCopia],
+    ["c", ejemplar.ubicacion],
+    ["7", uso === "no_prestable" || condicion === "reparacion" ? "1" : ""],
+    ["5", uso === "sala" ? "1" : ""],
+    ["4", condicion === "danado" ? "1" : ""],
+    ["1", condicion === "extraviado" ? "1" : ""],
+    ["0", condicion === "retirado" ? "1" : ""],
+    ["d", ejemplar.fechaAdquisicion],
+    ["e", ejemplar.fuenteAdquisicion],
+    ["g", ejemplar.precio],
+    ["i", ejemplar.numeroInventario],
+    ["z", ejemplar.notaPublica],
+    ["x", notaInterna],
+  ];
+}
+
 function agregarDatafield(record, tag, ind1, ind2, subcampos) {
   const datafield = record.ele("datafield", { tag, ind1, ind2 });
   for (const [code, valor] of subcampos) {
@@ -245,10 +272,7 @@ function libroARecord(collection, libro) {
   // también los ítems (con código de barras y signatura) y no solo el
   // registro bibliográfico vacío.
   for (const ejemplar of libro.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -309,10 +333,7 @@ function seriadaARecord(collection, seriada) {
   }
 
   for (const ejemplar of seriada.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -422,10 +443,7 @@ function materialSonoroARecord(collection, item) {
   }
 
   for (const ejemplar of item.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -480,10 +498,7 @@ function materialAudiovisualARecord(collection, item) {
   }
 
   for (const ejemplar of item.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -538,10 +553,7 @@ function materialCartograficoARecord(collection, item) {
   }
 
   for (const ejemplar of item.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -587,10 +599,7 @@ function materialGraficoARecord(collection, item) {
   }
 
   for (const ejemplar of item.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();
@@ -625,10 +634,7 @@ function materialDidacticoARecord(collection, item) {
   }
 
   for (const ejemplar of item.ejemplares || []) {
-    agregarDatafield(record, "952", " ", " ", [
-      ["p", ejemplar.codigoBarras],
-      ["o", ejemplar.signatura],
-    ]);
+    agregarDatafield(record, "952", " ", " ", subcampos952(ejemplar));
   }
 
   record.up();

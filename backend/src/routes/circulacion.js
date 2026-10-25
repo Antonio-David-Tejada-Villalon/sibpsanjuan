@@ -7,11 +7,13 @@ import Biblioteca from "../models/Biblioteca.js";
 import { requiereLogin, requiereBiblioteca, requierePermiso } from "../middleware/auth.js";
 import { idempotente } from "../middleware/idempotencia.js";
 import { CAMPOS_SOCIO_EN_CIRCULACION } from "../utils/datosSocio.js";
-import { calcularVencimiento, puedeRenovar, estaVencido, superaMaxPrestamos } from "../circulacion/reglas.js";
+import { calcularVencimiento, puedeRenovar, estaVencido, superaMaxPrestamos, diasDeAtraso, calcularMulta } from "../circulacion/reglas.js";
 import { politicaDeSocio, contarPrestamosEnCurso, mensajeMaxPrestamos } from "../circulacion/categorias.js";
 import { esIdValido, requiereIdValido } from "../utils/objectId.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
-import { opcionDeConsulta } from "../utils/consulta.js";
+import { opcionDeConsulta, ErrorHttp } from "../utils/consulta.js";
+import { FILTRO_PRESTABLE, ETIQUETAS_ESTADO, estadoVisible } from "../circulacion/ejemplares.js";
+import { reservarParaSocio, asignarAReservaEnEspera, liberarEjemplarDe, ErrorReserva } from "../circulacion/reservas.js";
 
 const router = Router();
 
@@ -24,14 +26,16 @@ router.use(requiereLogin, requiereBiblioteca);
 // mismo ejemplar dos veces. findOneAndUpdate con el filtro
 // estado:"disponible" hace que Mongo resuelva cuál de las dos gana.
 async function elegirYReservarEjemplar(bibliotecaId, itemTipo, itemId, ejemplarId, estadoOrigen = "disponible") {
-  const filtro = { bibliotecaId, itemTipo, itemId, estado: estadoOrigen };
+  // Un ejemplar libre además tiene que ser de préstamo y estar sano (ver
+  // circulacion/ejemplares.js); uno ya reservado se eligió así al pedirlo.
+  const filtro = { bibliotecaId, itemTipo, itemId, estado: estadoOrigen, ...(estadoOrigen === "disponible" ? FILTRO_PRESTABLE : {}) };
   if (ejemplarId) {
     if (!esIdValido(ejemplarId)) {
       throw Object.assign(new Error("ejemplarId inválido."), { status: 400 });
     }
     filtro._id = ejemplarId;
   }
-  return Ejemplar.findOneAndUpdate(filtro, { estado: "prestado" }, { new: true });
+  return Ejemplar.findOneAndUpdate(filtro, { estado: "prestado", ultimaVezVisto: new Date() }, { new: true });
 }
 
 // Reglas que le tocan a un socio de esta biblioteca según su categoría (ver
@@ -44,8 +48,21 @@ async function socioYPolitica(req, socioId) {
     throw Object.assign(new Error("Socio no encontrado en esta biblioteca."), { status: 404 });
   }
   const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
-  return { socio, politica: await politicaDeSocio(socio, biblioteca) };
+  return { socio, biblioteca, politica: await politicaDeSocio(socio, biblioteca) };
 }
+
+// La credencial vence (Socio.vigenteHasta, como la fecha de vencimiento de
+// Koha): con la cuenta vencida no se presta ni se reserva hasta renovarla.
+function exigirVigente(socio) {
+  if (socio.vigenteHasta && socio.vigenteHasta < hoyIso()) {
+    throw Object.assign(new Error(`La cuenta de ${socio.nombre} ${socio.apellido} venció el ${fechaCorta(socio.vigenteHasta)}. Renovala en su ficha para prestarle.`), {
+      status: 409,
+    });
+  }
+}
+
+const hoyIso = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/San_Juan" }).format(new Date());
+const fechaCorta = (iso) => iso.split("-").reverse().join("/");
 
 // estadoOrigenEjemplar es "reservado" cuando se aprueba una Solicitud del
 // OPAC (el ejemplar ya quedó reservado a nombre de esa solicitud puntual al
@@ -64,7 +81,8 @@ async function crearPrestamo(
     throw Object.assign(new Error("itemTipo inválido."), { status: 400 });
   }
   const bibliotecaId = req.usuario.bibliotecaId;
-  const { politica } = await socioYPolitica(req, socioId);
+  const { socio, politica } = await socioYPolitica(req, socioId);
+  exigirVigente(socio);
   const conteo = { excluirSolicitudId: solicitudId };
   if (superaMaxPrestamos(politica, await contarPrestamosEnCurso(bibliotecaId, socioId, conteo))) {
     throw Object.assign(new Error(mensajeMaxPrestamos(politica)), { status: 409 });
@@ -158,22 +176,85 @@ async function adjuntarItems(docs) {
 
 // --- Solicitudes (cola de pedidos del OPAC) ---
 
+// ?estado=pendiente|en_espera|aprobada|rechazada|cancelada|abiertas (las dos
+// primeras), ?socioId= (los de un socio, para su ficha), ?itemTipo=&itemId=
+// (la cola de reservas de un material).
 router.get("/solicitudes", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId };
-  const estado = opcionDeConsulta(req.query.estado, ["pendiente", "aprobada", "rechazada"], "estado");
-  if (estado) filtro.estado = estado;
-  const solicitudes = await Solicitud.find(filtro).sort({ fechaSolicitud: 1 });
+  const estado = opcionDeConsulta(req.query.estado, ["pendiente", "en_espera", "aprobada", "rechazada", "cancelada", "abiertas"], "estado");
+  if (estado === "abiertas") filtro.estado = { $in: ["pendiente", "en_espera"] };
+  else if (estado) filtro.estado = estado;
+  if (req.query.socioId !== undefined) {
+    if (!esIdValido(req.query.socioId)) throw new ErrorHttp(400, "socioId inválido.");
+    filtro.socioId = req.query.socioId;
+  }
+  if (req.query.itemId !== undefined) {
+    if (!esIdValido(req.query.itemId) || !MODELOS_POR_TIPO[req.query.itemTipo]) throw new ErrorHttp(400, "itemTipo o itemId inválido.");
+    filtro.itemTipo = req.query.itemTipo;
+    filtro.itemId = req.query.itemId;
+  }
+  const solicitudes = await Solicitud.find(filtro).sort({ fechaSolicitud: 1, _id: 1 });
 
   const socios = await Socio.find({ _id: { $in: solicitudes.map((s) => s.socioId) } }).select(CAMPOS_SOCIO_EN_CIRCULACION);
   const socioPorId = new Map(socios.map((s) => [String(s._id), s]));
   const conItems = await adjuntarItems(solicitudes);
 
+  const ejemplares = await Ejemplar.find({ _id: { $in: solicitudes.map((s) => s.ejemplarId).filter(Boolean) } }).select("codigoBarras signatura");
+  const ejemplarPorId = new Map(ejemplares.map((e) => [String(e._id), e]));
   res.json(
     conItems.map((s) => ({
       ...s,
       socio: socioPorId.get(String(s.socioId)) || null,
+      ejemplar: s.ejemplarId ? ejemplarPorId.get(String(s.ejemplarId)) || null : null,
     }))
   );
+});
+
+// Reserva desde el mostrador (la pestaña "Reservas" de un material): aparta
+// un ejemplar libre (uno puntual si se elige) o, si están todos prestados,
+// la deja en espera. Ver circulacion/reservas.js.
+router.post("/reservas", requierePermiso("prestamos"), idempotente, async (req, res) => {
+  const { socioId, itemTipo, itemId, ejemplarId } = req.body || {};
+  if (!esIdValido(socioId) || !esIdValido(itemId) || (ejemplarId && !esIdValido(ejemplarId))) {
+    return res.status(400).json({ error: "socioId, itemId o ejemplarId inválido." });
+  }
+  try {
+    const { socio, politica } = await socioYPolitica(req, socioId);
+    exigirVigente(socio);
+    const reserva = await reservarParaSocio({
+      bibliotecaId: req.usuario.bibliotecaId,
+      socioId,
+      politica,
+      itemTipo,
+      itemId,
+      ejemplarId: ejemplarId || null,
+      origen: "staff",
+      permitirEspera: true,
+    });
+    res.status(201).json(reserva);
+  } catch (err) {
+    if (err instanceof ErrorReserva || err.status) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+// Anular un pedido o una reserva abierta (también la de un socio que avisó
+// que ya no lo necesita). Si tenía un ejemplar apartado, se libera y pasa a
+// la siguiente reserva en espera, si hay.
+router.post("/solicitudes/:id/cancelar", requierePermiso("prestamos"), requiereIdValido(), idempotente, async (req, res) => {
+  const solicitud = await Solicitud.findOneAndUpdate(
+    {
+      _id: req.params.id,
+      bibliotecaId: req.usuario.bibliotecaId,
+      estado: { $in: ["pendiente", "en_espera"] },
+      ...noBloqueada(new Date()),
+    },
+    { estado: "cancelada", fechaResolucion: new Date(), resueltoPor: req.usuario.id, notaStaff: req.body?.notaStaff },
+    { new: true }
+  );
+  if (!solicitud) return respuestaSolicitudNoDisponible(req, res);
+  const siguiente = await liberarEjemplarDe(solicitud);
+  res.json({ ...solicitud.toObject(), reservaSiguiente: await resumenReserva(siguiente) });
 });
 
 // Cuánto dura el "candado" de una solicitud mientras se aprueba (ver
@@ -256,29 +337,93 @@ router.post("/solicitudes/:id/rechazar", requierePermiso("prestamos"), requiereI
     { new: true }
   );
   if (!solicitud) return respuestaSolicitudNoDisponible(req, res);
-  // El ejemplar que quedó reservado al pedirla (ver POST /solicitudes en
-  // opac.js) vuelve a estar disponible — rechazar no debería dejarlo
-  // trabado en "reservado" para siempre.
-  if (solicitud.tipo === "prestamo" && solicitud.ejemplarId) {
-    await Ejemplar.findByIdAndUpdate(solicitud.ejemplarId, { estado: "disponible" });
-  }
-  res.json(solicitud);
+  // El ejemplar que quedó reservado al pedirla vuelve a estar libre (o pasa
+  // a la siguiente reserva en espera): rechazar no puede dejarlo trabado.
+  const siguiente = await liberarEjemplarDe(solicitud);
+  res.json({ ...solicitud.toObject(), reservaSiguiente: await resumenReserva(siguiente) });
 });
 
 // --- Préstamos (vista de circulación del staff) ---
 
+// Con { socioId, codigoBarras } (el lector de códigos del mostrador) o con
+// { socioId, itemTipo, itemId[, ejemplarId] }. Un ejemplar apartado para
+// una reserva de ESTE socio se le entrega (la reserva queda aprobada); uno
+// apartado para otro, no.
 router.post("/prestamos", requierePermiso("prestamos"), idempotente, async (req, res) => {
-  const { socioId, itemTipo, itemId, ejemplarId } = req.body || {};
-  if (!socioId || !itemTipo || !itemId) {
-    return res.status(400).json({ error: "socioId, itemTipo e itemId son obligatorios." });
-  }
+  let { socioId, itemTipo, itemId, ejemplarId } = req.body || {};
+  const codigoBarras = typeof req.body?.codigoBarras === "string" ? req.body.codigoBarras.trim() : "";
   try {
+    if (codigoBarras) {
+      if (!esIdValido(socioId)) throw Object.assign(new Error("socioId inválido."), { status: 400 });
+      const ejemplar = await Ejemplar.findOne({ bibliotecaId: req.usuario.bibliotecaId, codigoBarras });
+      if (!ejemplar) throw Object.assign(new Error(`No hay ningún ejemplar con el código ${codigoBarras}.`), { status: 404 });
+      ({ itemTipo, itemId } = ejemplar);
+      ejemplarId = String(ejemplar._id);
+      if (ejemplar.estado === "reservado") {
+        const reserva = await Solicitud.findOne({ ejemplarId: ejemplar._id, tipo: "prestamo", estado: "pendiente" });
+        if (reserva && String(reserva.socioId) === String(socioId)) {
+          return res.status(201).json(await entregarReserva(req, reserva));
+        }
+        throw Object.assign(new Error("Ese ejemplar está apartado para la reserva de otro socio."), { status: 409 });
+      }
+      if (ejemplar.estado === "prestado") {
+        throw Object.assign(new Error("Ese ejemplar figura prestado. Registrá primero la devolución."), { status: 409 });
+      }
+      const visible = estadoVisible(ejemplar);
+      if (visible !== "disponible") {
+        throw Object.assign(new Error(`Ese ejemplar no se presta: ${ETIQUETAS_ESTADO[visible].toLowerCase()}.`), { status: 409 });
+      }
+    } else if (!socioId || !itemTipo || !itemId) {
+      return res.status(400).json({ error: "socioId y codigoBarras (o itemTipo e itemId) son obligatorios." });
+    }
     const prestamo = await crearPrestamo(req, { socioId, itemTipo, itemId, ejemplarId, registradoPor: req.usuario.id });
     res.status(201).json(prestamo);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message });
   }
 });
+
+// Aprobar una solicitud de préstamo = prestar el ejemplar que tenía apartado.
+async function entregarReserva(req, solicitud) {
+  const ahora = new Date();
+  const tomada = await Solicitud.findOneAndUpdate(
+    { _id: solicitud._id, estado: "pendiente", ...noBloqueada(ahora) },
+    { bloqueadaHasta: new Date(ahora.getTime() + BLOQUEO_SOLICITUD_MS) },
+    { new: true }
+  );
+  if (!tomada) throw Object.assign(new Error("Otra persona está resolviendo esa reserva en este momento."), { status: 409 });
+  try {
+    const prestamo = await crearPrestamo(req, {
+      socioId: tomada.socioId,
+      itemTipo: tomada.itemTipo,
+      itemId: tomada.itemId,
+      ejemplarId: tomada.ejemplarId,
+      registradoPor: req.usuario.id,
+      estadoOrigenEjemplar: "reservado",
+      solicitudId: tomada._id,
+    });
+    await Solicitud.updateOne(
+      { _id: tomada._id },
+      { estado: "aprobada", fechaResolucion: new Date(), resueltoPor: req.usuario.id, bloqueadaHasta: null, entregadaEnMostrador: true }
+    );
+    return prestamo;
+  } catch (err) {
+    await Solicitud.updateOne({ _id: tomada._id }, { bloqueadaHasta: null });
+    throw err;
+  }
+}
+
+// Lo justo para avisarle al staff a quién apartarle un ejemplar.
+async function resumenReserva(reserva) {
+  if (!reserva) return null;
+  const socio = await Socio.findById(reserva.socioId).select("numeroSocio nombre apellido");
+  const ejemplar = await Ejemplar.findById(reserva.ejemplarId).select("codigoBarras");
+  return {
+    _id: reserva._id,
+    socio: socio && { _id: socio._id, numeroSocio: socio.numeroSocio, nombre: socio.nombre, apellido: socio.apellido },
+    codigoBarras: ejemplar?.codigoBarras ?? null,
+  };
+}
 
 // Renovación directa desde el lado del staff (a diferencia de
 // POST /solicitudes/:id/aprobar con tipo "renovacion", acá no hace falta
@@ -298,38 +443,89 @@ router.post("/prestamos/:id/renovar", requierePermiso("prestamos"), requiereIdVa
   }
 });
 
-router.post("/prestamos/:id/devolucion", requierePermiso("devoluciones"), requiereIdValido(), idempotente, async (req, res) => {
-  // Atómico: leer "no devuelto" y marcarlo devuelto en dos pasos dejaba que
-  // dos devoluciones simultáneas del mismo préstamo pasaran las dos.
+// Atómico: leer "no devuelto" y marcarlo devuelto en dos pasos dejaba que
+// dos devoluciones simultáneas del mismo préstamo pasaran las dos. Si
+// alguien estaba esperando ese material, el ejemplar queda apartado para
+// esa reserva y la respuesta lo dice (reservaSiguiente), para que el staff
+// lo separe en vez de devolverlo al estante.
+async function devolver(req, filtro) {
   const prestamo = await Prestamo.findOneAndUpdate(
-    { _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId, fechaDevolucion: null },
+    { ...filtro, bibliotecaId: req.usuario.bibliotecaId, fechaDevolucion: null },
     { fechaDevolucion: new Date(), devueltoPor: req.usuario.id },
     { new: true }
   );
-  if (!prestamo) {
+  if (!prestamo) return null;
+  await Ejemplar.updateOne({ _id: prestamo.ejemplarId, estado: "prestado" }, { estado: "disponible", ultimaVezVisto: new Date() });
+  const siguiente = await asignarAReservaEnEspera(prestamo.ejemplarId);
+  return { ...prestamo.toObject(), reservaSiguiente: await resumenReserva(siguiente) };
+}
+
+router.post("/prestamos/:id/devolucion", requierePermiso("devoluciones"), requiereIdValido(), idempotente, async (req, res) => {
+  const devuelto = await devolver(req, { _id: req.params.id });
+  if (!devuelto) {
     const existe = await Prestamo.exists({ _id: req.params.id, bibliotecaId: req.usuario.bibliotecaId });
     return existe
       ? res.status(409).json({ error: "Ese préstamo ya fue devuelto." })
       : res.status(404).json({ error: "No encontrado." });
   }
-  await Ejemplar.findByIdAndUpdate(prestamo.ejemplarId, { estado: "disponible" });
-  res.json(prestamo);
+  res.json(devuelto);
 });
 
+// Devolución con el lector de códigos: { codigoBarras }.
+router.post("/devoluciones", requierePermiso("devoluciones"), idempotente, async (req, res) => {
+  const codigoBarras = typeof req.body?.codigoBarras === "string" ? req.body.codigoBarras.trim() : "";
+  if (!codigoBarras) return res.status(400).json({ error: "Falta el código de barras." });
+  const ejemplar = await Ejemplar.findOne({ bibliotecaId: req.usuario.bibliotecaId, codigoBarras });
+  if (!ejemplar) return res.status(404).json({ error: `No hay ningún ejemplar con el código ${codigoBarras}.` });
+  const devuelto = await devolver(req, { ejemplarId: ejemplar._id });
+  if (!devuelto) return res.status(409).json({ error: "Ese ejemplar no figura prestado." });
+  const [socio] = await Socio.find({ _id: devuelto.socioId }).select(CAMPOS_SOCIO_EN_CIRCULACION);
+  const [conItem] = await adjuntarItems([await Prestamo.findById(devuelto._id)]);
+  res.json({ ...devuelto, item: conItem.item, socio: socio || null, codigoBarras });
+});
+
+// ?estado=activo|vencido|devuelto, ?socioId= (los de un socio), ?itemTipo=
+// &itemId= (el historial de un material). Cada préstamo lleva su ejemplar,
+// los días de atraso, la multa y cuántas renovaciones le quedan según la
+// categoría del socio.
 router.get("/prestamos", async (req, res) => {
   const filtro = { bibliotecaId: req.usuario.bibliotecaId };
-  if (req.query.estado === "activo") filtro.fechaDevolucion = null;
-  const prestamos = await Prestamo.find(filtro).sort({ fechaVencimiento: 1 });
+  if (req.query.estado === "activo" || req.query.estado === "vencido") filtro.fechaDevolucion = null;
+  if (req.query.estado === "devuelto") filtro.fechaDevolucion = { $ne: null };
+  if (req.query.socioId !== undefined) {
+    if (!esIdValido(req.query.socioId)) throw new ErrorHttp(400, "socioId inválido.");
+    filtro.socioId = req.query.socioId;
+  }
+  if (req.query.itemId !== undefined) {
+    if (!esIdValido(req.query.itemId) || !MODELOS_POR_TIPO[req.query.itemTipo]) throw new ErrorHttp(400, "itemTipo o itemId inválido.");
+    filtro.itemTipo = req.query.itemTipo;
+    filtro.itemId = req.query.itemId;
+  }
+  const orden = req.query.estado === "devuelto" ? { fechaDevolucion: -1 } : { fechaVencimiento: 1 };
+  const prestamos = await Prestamo.find(filtro).sort(orden).limit(req.query.estado === "devuelto" ? 500 : 0);
 
   const socios = await Socio.find({ _id: { $in: prestamos.map((p) => p.socioId) } }).select(CAMPOS_SOCIO_EN_CIRCULACION);
   const socioPorId = new Map(socios.map((s) => [String(s._id), s]));
   const conItems = await adjuntarItems(prestamos);
 
-  let resultado = conItems.map((p) => ({
-    ...p,
-    socio: socioPorId.get(String(p.socioId)) || null,
-    vencido: estaVencido(p),
-  }));
+  const ejemplares = await Ejemplar.find({ _id: { $in: prestamos.map((p) => p.ejemplarId) } }).select("codigoBarras signatura numeroCopia");
+  const ejemplarPorId = new Map(ejemplares.map((e) => [String(e._id), e]));
+  const biblioteca = await Biblioteca.findById(req.usuario.bibliotecaId);
+  const politicas = new Map();
+  for (const socio of socios) politicas.set(String(socio._id), await politicaDeSocio(socio, biblioteca));
+  let resultado = conItems.map((p) => {
+    const politica = politicas.get(String(p.socioId)) || biblioteca;
+    const activo = !p.fechaDevolucion;
+    return {
+      ...p,
+      socio: socioPorId.get(String(p.socioId)) || null,
+      ejemplar: ejemplarPorId.get(String(p.ejemplarId)) || null,
+      vencido: activo && estaVencido(p),
+      diasAtraso: activo ? diasDeAtraso(p, new Date(), politica) : 0,
+      multa: activo ? calcularMulta(p, politica) : 0,
+      renovacionesRestantes: Math.max(0, (politica.maxRenovaciones ?? 0) - p.renovaciones),
+    };
+  });
   if (req.query.estado === "vencido") {
     resultado = resultado.filter((p) => p.vencido);
   }

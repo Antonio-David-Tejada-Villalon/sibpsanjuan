@@ -35,6 +35,9 @@ import opacRoutes from "./routes/opac.js";
 import circulacionRoutes from "./routes/circulacion.js";
 import portadasRoutes from "./routes/portadas.js";
 import contenidoRoutes from "./routes/contenido.js";
+import ejemplaresRoutes from "./routes/ejemplares.js";
+import catalogoRoutes from "./routes/catalogo.js";
+import notificacionesRoutes from "./routes/notificaciones.js";
 import { rutasSeo } from "./seo/rutas.js";
 import { ipDelVisitante } from "./middleware/proxy.js";
 
@@ -134,6 +137,9 @@ export function crearApp({ distDir = path.join(__dirname, "..", "..", "frontend"
     ["/circulacion", circulacionRoutes],
     ["/portadas", portadasRoutes],
     ["/contenido", contenidoRoutes],
+    ["/ejemplares", ejemplaresRoutes],
+    ["/catalogo", catalogoRoutes],
+    ["/notificaciones", notificacionesRoutes],
   ];
   // La API no es una página: que ningún buscador la muestre como resultado
   // (sí la puede pedir, para ver el catálogo como lo ve una persona).

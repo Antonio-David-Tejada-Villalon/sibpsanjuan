@@ -17,6 +17,10 @@ const socioSchema = new Schema({
   fechaNacimiento: { type: String, trim: true },
   telefono: { type: String, trim: true },
   email: { type: String, trim: true },
+  // Hasta cuándo vale la cuenta (AAAA-MM-DD), como la fecha de vencimiento
+  // de Koha: por ejemplo, el fin del ciclo lectivo. Vencida, no se le presta
+  // ni se le reserva hasta renovarla. Vacía: no vence.
+  vigenteHasta: { type: String, trim: true, match: [/^(\d{4}-\d{2}-\d{2})?$/, "La fecha de vencimiento tiene que ser AAAA-MM-DD."] },
   // Nulo hasta que el staff le da de alta un login de OPAC.
   passwordHash: { type: String, default: null },
   creado: { type: Date, default: Date.now },

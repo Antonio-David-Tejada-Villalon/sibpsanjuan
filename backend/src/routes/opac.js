@@ -38,6 +38,8 @@ import { esIdValido } from "../utils/objectId.js";
 import { crearLimitadorLogin } from "../middleware/rateLimit.js";
 import { idempotente } from "../middleware/idempotencia.js";
 import { MODELOS_POR_TIPO } from "../circulacion/tiposCirculantes.js";
+import { reservarParaSocio, liberarEjemplarDe, ErrorReserva } from "../circulacion/reservas.js";
+import { notificacionesDelSocio, conLeidas, marcarVistas } from "../notificaciones/armar.js";
 
 // Montado en /api/opac/:codigo — el código de biblioteca reemplaza al
 // subdominio que tendría una instancia Koha real (acá todas las
@@ -579,6 +581,21 @@ router.get("/mis-prestamos", async (req, res) => {
 
 // Cada pedido con el título del material (y su ficha), para que el socio
 // vea qué pidió y en qué quedó sin tener que adivinarlo por un id.
+// La campana del socio: lo que vence pronto o está vencido, pedidos
+// aceptados (pasar a buscarlos), reservas que ya llegaron y lo rechazado.
+router.get("/notificaciones", async (req, res) => {
+  const socio = await Socio.findOne({ _id: req.usuario.id, bibliotecaId: req.biblioteca._id, eliminadoEn: null }).select("_id");
+  if (!socio) return res.status(401).json({ error: "La sesión ya no es válida." });
+  res.set("Cache-Control", "no-store");
+  res.json(await conLeidas(`socio:${socio._id}`, await notificacionesDelSocio(socio)));
+});
+
+router.post("/notificaciones/vistas", async (req, res) => {
+  const claves = Array.isArray(req.body?.claves) ? req.body.claves : [];
+  await marcarVistas(`socio:${req.usuario.id}`, claves);
+  res.json({ ok: true });
+});
+
 router.get("/mis-solicitudes", async (req, res) => {
   const solicitudes = await Solicitud.find({
     bibliotecaId: req.biblioteca._id,
@@ -600,7 +617,6 @@ router.get("/mis-solicitudes", async (req, res) => {
 
 router.post("/solicitudes", idempotente, async (req, res) => {
   const { tipo, itemTipo, itemId, prestamoId } = req.body || {};
-  let itemReservado = null;
   if (tipo !== "prestamo" && tipo !== "renovacion") {
     return res.status(400).json({ error: "tipo debe ser 'prestamo' o 'renovacion'." });
   }
@@ -610,100 +626,102 @@ router.post("/solicitudes", idempotente, async (req, res) => {
   if (tipo === "prestamo") {
     if (!itemTipo || !itemId) return res.status(400).json({ error: "Faltan itemTipo/itemId." });
     if (!esIdValido(itemId)) return res.status(400).json({ error: "itemId inválido." });
-    const Modelo = MODELOS_POR_TIPO[itemTipo];
-    if (!Modelo) return res.status(400).json({ error: "itemTipo inválido." });
-    const item = await Modelo.findOne({ _id: itemId, bibliotecaId: req.biblioteca._id, eliminadoEn: null });
-    if (!item) return res.status(404).json({ error: "Ítem no encontrado." });
-    if (superaMaxPrestamos(politica, await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id))) {
-      return res.status(409).json({ error: mensajeMaximoAlcanzado(politica) });
+    if (!MODELOS_POR_TIPO[itemTipo]) return res.status(400).json({ error: "itemTipo inválido." });
+    const { vigenteHasta } = await Socio.findById(req.usuario.id).select("vigenteHasta");
+    if (vigenteHasta && vigenteHasta < new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/San_Juan" }).format(new Date())) {
+      return res.status(403).json({ error: `Tu cuenta venció el ${vigenteHasta.split("-").reverse().join("/")}. Renovala en la biblioteca para pedir.` });
     }
-  } else {
-    if (!prestamoId) return res.status(400).json({ error: "Falta prestamoId." });
-    if (!esIdValido(prestamoId)) return res.status(400).json({ error: "prestamoId inválido." });
-    const prestamo = await Prestamo.findOne({
-      _id: prestamoId,
-      bibliotecaId: req.biblioteca._id,
-      socioId: req.usuario.id,
-    });
-    if (!prestamo) return res.status(404).json({ error: "Préstamo no encontrado." });
-    if (prestamo.fechaDevolucion) {
-      return res.status(409).json({ error: "Ese préstamo ya fue devuelto." });
+    // Con un ejemplar libre queda apartado y pendiente; si están todos
+    // prestados, queda en espera y se le avisa cuando vuelva uno (ver
+    // circulacion/reservas.js).
+    let solicitud;
+    try {
+      solicitud = await reservarParaSocio({
+        bibliotecaId: req.biblioteca._id,
+        socioId: req.usuario.id,
+        politica,
+        itemTipo,
+        itemId,
+        origen: "opac",
+        permitirEspera: true,
+        mensajeMaximo: mensajeMaximoAlcanzado,
+      });
+    } catch (err) {
+      if (err instanceof ErrorReserva) {
+        const enVos = { duplicado: "Ya tenés una solicitud pendiente igual a esta.", ya_prestado: "Ya tenés prestado un ejemplar de este material.", no_encontrado: "Ítem no encontrado." };
+        return res.status(err.status).json({ error: enVos[err.codigo] || err.message });
+      }
+      throw err;
     }
-    if (!puedeRenovar(prestamo, politica)) {
-      return res.status(409).json({ error: "Este préstamo ya alcanzó el máximo de renovaciones." });
+    // Segundo chequeo del máximo, ya con el pedido creado — mismo criterio
+    // que crearPrestamo en circulacion.js: si dos pedidos del mismo socio
+    // pasaron juntos el primero, se deshace solo el último.
+    if (solicitud.estado === "pendiente" && politica.maxPrestamos != null) {
+      const enCurso = await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id, { hastaId: solicitud._id });
+      if (enCurso > politica.maxPrestamos) {
+        await Solicitud.deleteOne({ _id: solicitud._id });
+        await liberarEjemplarDe(solicitud);
+        return res.status(409).json({ error: mensajeMaximoAlcanzado(politica) });
+      }
     }
+    return res.status(201).json(solicitud);
   }
 
-  const yaExiste = await Solicitud.findOne({
+  if (!prestamoId) return res.status(400).json({ error: "Falta prestamoId." });
+  if (!esIdValido(prestamoId)) return res.status(400).json({ error: "prestamoId inválido." });
+  const prestamo = await Prestamo.findOne({
+    _id: prestamoId,
     bibliotecaId: req.biblioteca._id,
     socioId: req.usuario.id,
-    tipo,
-    estado: "pendiente",
-    ...(tipo === "prestamo" ? { itemTipo, itemId } : { prestamoId }),
   });
-  if (yaExiste) {
-    return res.status(409).json({ error: "Ya tenés una solicitud pendiente igual a esta." });
+  if (!prestamo) return res.status(404).json({ error: "Préstamo no encontrado." });
+  if (prestamo.fechaDevolucion) {
+    return res.status(409).json({ error: "Ese préstamo ya fue devuelto." });
   }
-
-  if (tipo === "prestamo") {
-    // Reserva atómica: si dos socios piden el último ejemplar disponible al
-    // mismo tiempo, findOneAndUpdate con filtro estado:"disponible" hace que
-    // Mongo resuelva cuál de los dos gana (mismo patrón que
-    // elegirYReservarEjemplar en circulacion.js) — el otro recibe 409 en vez
-    // de que las dos solicitudes queden pendientes por el mismo ejemplar.
-    itemReservado = await Ejemplar.findOneAndUpdate(
-      { bibliotecaId: req.biblioteca._id, itemTipo, itemId, estado: "disponible" },
-      { estado: "reservado" },
-      { new: true }
-    );
-    if (!itemReservado) {
-      return res.status(409).json({ error: "No hay ejemplares disponibles ahora mismo." });
-    }
+  if (!puedeRenovar(prestamo, politica)) {
+    return res.status(409).json({ error: "Este préstamo ya alcanzó el máximo de renovaciones." });
   }
-
-  let solicitud;
   try {
-    solicitud = await Solicitud.create({
+    const solicitud = await Solicitud.create({
       bibliotecaId: req.biblioteca._id,
       socioId: req.usuario.id,
       tipo,
-      itemTipo: tipo === "prestamo" ? itemTipo : undefined,
-      itemId: tipo === "prestamo" ? itemId : undefined,
-      ejemplarId: itemReservado ? itemReservado._id : undefined,
-      prestamoId: tipo === "renovacion" ? prestamoId : undefined,
+      prestamoId,
+      origen: "opac",
     });
+    res.status(201).json(solicitud);
   } catch (err) {
-    // El ejemplar ya quedó reservado arriba — si crear la solicitud falla,
-    // hay que liberarlo a mano (no hay transacciones en este setup) para no
-    // dejarlo trabado en "reservado" sin ninguna solicitud asociada.
-    if (itemReservado) {
-      await Ejemplar.findByIdAndUpdate(itemReservado._id, { estado: "disponible" });
-    }
     // Dos pedidos iguales al mismo tiempo (doble toque): el índice único de
     // Solicitud deja pasar solo el primero.
     if (err.code === 11000) {
       return res.status(409).json({ error: "Ya tenés una solicitud pendiente igual a esta." });
     }
-    // Acá ya se validó todo lo que un socio puede escribir mal (tipo,
-    // itemTipo/itemId, prestamoId) — si igual falla, es un error interno,
-    // no algo que el socio pueda corregir. No hace falta mostrarle el
-    // mensaje crudo de Mongoose, en inglés técnico (ver GOB-5 en
-    // AUDITORIA.md) — se loguea server-side para que el staff/dev lo vea.
+    // Acá ya se validó todo lo que un socio puede escribir mal — si igual
+    // falla, es un error interno: se loguea para el staff y el socio recibe
+    // un mensaje en castellano, no el de Mongoose (ver GOB-5 en AUDITORIA.md).
     console.error("Error al crear una solicitud de OPAC:", err);
     return res.status(400).json({ error: "No se pudo registrar el pedido. Probá de nuevo en un momento." });
   }
-  // Segundo chequeo del máximo, ya con el pedido creado — mismo criterio
-  // que crearPrestamo en circulacion.js: si dos pedidos del mismo socio
-  // pasaron juntos el chequeo de arriba, se deshace solo el último.
-  if (tipo === "prestamo" && politica.maxPrestamos != null) {
-    const enCurso = await contarPrestamosEnCurso(req.biblioteca._id, req.usuario.id, { hastaId: solicitud._id });
-    if (enCurso > politica.maxPrestamos) {
-      await Solicitud.deleteOne({ _id: solicitud._id });
-      await Ejemplar.findByIdAndUpdate(itemReservado._id, { estado: "disponible" });
-      return res.status(409).json({ error: mensajeMaximoAlcanzado(politica) });
-    }
-  }
-  res.status(201).json(solicitud);
+});
+
+// El socio cancela un pedido o una reserva suya que todavía no se resolvió.
+// Si tenía un ejemplar apartado, se libera (y pasa al siguiente en espera).
+router.post("/solicitudes/:id/cancelar", idempotente, async (req, res) => {
+  if (!esIdValido(req.params.id)) return res.status(404).json({ error: "Pedido no encontrado." });
+  const solicitud = await Solicitud.findOneAndUpdate(
+    {
+      _id: req.params.id,
+      bibliotecaId: req.biblioteca._id,
+      socioId: req.usuario.id,
+      estado: { $in: ["pendiente", "en_espera"] },
+      $or: [{ bloqueadaHasta: null }, { bloqueadaHasta: { $lt: new Date() } }],
+    },
+    { estado: "cancelada", fechaResolucion: new Date() },
+    { new: true }
+  );
+  if (!solicitud) return res.status(404).json({ error: "Ese pedido ya no se puede cancelar." });
+  await liberarEjemplarDe(solicitud);
+  res.json(solicitud);
 });
 
 export default router;
